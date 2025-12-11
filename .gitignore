@@ -1,10 +1,8 @@
 .idea
 .idea/*
-/docs/.doctrees/
-/docs/_sources/
+/docs/
 **/.DS_Store
 __pycache__/
 **/__pycache__
 **/__pycache__/*
 **/*.pyc
-**/_sources/
