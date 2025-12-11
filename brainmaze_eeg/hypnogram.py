@@ -24,10 +24,44 @@ Tools for analyzing hypnograms such as number of cycles, hypnogram time etc.
 
 
 def get_hypnogram_datarate(df):
+    """
+    Calculate the data rate of a hypnogram.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'duration', 'start', and 'end' columns.
+    
+    Returns
+    -------
+    float
+        Data rate as the ratio of total duration to time span.
+    """
     return ((df['duration'].sum()) / (df.iloc[-1]['end'] - df.iloc[0]['start']).seconds)
 
 
 def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N1', 'N2', 'N3']):
+    """
+    Determine when the subject fell asleep based on hypnogram data.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    t_sleep_check : int, optional
+        Time window in minutes to check for sustained sleep. Default is 60.
+    t_awake_threshold : int, optional
+        Maximum awake time in minutes allowed within t_sleep_check window. Default is 10.
+    awake_tag : str, optional
+        Tag for awake state. Default is 'AWAKE'.
+    sleep_cycle_tags : list, optional
+        List of tags indicating sleep states. Default is ['REM', 'N1', 'N2', 'N3'].
+    
+    Returns
+    -------
+    datetime
+        Timestamp when the subject fell asleep.
+    """
     df = filter_by_key(df, 'annotation', 'Arrousal')
     # parameters
     t_sleep = datetime.timedelta(minutes=t_sleep_check) # interval since 1st asleep checked
@@ -52,6 +86,27 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
 
 
 def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N2', 'N3']):
+    """
+    Determine when the subject woke up based on hypnogram data.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    t_awake_threshold : int, optional
+        Minimum sustained awake time in minutes to be considered awakened. Default is 90.
+    t_sleep_threshold : int, optional
+        Maximum sleep time in minutes allowed in the awakening window. Default is 10.
+    awake_tag : str, optional
+        Tag for awake state. Default is 'AWAKE'.
+    sleep_cycle_tags : list, optional
+        List of tags indicating sleep states. Default is ['REM', 'N2', 'N3'].
+    
+    Returns
+    -------
+    datetime
+        Timestamp when the subject woke up.
+    """
     df = filter_by_key(df, 'annotation', 'Arrousal')
     t_awake = datetime.timedelta(minutes=t_awake_threshold)
     t_sleep = datetime.timedelta(minutes=t_sleep_threshold)
@@ -79,10 +134,42 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
 
 
 def is_sleep_complete(df, awake_tag='AWAKE'):
+    """
+    Check if the sleep session is complete (starts and ends with awake state).
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation' column.
+    awake_tag : str, optional
+        Tag for awake state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    bool
+        True if sleep session starts and ends with awake state, False otherwise.
+    """
     return df.iloc[0].annotation == awake_tag == df.iloc[-1].annotation
 
 
 def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
+    """
+    Calculate REM sleep latency (time from falling asleep or last awake to first REM).
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', and 'end' columns.
+    rem_tag : str, optional
+        Tag for REM sleep state. Default is 'REM'.
+    awake_tag : str, optional
+        Tag for awake state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    dict
+        Dictionary with 'last_awake' and 'fall_asleep' latencies as timedelta objects.
+    """
     first_rem_start = df.loc[df.annotation == rem_tag].reset_index(drop=True).iloc[0].start
     fall_asleep_start = get_fell_asleep_time(df)
     df_rem = df.loc[(df.end <= first_rem_start) & (df.annotation == awake_tag)].reset_index(drop=True)
@@ -95,6 +182,23 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
 
 
 def get_number_of_sleep_stages(df, tags ='REM', delay=30):
+    """
+    Count the number of sleep stage occurrences with minimum separation delay.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', and 'end' columns.
+    tags : str or list, optional
+        Sleep stage tag(s) to count. Default is 'REM'.
+    delay : int, optional
+        Minimum time in minutes between stage occurrences. Default is 30.
+    
+    Returns
+    -------
+    int
+        Number of sleep stage occurrences.
+    """
     if isinstance(tags, str):
         tags = [tags]
 
@@ -119,6 +223,25 @@ def get_number_of_sleep_stages(df, tags ='REM', delay=30):
 
 
 def get_number_of_awakenings(df, awake_tag='AWAKE', n1_tag='N1', sleep_tags=['N2', 'N3', 'REM']):
+    """
+    Count the number of awakenings after sleep onset.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation' column.
+    awake_tag : str, optional
+        Tag for awake state. Default is 'AWAKE'.
+    n1_tag : str, optional
+        Tag for N1 sleep stage. Default is 'N1'.
+    sleep_tags : list, optional
+        List of tags for sleep states. Default is ['N2', 'N3', 'REM'].
+    
+    Returns
+    -------
+    int
+        Number of awakenings.
+    """
     awake_bool = df.annotation == awake_tag
     n1_bool = df.annotation == n1_tag
     sleep_bool = np.zeros_like(n1_bool, dtype=bool)
@@ -148,6 +271,21 @@ def get_number_of_awakenings(df, awake_tag='AWAKE', n1_tag='N1', sleep_tags=['N2
 
 
 def get_time_by_key(df, key):
+    """
+    Calculate total time for a specific sleep stage or combination of stages.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation' and 'duration' columns.
+    key : str or list
+        Sleep stage tag(s) to sum durations for.
+    
+    Returns
+    -------
+    float
+        Total duration in seconds.
+    """
     if isinstance(key, list):
         value = 0
         for single_key in key:
@@ -158,16 +296,72 @@ def get_time_by_key(df, key):
 
 
 def get_stage_times(df, keys):
+    """
+    Get total times for multiple sleep stages.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation' and 'duration' columns.
+    keys : list
+        List of sleep stage tags.
+    
+    Returns
+    -------
+    list
+        List of total durations for each stage in seconds.
+    """
     return [get_time_by_key(df, key) for key in keys]
 
 
 def get_stage_times_dataset(hypnograms:list, keys, verbose=True):
+    """
+    Get stage times for a dataset of hypnograms.
+    
+    Parameters
+    ----------
+    hypnograms : list
+        List of hypnogram dataframes.
+    keys : list
+        List of sleep stage tags.
+    verbose : bool, optional
+        If True, show progress bar. Default is True.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with stage times for each hypnogram.
+    """
     if verbose:
         return pd.DataFrame([dict([(state, get_time_by_key(hyp, state)) for state in keys]) for hyp in tqdm(hypnograms)])
     return pd.DataFrame([dict([(state, get_time_by_key(hyp, state)) for state in keys]) for hyp in hypnograms])
 
 
 def score_night(df, plot=False):
+    """
+    Compute comprehensive sleep metrics for a night's hypnogram.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    plot : bool, optional
+        If True, plot the hypnogram with sleep onset and awakening markers. Default is False.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing sleep metrics including:
+        - sleep_complete: whether sleep session is complete
+        - fell_asleep_time: time of sleep onset
+        - rem_latency_fell_asleep: REM latency from sleep onset (seconds)
+        - rem_latency_last_awake: REM latency from last awake (seconds)
+        - awakening_time: time of final awakening
+        - n_complete_sleep_cycles: number of complete sleep cycles
+        - n_awakenings: number of awakenings
+        - n1_sleep_time, n2_sleep_time, n3_sleep_time, rem_sleep_time, awake_sleep_time: 
+          durations in seconds for each stage
+    """
     df = filter_by_key(df, 'annotation', 'Arrousal')
     df = merge_annotations(df)
 
@@ -210,6 +404,14 @@ def score_night(df, plot=False):
 
 
 def print_sleep_score(score):
+    """
+    Print a formatted summary of sleep metrics.
+    
+    Parameters
+    ----------
+    score : dict
+        Sleep score dictionary from score_night function.
+    """
     total_sleep_time =(score['awakening_time'] - score['fell_asleep_time']).seconds
     hours, remainder = divmod(total_sleep_time, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -255,6 +457,21 @@ def print_sleep_score(score):
 
 
 def get_transition_counts(hyp, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
+    """
+    Count transitions between sleep stages.
+    
+    Parameters
+    ----------
+    hyp : pd.DataFrame
+        Hypnogram dataframe with 'annotation' column.
+    states : list, optional
+        List of sleep states to include. Default is ['AWAKE', 'N1', 'N2', 'N3', 'REM'].
+    
+    Returns
+    -------
+    np.ndarray
+        Matrix of transition counts where [i,j] is count of transitions from state i to state j.
+    """
     states = np.array(states)
     matrix = np.zeros((states.__len__(), states.__len__()))
     for k in range(hyp.__len__()-1):
@@ -268,6 +485,21 @@ def get_transition_counts(hyp, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
 
 
 def get_transition_matrix(hyp, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
+    """
+    Calculate transition probability matrix between sleep stages.
+    
+    Parameters
+    ----------
+    hyp : pd.DataFrame
+        Hypnogram dataframe with 'annotation' column.
+    states : list, optional
+        List of sleep states to include. Default is ['AWAKE', 'N1', 'N2', 'N3', 'REM'].
+    
+    Returns
+    -------
+    np.ndarray
+        Normalized transition probability matrix.
+    """
     m = get_transition_counts(hyp, states)
     m = m / m.sum(axis=1).reshape(-1, 1)
     m[np.isnan(m)] = 0
@@ -275,6 +507,21 @@ def get_transition_matrix(hyp, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
 
 
 def get_transition_matrix_dataset(hypnograms, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
+    """
+    Calculate mean and std of transition matrices across a dataset of hypnograms.
+    
+    Parameters
+    ----------
+    hypnograms : list
+        List of hypnogram dataframes.
+    states : list, optional
+        List of sleep states to include. Default is ['AWAKE', 'N1', 'N2', 'N3', 'REM'].
+    
+    Returns
+    -------
+    tuple
+        Mean transition matrix and standard deviation matrix.
+    """
     ms = []
     for hyp in hypnograms:
         m = get_transition_counts(hyp, states)
@@ -285,6 +532,19 @@ def get_transition_matrix_dataset(hypnograms, states=['AWAKE', 'N1', 'N2', 'N3',
 
 
 def transition_matrix_to_change_matrix(m):
+    """
+    Convert transition matrix to change matrix (excluding diagonal/same-state transitions).
+    
+    Parameters
+    ----------
+    m : np.ndarray
+        Transition probability matrix.
+    
+    Returns
+    -------
+    np.ndarray
+        Change matrix with diagonal set to zero and rows renormalized.
+    """
     m = deepcopy(m)
     np.fill_diagonal(m, 0)
     m = m / m.sum(axis=1).reshape(-1, 1)
@@ -293,6 +553,21 @@ def transition_matrix_to_change_matrix(m):
 
 
 def valid_dataset_index_by_duration(hypnograms:list, filt_dict:dict):
+    """
+    Filter hypnograms by minimum duration requirements for specific stages.
+    
+    Parameters
+    ----------
+    hypnograms : list
+        List of hypnogram dataframes.
+    filt_dict : dict
+        Dictionary mapping stage names to minimum duration thresholds.
+    
+    Returns
+    -------
+    list
+        Indices of hypnograms meeting all duration requirements.
+    """
     valid_hypnograms = []
     for idx, hyp in enumerate(hypnograms):
         if sum([hyp['duration'].sum() >= v for k, v in filt_dict.items() if k in hyp['annotation'].unique()]) == filt_dict.keys().__len__():
@@ -303,6 +578,19 @@ def valid_dataset_index_by_duration(hypnograms:list, filt_dict:dict):
 
 
 def do_median_filtration(df):
+    """
+    Apply median filtering to remove isolated 30-second stage annotations.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation' and 'duration' columns.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Filtered hypnogram dataframe.
+    """
     for k in range(1, df.__len__() - 1):
         if df.iloc[k - 1].annotation == df.iloc[k + 1].annotation and df.iloc[k].duration == 30:
             df.iloc[k]['annotation'] = df.iloc[k - 1].annotation
@@ -310,6 +598,23 @@ def do_median_filtration(df):
 
 
 def fill_same_voids(df, time_threshold=5*60, initial_state='AWAKE'):
+    """
+    Fill temporal gaps between consecutive same-state annotations.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    time_threshold : int, optional
+        Maximum gap duration in seconds to fill. Default is 300 (5 minutes).
+    initial_state : str, optional
+        Initial assumed state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Hypnogram with filled gaps.
+    """
     new_df = []
     current_state = initial_state
     current_state_duration = time_threshold
@@ -336,6 +641,23 @@ def fill_same_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
 
 def fill_wakerem_voids(df, time_threshold=5*60, initial_state='AWAKE'):
+    """
+    Fill gaps between AWAKE and REM states with AWAKE annotations.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    time_threshold : int, optional
+        Maximum gap duration in seconds to fill. Default is 300 (5 minutes).
+    initial_state : str, optional
+        Initial assumed state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Hypnogram with filled wake-REM gaps.
+    """
     new_df = []
     current_state = initial_state
     current_state_duration = time_threshold
@@ -366,6 +688,23 @@ def fill_wakerem_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
 
 def fill_nonrem_voids(df, time_threshold=5*60, initial_state='AWAKE'):
+    """
+    Fill gaps between non-REM sleep stages (N2, N3) with 'N' annotations.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    time_threshold : int, optional
+        Maximum gap duration in seconds to fill. Default is 300 (5 minutes).
+    initial_state : str, optional
+        Initial assumed state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Hypnogram with filled non-REM gaps.
+    """
     new_df = []
     current_state = initial_state
     current_state_duration = time_threshold
@@ -397,6 +736,23 @@ def fill_nonrem_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
 
 def fill_sleep_voids(df, time_threshold=5*60, initial_state='AWAKE'):
+    """
+    Fill gaps between any sleep states (non-AWAKE) with 'SLP' annotations.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    time_threshold : int, optional
+        Maximum gap duration in seconds to fill. Default is 300 (5 minutes).
+    initial_state : str, optional
+        Initial assumed state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Hypnogram with filled sleep gaps.
+    """
     new_df = []
     current_state = initial_state
     current_state_duration = time_threshold
@@ -427,6 +783,23 @@ def fill_sleep_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
 
 def correct_rem(df, time_threshold=5*60, initial_state='AWAKE'):
+    """
+    Correct REM annotations that occur shortly after prolonged awake periods.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    time_threshold : int, optional
+        Minimum sustained awake duration in seconds. Default is 300 (5 minutes).
+    initial_state : str, optional
+        Initial assumed state. Default is 'AWAKE'.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Hypnogram with corrected REM annotations.
+    """
     new_df = []
     current_state = initial_state
     current_state_duration = time_threshold
@@ -453,6 +826,24 @@ def correct_rem(df, time_threshold=5*60, initial_state='AWAKE'):
 
 
 def correct_hypnogram(df, time_threshold=60):
+    """
+    Apply a series of corrections to hypnogram data.
+    
+    This function applies multiple correction steps: fills gaps between same states,
+    fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM annotations.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
+    time_threshold : int, optional
+        Time threshold in seconds for gap filling. Default is 60.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Corrected hypnogram dataframe.
+    """
     new_df = deepcopy(df)
     new_df = fill_same_voids(new_df, time_threshold=time_threshold)
     new_df = fill_wakerem_voids(new_df, time_threshold=time_threshold)
@@ -513,6 +904,7 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
         hypnogram_values = _hypnogram_values
 
     def set_hypnogram_properties(x, ref_dict):
+        """Map hypnogram annotation to property value from reference dictionary."""
         return ref_dict[x.annotation]
 
     orig_df['state_id'] = orig_df.apply(lambda x: set_hypnogram_properties(x, hypnogram_values), axis=1)
