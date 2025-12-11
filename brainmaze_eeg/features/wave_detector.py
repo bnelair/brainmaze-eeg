@@ -96,6 +96,22 @@ class WaveDetector:
 
 
     def __call__(self, X, stats=True):
+        """
+        Detect waves in the signal and optionally compute statistics.
+        
+        Parameters
+        ----------
+        X : np.ndarray or list
+            Input signal(s). Can be 1D array or list of 1D arrays.
+        stats : bool, optional
+            If True, compute and return statistics. Default is True.
+        
+        Returns
+        -------
+        dict or tuple
+            If stats=True: (statistics_dict, detections_dict)
+            If stats=False: detections_dict with min_pos, min_val, max_pos, max_val
+        """
         if not isinstance(X, (list, np.ndarray)):
             raise AssertionError('')
 
@@ -144,6 +160,19 @@ class WaveDetector:
 
 
     def detect_waves(self, X):
+        """
+        Detect wave extremes (minima and maxima) in a single signal.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            1D input signal.
+        
+        Returns
+        -------
+        tuple
+            (min_pos, min_val, max_pos, max_val) - positions and values of extremes.
+        """
         X = X - X.mean()
         X = self.LFFilter(X)
         min_pos, max_pos = _find_wave_extremes(X, fs=self.fs, cutoff_low=self.cutoff_low, cutoff_high=self.cutoff_high)
@@ -153,29 +182,42 @@ class WaveDetector:
 
     @classmethod
     def min_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of minimum values."""
         return cls.stat(min_vals)
 
     @classmethod
     def max_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of maximum values."""
         return cls.stat(max_vals)
 
     @classmethod
     def pk2pk_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of peak-to-peak amplitudes."""
         pk2pk = max_vals - min_vals
         return cls.stat(pk2pk)
 
     @classmethod
     def slope_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of wave slopes (rise rate)."""
         slope = (max_vals - min_vals) / ((max_pos - min_pos) / fs)
         return cls.stat(slope)
 
     @classmethod
     def delta_t_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of time differences between min and max."""
         delta_t = (max_pos - min_pos) / fs
         return cls.stat(delta_t)
 
     @staticmethod
     def stat(X):
+        """
+        Compute basic statistics of an array.
+        
+        Returns
+        -------
+        dict
+            Dictionary with min, max, mean, std, and median.
+        """
         return {
             'min': X.min(),
             'max': X.max(),
@@ -186,6 +228,25 @@ class WaveDetector:
 
 
 def _find_wave_extremes(X, fs, cutoff_low=0.5, cutoff_high=4):
+    """
+    Find wave extremes (minima and maxima) in a bandpass-filtered signal.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Input signal.
+    fs : float
+        Sampling frequency.
+    cutoff_low : float, optional
+        Low cutoff frequency. Default is 0.5.
+    cutoff_high : float, optional
+        High cutoff frequency. Default is 4.
+    
+    Returns
+    -------
+    tuple
+        (mins, maxes) - arrays of minimum and maximum indices.
+    """
     X_ = X.copy()
     X = fft_filter(X, fs, cutoff_low, 'hp')
     X = fft_filter(X, fs, cutoff_high, 'lp')
