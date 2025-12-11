@@ -13,6 +13,7 @@ class FeatureAugmentorModule:
     Feature augmentation using an 'augment_features' function from the 'PiesUtils' package. See the code for additional details.
     """
     def __init__(self):
+        """Initialize the feature augmentation module with default mutual operations."""
         self.mutual_functions = [np.divide, np.multiply]
         self.mutual_function_symbol = ['*', '/']
 
@@ -20,9 +21,23 @@ class FeatureAugmentorModule:
         self.mutual_function_symbol = []
 
     def fit(self, X=None, Y=None):
+        """Fit method (no-op for this transformer)."""
         pass
 
     def transform(self, X):
+        """
+        Transform features by applying mutual and standalone operations.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Input feature matrix of shape [n_samples, n_features].
+        
+        Returns
+        -------
+        np.ndarray
+            Augmented feature matrix.
+        """
         n_orig_features = X.shape[1]
         for idx, func in enumerate(self.mutual_functions):
             X = augment_features(X, operation=func, mutual=True, feature_indexes=np.arange(n_orig_features))
@@ -32,9 +47,11 @@ class FeatureAugmentorModule:
         return X
 
     def fit_transform(self, X, Y=None):
+        """Fit and transform in one step (same as transform for this module)."""
         return self.transform(X)
 
     def __call__(self, X):
+        """Make the module callable."""
         return self.transform(X)
 
 
@@ -225,9 +242,11 @@ class ZScoreModule:
 
 
     def __call__(self, X=None, Y=None):
+        """Make the module callable."""
         return self.transform(X)
 
     def _check_modes(self):
+        """Validate that the module's mode configuration is consistent."""
         if self.trainable is True:
             if self.continuous_learning is True and self.multi_class is True:
                 raise AssertionError('[ASSERTION ERROR] - ZScore module - only one of parameters continuous_learning, multi_class can be activated')
@@ -237,42 +256,68 @@ class ZScoreModule:
 
 
 class LogModule:
+    """Natural logarithm transformation module compatible with scikit-learn pipelines."""
+    
     def __init__(self):
+        """Initialize the logarithm module."""
         pass
 
     def fit(self, X, Y=None):
+        """Fit method (no-op for this transformer)."""
         pass
 
     def transform(self, X, Y=None):
+        """Apply natural logarithm transformation to features."""
         return np.log(X)
 
     def fit_transform(self, X, Y=None):
+        """Fit and transform in one step."""
         return self.transform(X)
 
     def __call__(self, X):
+        """Make the module callable."""
         return self.transform(X)
 
 
 class Log10Module:
+    """Base-10 logarithm transformation module compatible with scikit-learn pipelines."""
+    
     def __init__(self):
+        """Initialize the base-10 logarithm module."""
         pass
 
     def fit(self, X, Y=None):
+        """Fit method (no-op for this transformer)."""
         pass
 
     def transform(self, X, Y=None):
+        """Apply base-10 logarithm transformation to features."""
         return np.log10(X)
 
     def fit_transform(self, X, Y=None):
+        """Fit and transform in one step."""
         return self.transform(X)
 
     def __call__(self, X):
+        """Make the module callable."""
         return self.transform(X)
 
 
 class PCAModuleSVD:
+    """
+    PCA using SVD decomposition with automatic component selection based on variance threshold.
+    Compatible with scikit-learn pipelines.
+    """
 
     def __init__(self, var_threshold = 0.98):
+        """
+        Initialize PCA module with variance threshold.
+        
+        Parameters
+        ----------
+        var_threshold : float, optional
+            Variance threshold for selecting number of components. Default is 0.98.
+        """
         self.var_threshold = var_threshold
 
     def fit(self, X, Y=None):
@@ -290,19 +335,49 @@ class PCAModuleSVD:
             self.n += 1
 
     def transform(self, X, Y=None):
+        """
+        Transform data using fitted PCA components.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Input data matrix.
+        Y : array-like, optional
+            Ignored parameter for scikit-learn compatibility.
+            
+        Returns
+        -------
+        np.ndarray
+            Transformed data in PCA space.
+        """
         return np.dot(X, self.eigen_vecs[:, :self.n])
 
 
     def fit_transform(self, X, Y=None):
+        """Fit and transform in one step."""
         self.fit(X)
         return self.transform(X)
 
     def __call__(self, X):
+        """Make the module callable."""
         return self.transform(X)
 
 
 class PCAModule(PCA):
+    """
+    PCA module using scikit-learn's PCA with automatic component selection.
+    Extends sklearn.decomposition.PCA.
+    """
+    
     def __init__(self, var_threshold = 0.98):
+        """
+        Initialize PCA module with variance threshold.
+        
+        Parameters
+        ----------
+        var_threshold : float, optional
+            Variance threshold for selecting number of components. Default is 0.98.
+        """
         super().__init__()
         self.var_threshold = var_threshold
 
@@ -320,6 +395,21 @@ class PCAModule(PCA):
         return self
 
     def fit_transform(self, X, y=None):
+        """
+        Fit and transform data in one step.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Input data matrix.
+        y : array-like, optional
+            Target values (ignored, for scikit-learn compatibility).
+            
+        Returns
+        -------
+        np.ndarray
+            Transformed data in PCA space.
+        """
         self.fit(X, y)
         return self.transform(X)
 

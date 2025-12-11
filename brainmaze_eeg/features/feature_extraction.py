@@ -159,6 +159,34 @@ class SleepSpectralFeatureExtractor:
                  ignore_bands: list = [],
                  datarate: bool = False,
                  n_processes: int = 1):
+        """
+        Initialize the spectral feature extractor.
+        
+        Parameters
+        ----------
+        fs : float
+            Sampling frequency in Hz.
+        segm_size : float
+            Segment size in seconds for feature extraction.
+        fbands : list
+            List of frequency bands [[low1, high1], [low2, high2], ...].
+        sperwelchseg : float, optional
+            Welch segment size in seconds.
+        soverlapwelchseg : float, optional
+            Welch segment overlap in seconds. Default is 0.0.
+        nfft : int, optional
+            FFT length for Welch method.
+        filters_attenuate : list, optional
+            List of filters to attenuate specific frequencies. Default is [].
+        repeat_attenuate : int, optional
+            Number of times to apply attenuation filters. Default is 1.
+        ignore_bands : list, optional
+            Frequency bands to ignore. Default is [].
+        datarate : bool, optional
+            Whether to calculate data rate. Default is False.
+        n_processes : int, optional
+            Number of processes for parallel processing. Default is 1.
+        """
 
         self._fs = self._verify_input_fs(fs)
         self._segm_size = self._verify_input_segm_size(segm_size)
@@ -202,6 +230,7 @@ class SleepSpectralFeatureExtractor:
         ]  # property setter
 
     def design_filters(self):
+        """Design FIR bandpass filters for each frequency band."""
         if self._filter_bands:
             self.FILTERS = []
             self.FILTER_RESPONSE = None
@@ -277,11 +306,13 @@ class SleepSpectralFeatureExtractor:
                 return output
 
     def prefilter(self, x):
+        """Apply low and high pass filters to the signal."""
         x = signal.filtfilt(*self.FILTER_LOW, x, axis=1)
         x = signal.filtfilt(*self.FILTER_HIGH, x, axis=1)
         return x
 
     def attenuate(self, x):
+        """Apply attenuation filters to remove specific frequencies (e.g., stimulation artifacts)."""
         if isinstance(self.FILTERS_ATTENUATE, list):
             if self.FILTERS_ATTENUATE.__len__() > 0 and self.ATTENUATE_N > 0:
                 for k in range(self.ATTENUATE_N):
@@ -358,15 +389,18 @@ class SleepSpectralFeatureExtractor:
 
     @property
     def extraction_functions(self):
+        """Get the list of feature extraction functions."""
         return self._extraction_functions
 
     @extraction_functions.setter
     def extraction_functions(self, item: list):
+        """Set the list of feature extraction functions."""
         self._extraction_functions = item
         self._verify_extractor_functions()
 
     @staticmethod
     def _verify_input_fs(item):
+        """Validate that sampling frequency is a positive number."""
         if not isinstance(item, (int, float)):
             raise TypeError('[INPUT TYPE ERROR] Sampling frequency \"fs\" has to be an integer or float!')
         if not item > 0:
@@ -376,6 +410,7 @@ class SleepSpectralFeatureExtractor:
 
     @staticmethod
     def _verify_input_segm_size(item):
+        """Validate that segment size is a positive finite number."""
         if not isinstance(item, (int, float)):
             raise TypeError(
                 '[INPUT TYPE ERROR] A segment size \"segm_size\" is required to be an integer or float. Parsed data type is ' + str(
@@ -388,6 +423,7 @@ class SleepSpectralFeatureExtractor:
 
     @staticmethod
     def _verify_input_fbands(item):
+        """Validate that frequency bands are properly formatted."""
         if not isinstance(item, (list, np.ndarray)):
             raise TypeError(
                 '[INPUT TYPE ERROR] fbands variable has to be of a list or numpy.array type. Pasted value: ' + str(
@@ -408,6 +444,7 @@ class SleepSpectralFeatureExtractor:
 
     @staticmethod
     def _verify_input_x(item):
+        """Validate that input signal has correct format."""
         if not isinstance(item, (np.ndarray, list)):
             raise TypeError(
                 '[INPUT TYPE ERROR] An input signal has to be a type of list or numpy.ndarray. Pasted ' + str(
@@ -428,6 +465,7 @@ class SleepSpectralFeatureExtractor:
 
     @staticmethod
     def _verify_input_n_processes(item):
+        """Validate number of processes for parallel processing."""
         if not isinstance(item, int):
             raise TypeError('[INPUT TYPE ERROR] Input n_processes has to be of a type int. Type ' + str(
                 type(input)) + ' has found instead.')
@@ -442,6 +480,7 @@ class SleepSpectralFeatureExtractor:
         return item
 
     def _verify_extractor_functions(self):
+        """Validate that extraction functions are callable."""
         if self._extraction_functions.__len__() < 1:
             raise TypeError('')
 
