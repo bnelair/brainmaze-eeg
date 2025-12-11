@@ -303,6 +303,25 @@ def _find_wave_extremes(X, fs, cutoff_low=0.5, cutoff_high=4):
 
 
 def _get_first_extreme(X, X_signum, idx=0, tag=''):
+    """
+    Get the first extreme (min or max) starting from a given index.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Signal values.
+    X_signum : np.ndarray
+        Sign change indicators.
+    idx : int, optional
+        Starting index. Default is 0.
+    tag : str
+        'min' or 'max' to specify which extreme to find.
+    
+    Returns
+    -------
+    tuple
+        (position, value) of the extreme, or (None, None) if not found.
+    """
     if tag == 'min':
         func_value = -2
     elif tag == 'max':
@@ -317,6 +336,25 @@ def _get_first_extreme(X, X_signum, idx=0, tag=''):
 
 
 def _get_next_extrem_by_zero(X, X_signum, curr_pos=0, tag=''):
+    """
+    Get the next extreme that crosses zero.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Signal values.
+    X_signum : np.ndarray
+        Sign change indicators.
+    curr_pos : int, optional
+        Current position. Default is 0.
+    tag : str
+        'min' or 'max' to specify which extreme to find.
+    
+    Returns
+    -------
+    tuple
+        (position, value) of the extreme, or (None, None) if not found.
+    """
     if tag == 'min':
         func_value = -2
         zero_comp_func = np.less
@@ -338,6 +376,25 @@ def _get_next_extrem_by_zero(X, X_signum, curr_pos=0, tag=''):
 
 
 def _check_next_extreme(X, X_signum, curr_pos=0, tag=''):
+    """
+    Validate and refine the position of the next extreme.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Signal values.
+    X_signum : np.ndarray
+        Sign change indicators.
+    curr_pos : int, optional
+        Current position. Default is 0.
+    tag : str
+        'min' or 'max' to specify which extreme to check.
+    
+    Returns
+    -------
+    tuple
+        (position, value) of the validated extreme, or (None, None) if not valid.
+    """
     if tag == 'min':
         argfunc = np.argmin
         func_value = -2
@@ -380,6 +437,25 @@ def _check_next_extreme(X, X_signum, curr_pos=0, tag=''):
 
 
 def _correct_extreme_positions(X, extreme_positions, n_samples_interval=10, tag=''):
+    """
+    Refine extreme positions by searching in a local window.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Original signal values.
+    extreme_positions : np.ndarray
+        Array of extreme positions to correct.
+    n_samples_interval : int, optional
+        Window size (±samples) for local search. Default is 10.
+    tag : str
+        'min' or 'max' to specify which extreme to correct.
+    
+    Returns
+    -------
+    np.ndarray
+        Corrected extreme positions.
+    """
     if tag == 'min':
         argfunc = np.argmin
     elif tag == 'max':
