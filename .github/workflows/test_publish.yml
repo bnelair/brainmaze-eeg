@@ -60,7 +60,7 @@ jobs:
 
     - name: Install package
       run:
-        pip install .
+        pip install .[test]
 
     - name: Print package version
       run:
