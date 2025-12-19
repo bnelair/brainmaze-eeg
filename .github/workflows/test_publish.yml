@@ -86,7 +86,7 @@ jobs:
 
     - name: Install package with specific numpy version
       run: |
-        pip install numpy==${{ matrix.numpy-version }}
+        pip install --force-reinstall numpy==${{ matrix.numpy-version }}
         pip install .[test]
 
     - name: Print package version

@@ -52,7 +52,7 @@ def test_numpy_basic_operations():
     arr_with_nan = arr.copy()
     arr_with_nan[0, 0] = np.nan
     assert np.isnan(arr_with_nan[0, 0])
-    assert np.nanmean(arr_with_nan) is not np.nan
+    assert not np.isnan(np.nanmean(arr_with_nan))
     
     # Stack operations
     stacked = np.stack([arr, arr], axis=0)
