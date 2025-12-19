@@ -56,6 +56,8 @@ where = ["."]
 exclude = [
     "tests",
     "tests.*",
+    "brainmaze_eeg.tests",
+    "brainmaze_eeg.tests.*",
     "examples",
     "examples.*",
     "demo",
