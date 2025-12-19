@@ -40,6 +40,12 @@ To build the documentation locally:
 
 .. code-block:: bash
 
+    pip install -e ".[docs]"
+
+Alternatively, you can install from the requirements file:
+
+.. code-block:: bash
+
     pip install -r docs_src/requirements.txt
 
 2. Build the documentation:
