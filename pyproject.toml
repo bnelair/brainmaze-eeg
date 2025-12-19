@@ -16,7 +16,7 @@ dependencies = [
     "sphinx",
     "sphinx_book_theme",
     "brainmaze_utils",
-    "numpy>=2.0.0",
+    "numpy>=1.20.0",
     "pandas>=2.2.0",
     "pytz",
     "python-dateutil",
