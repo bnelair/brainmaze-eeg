@@ -13,8 +13,6 @@ readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.9.0"
 dependencies = [
     "setuptools>=61",
-    "sphinx",
-    "sphinx_book_theme",
     "brainmaze_utils",
     "numpy>=1.20.0",
     "pandas>=2.2.0",
@@ -44,6 +42,10 @@ urls = { "Homepage" = "https://github.com/bnelair/brainmaze_eeg" }
 [project.optional-dependencies]
 test = [
     "pytest",
+]
+docs = [
+    "sphinx>=8.0.0,<9.0.0",
+    "sphinx_book_theme>=1.1.0",
 ]
 
 [tool.setuptools.dynamic]
