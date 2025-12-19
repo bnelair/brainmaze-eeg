@@ -96,6 +96,22 @@ class WaveDetector:
 
 
     def __call__(self, X, stats=True):
+        """
+        Detect waves in the signal and optionally compute statistics.
+        
+        Parameters
+        ----------
+        X : np.ndarray or list
+            Input signal(s). Can be 1D array or list of 1D arrays.
+        stats : bool, optional
+            If True, compute and return statistics. Default is True.
+        
+        Returns
+        -------
+        dict or tuple
+            If stats=True: (statistics_dict, detections_dict)
+            If stats=False: detections_dict with min_pos, min_val, max_pos, max_val
+        """
         if not isinstance(X, (list, np.ndarray)):
             raise AssertionError('')
 
@@ -144,6 +160,19 @@ class WaveDetector:
 
 
     def detect_waves(self, X):
+        """
+        Detect wave extremes (minima and maxima) in a single signal.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            1D input signal.
+        
+        Returns
+        -------
+        tuple
+            (min_pos, min_val, max_pos, max_val) - positions and values of extremes.
+        """
         X = X - X.mean()
         X = self.LFFilter(X)
         min_pos, max_pos = _find_wave_extremes(X, fs=self.fs, cutoff_low=self.cutoff_low, cutoff_high=self.cutoff_high)
@@ -153,29 +182,42 @@ class WaveDetector:
 
     @classmethod
     def min_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of minimum values."""
         return cls.stat(min_vals)
 
     @classmethod
     def max_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of maximum values."""
         return cls.stat(max_vals)
 
     @classmethod
     def pk2pk_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of peak-to-peak amplitudes."""
         pk2pk = max_vals - min_vals
         return cls.stat(pk2pk)
 
     @classmethod
     def slope_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of wave slopes (rise rate)."""
         slope = (max_vals - min_vals) / ((max_pos - min_pos) / fs)
         return cls.stat(slope)
 
     @classmethod
     def delta_t_stats(cls, min_pos=None, min_vals=None, max_pos=None, max_vals=None, fs=None):
+        """Compute statistics of time differences between min and max."""
         delta_t = (max_pos - min_pos) / fs
         return cls.stat(delta_t)
 
     @staticmethod
     def stat(X):
+        """
+        Compute basic statistics of an array.
+        
+        Returns
+        -------
+        dict
+            Dictionary with min, max, mean, std, and median.
+        """
         return {
             'min': X.min(),
             'max': X.max(),
@@ -186,6 +228,25 @@ class WaveDetector:
 
 
 def _find_wave_extremes(X, fs, cutoff_low=0.5, cutoff_high=4):
+    """
+    Find wave extremes (minima and maxima) in a bandpass-filtered signal.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Input signal.
+    fs : float
+        Sampling frequency.
+    cutoff_low : float, optional
+        Low cutoff frequency. Default is 0.5.
+    cutoff_high : float, optional
+        High cutoff frequency. Default is 4.
+    
+    Returns
+    -------
+    tuple
+        (mins, maxes) - arrays of minimum and maximum indices.
+    """
     X_ = X.copy()
     X = fft_filter(X, fs, cutoff_low, 'hp')
     X = fft_filter(X, fs, cutoff_high, 'lp')
@@ -242,6 +303,25 @@ def _find_wave_extremes(X, fs, cutoff_low=0.5, cutoff_high=4):
 
 
 def _get_first_extreme(X, X_signum, idx=0, tag=''):
+    """
+    Get the first extreme (min or max) starting from a given index.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Signal values.
+    X_signum : np.ndarray
+        Sign change indicators.
+    idx : int, optional
+        Starting index. Default is 0.
+    tag : str
+        'min' or 'max' to specify which extreme to find.
+    
+    Returns
+    -------
+    tuple
+        (position, value) of the extreme, or (None, None) if not found.
+    """
     if tag == 'min':
         func_value = -2
     elif tag == 'max':
@@ -256,6 +336,25 @@ def _get_first_extreme(X, X_signum, idx=0, tag=''):
 
 
 def _get_next_extrem_by_zero(X, X_signum, curr_pos=0, tag=''):
+    """
+    Get the next extreme that crosses zero.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Signal values.
+    X_signum : np.ndarray
+        Sign change indicators.
+    curr_pos : int, optional
+        Current position. Default is 0.
+    tag : str
+        'min' or 'max' to specify which extreme to find.
+    
+    Returns
+    -------
+    tuple
+        (position, value) of the extreme, or (None, None) if not found.
+    """
     if tag == 'min':
         func_value = -2
         zero_comp_func = np.less
@@ -277,6 +376,25 @@ def _get_next_extrem_by_zero(X, X_signum, curr_pos=0, tag=''):
 
 
 def _check_next_extreme(X, X_signum, curr_pos=0, tag=''):
+    """
+    Validate and refine the position of the next extreme.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Signal values.
+    X_signum : np.ndarray
+        Sign change indicators.
+    curr_pos : int, optional
+        Current position. Default is 0.
+    tag : str
+        'min' or 'max' to specify which extreme to check.
+    
+    Returns
+    -------
+    tuple
+        (position, value) of the validated extreme, or (None, None) if not valid.
+    """
     if tag == 'min':
         argfunc = np.argmin
         func_value = -2
@@ -319,6 +437,25 @@ def _check_next_extreme(X, X_signum, curr_pos=0, tag=''):
 
 
 def _correct_extreme_positions(X, extreme_positions, n_samples_interval=10, tag=''):
+    """
+    Refine extreme positions by searching in a local window.
+    
+    Parameters
+    ----------
+    X : np.ndarray
+        Original signal values.
+    extreme_positions : np.ndarray
+        Array of extreme positions to correct.
+    n_samples_interval : int, optional
+        Window size (±samples) for local search. Default is 10.
+    tag : str
+        'min' or 'max' to specify which extreme to correct.
+    
+    Returns
+    -------
+    np.ndarray
+        Corrected extreme positions.
+    """
     if tag == 'min':
         argfunc = np.argmin
     elif tag == 'max':
