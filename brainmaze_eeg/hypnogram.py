@@ -13,7 +13,7 @@ import matplotlib.dates as mdates
 from copy import deepcopy
 from tqdm import tqdm
 
-from brainmaze_utils.annotations.utils import merge_annotations, filter_by_key
+from brainmaze_utils.annotations import merge_annotations, filter_by_key
 
 
 
