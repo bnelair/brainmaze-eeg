@@ -12,7 +12,7 @@ This project was published in the following paper:
 
 Here we conveniently provide a standalone fully functional code example for analysis related to this project - `One file example <https://github.com/bnelair/brainmaze_eeg/tree/fmivalt/main/demo/eeg_wave_detection>`_.
 This enables trialing this code without installing the whole Best Toolbox library.
-The codes were also embedded into the brainmaze_eeg Toolbox so they can be freely available upon installing the whole `Brainmaze EEG <https://github.com/bnelair/brainmaze_eeg/>`_ library. The documentation to the toolbox is available at `Brainmaze EEG <https://bnelair.github.io/brainmaze_eeg>`_.
+The codes were also embedded into the brainmaze_eeg Toolbox so they can be freely available upon installing the whole `Brainmaze EEG Library <https://github.com/bnelair/brainmaze_eeg/>`_. The documentation to the toolbox is available at `Brainmaze EEG Documentation <https://bnelair.github.io/brainmaze_eeg>`_.
 
 TBD TBD !!!! For more information on this specific project, see the page describing `Wave Detection <https://best-toolbox.readthedocs.io/en/latest/feature_extraction.WaveDetector.html>`_.
 

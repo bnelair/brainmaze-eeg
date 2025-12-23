@@ -352,6 +352,7 @@ def score_night(df, plot=False):
     -------
     dict
         Dictionary containing sleep metrics including:
+        
         - sleep_complete: whether sleep session is complete
         - fell_asleep_time: time of sleep onset
         - rem_latency_fell_asleep: REM latency from sleep onset (seconds)

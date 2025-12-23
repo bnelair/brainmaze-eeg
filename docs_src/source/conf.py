@@ -55,6 +55,9 @@ language = 'en'
 # Sort members by type
 #autodoc_member_order = 'groupwise'
 
+# Mock imports for modules that are not available during doc build
+autodoc_mock_imports = ['brainmaze_utils', 'matplotlib', 'matplotlib.pyplot', 'matplotlib.dates']
+
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
@@ -165,7 +168,7 @@ html_short_title = 'BrainMaze: EEG'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = "../../img/brainmaze_1757x1762.png"
+html_logo = "../../img/brainmaze_1757x1762.PNG"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -250,7 +253,7 @@ latex_elements = {
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
-latex_logo = "../../img/brainmaze_1757x1762.png"
+latex_logo = "../../img/brainmaze_1757x1762.PNG"
 
 # For "manual" documents, if this is true, then toplevel headings are parts,
 # not chapters.
