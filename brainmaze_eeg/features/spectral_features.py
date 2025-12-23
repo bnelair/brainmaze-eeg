@@ -176,7 +176,8 @@ def mean_bands(args):
     x : list(numpy.array)
         List of mean PSD values for each frequency band, one array per band
     feature_name : list(str)
-        Feature names in format 'MEAN_PSD{low}-{high}Hz' for each band
+        Feature names in format 'MEAN_PSD{low}-{high}Hz' with the frequencies
+        concatenated directly (e.g., 'MEAN_PSD0.5-4Hz') for each band
 
     """
     Pxx = args['psd']
@@ -213,9 +214,10 @@ def relative_bands(args):
     .. math::
         P_{rel,band} = \\frac{\\sum_{f_i \\in [f_{low}, f_{high}]} P(f_i)}{\\sum_{f_i \\in [f_{min}, f_{max}]} P(f_i)}
     
-    where [f_min, f_max] spans the minimum and maximum of all provided frequency bands.
-    The sum of all relative band powers equals 1.0, making them interpretable as
-    percentages of total power.
+    where [f_min, f_max] is the continuous frequency interval from the smallest lower
+    bound to the largest upper bound across all provided bands (i.e., ``f_min = bands.min()``
+    and ``f_max = bands.max()``). The sum of all relative band powers equals 1.0, making
+    them interpretable as percentages of total power.
     
     **Use Case:**
     Preferred over absolute band powers for machine learning-based sleep staging because:
@@ -241,7 +243,7 @@ def relative_bands(args):
     x : list(numpy.array)
         List of relative PSD values for each frequency band (values between 0 and 1)
     feature_name : list(str)
-        Feature names in format 'REL_PSD_{low}-{high}Hz' for each band
+        Feature names in format 'REL_PSD_{low}-{high}Hz' (e.g., 'REL_PSD_0.5-4Hz') for each band
 
     """
     Pxx = args['psd']
