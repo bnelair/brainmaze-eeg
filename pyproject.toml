@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brainmaze-eeg"
+dynamic = ["version"]
+description = "BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox"
+authors = [
+    { name = "Filip Mivalt", email = "mivalt.filip@mayo.edu" }
+]
+readme = { file = "README.rst", content-type = "text/x-rst" }
+requires-python = ">=3.9.0"
+dependencies = [
+    "setuptools>=61",
+    "brainmaze_utils",
+    "numpy>=1.20.0",
+    "pandas>=2.2.0",
+    "pytz",
+    "python-dateutil",
+    "scikit-learn>=1.6.1",
+    "scipy",
+    "tqdm",
+]
+license = { text = "BSD-3-Clause" }
+classifiers = [
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: BSD License",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+]
+urls = { "Homepage" = "https://github.com/bnelair/brainmaze_eeg" }
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+docs = [
+    "sphinx>=8.0.0,<9.0.0",
+    "sphinx_book_theme>=1.1.0",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "brainmaze_eeg._version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = [
+    "tests",
+    "tests.*",
+    "brainmaze_eeg.tests",
+    "brainmaze_eeg.tests.*",
+    "examples",
+    "examples.*",
+    "demo",
+    "img",
+    "docs",
+    "docs_src"
+]
+
+[tool.setuptools]
+include-package-data = true

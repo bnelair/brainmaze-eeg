@@ -9,24 +9,38 @@ jobs:
     strategy:
       matrix:
         include:
+            # Test with numpy < 2.0 (only Python 3.9 to reduce CI load)
             - os: ubuntu-latest
               python-version: '3.9'
               architecture: 'x64'
+              numpy-version: '1.26.4'
+
+            # Test with numpy >= 2.0
+            - os: ubuntu-latest
+              python-version: '3.9'
+              architecture: 'x64'
+              numpy-version: '2.0.0'
             - os: ubuntu-latest
               python-version: '3.10'
               architecture: 'x64'
+              numpy-version: '2.0.0'
             - os: ubuntu-latest
               python-version: '3.11'
               architecture: 'x64'
+              numpy-version: '2.0.0'
             - os: ubuntu-latest
               python-version: '3.12'
               architecture: 'x64'
+              numpy-version: '2.0.0'
 
+            # Cross-platform tests with numpy 2.0.0
             - os: macos-latest
               python-version: '3.12'
+              numpy-version: '2.0.0'
 
             - os: windows-latest
               python-version: '3.12'
+              numpy-version: '2.0.0'
 
     steps:
     - name: Checkout code
@@ -58,13 +72,18 @@ jobs:
       run:
         python -m build
 
-    - name: Install package
-      run:
-        pip install .
+    - name: Install package with specific numpy version
+      run: |
+        pip install --force-reinstall numpy==${{ matrix.numpy-version }}
+        pip install .[test]
 
     - name: Print package version
       run:
         python -c "import brainmaze_eeg; print(brainmaze_eeg.__version__)"
+
+    - name: Print numpy version
+      run: |
+        python -c "import numpy; print('NumPy version:', numpy.__version__)"
 
     - name: Test package
       run:

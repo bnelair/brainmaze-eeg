@@ -297,7 +297,7 @@ def detect_stim_segments(x: np.typing.NDArray[np.float64], fs: float, window_s:f
         x = x[np.newaxis, :]
 
     x_diff = np.diff(x, axis=-1)     # difference signal highlights artificial pulses
-    x_diff = np.concat(
+    x_diff = np.concatenate(
         (x_diff, x_diff[:, -1].reshape(-1, 1)), axis=1,
     )
 
