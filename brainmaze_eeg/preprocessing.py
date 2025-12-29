@@ -83,16 +83,42 @@ def replace_nans_with_median(x: np.typing.NDArray[np.float64]):
 
 def filter_powerline(x: np.typing.NDArray[np.float64], fs: float, frequency_powerline: float=60):
     """
-    Filters powerline noise from the input signal using a notch filter. The function replaces NaN values with the
-    median and returns nan values after filtering. This can possibly cause ringing around artifacts and edges.
-
+    Remove powerline noise from EEG signals using a notch filter.
+    
+    **Big Picture:**
+    Powerline interference (50 Hz in Europe, 60 Hz in North America) is one of the most
+    common artifacts in electrophysiological recordings. This narrow-band noise arises
+    from electromagnetic coupling with the electrical grid and can obscure physiological
+    signals. This function applies a notch filter to remove this interference while
+    preserving the EEG signal content at other frequencies.
+    
+    **Technical Details:**
+    The function uses an infinite impulse response (IIR) notch filter with:
+    - Quality factor Q=10, providing a narrow rejection bandwidth
+    - Zero-phase filtering (filtfilt) to avoid phase distortion
+    - Automatic handling of NaN values by temporarily replacing them with median values
+    
+    The notch filter attenuates frequencies in a narrow band centered at the powerline
+    frequency while minimally affecting adjacent frequencies. After filtering, NaN
+    values are restored to their original locations to preserve data quality indicators.
+    
+    **Important Considerations:**
+    - This approach may cause ringing artifacts around data gaps (NaN regions)
+    - Alternative: Use robust filtering methods that handle missing data explicitly
+    - The filter is applied independently to each channel in multi-channel recordings
+    
+    **Use Case:**
+    Apply during preprocessing of raw EEG/iEEG recordings before feature extraction
+    or sleep stage classification. Essential for clean spectral analysis and preventing
+    powerline noise from being misinterpreted as physiological rhythms.
+    
     Parameters:
         x (np.ndarray): Input signal, either 1D or 2D array.
-        fs (float): Sampling frequency.
-        frequency_powerline (float): Powerline noise frequency.
+        fs (float): Sampling frequency in Hz.
+        frequency_powerline (float): Powerline noise frequency (typically 50 or 60 Hz).
 
     Returns:
-        np.ndarray: Signal filtered with notch filter.
+        np.ndarray: Signal filtered with notch filter, same shape as input.
 
     Raises:
         ValueError: If the input signal is not 1D or 2D.
@@ -128,19 +154,59 @@ def detect_powerline_segments(
         threshold_ratio:float = 1000
 ):
     """
-    Detects Powerline noise in the input signal using. Detection evaluates the power in the spectrum at
-    powerline and its harmonics to the average power of the iEEG in 2 Hz - 40 Hz band. It
-    drops the last segment if ndarray shape is not a multiple of whole seconds.
-
+    Detect segments contaminated by powerline noise in EEG recordings.
+    
+    **Big Picture:**
+    Powerline noise contamination can vary over time due to changes in electrode
+    impedance, patient movement, or proximity to electrical equipment. Rather than
+    filtering all data uniformly, this function identifies time segments with severe
+    powerline contamination, allowing for selective processing or exclusion of
+    problematic data. This approach preserves clean data segments while flagging
+    contaminated ones for special handling.
+    
+    **Technical Details:**
+    The detection algorithm:
+    
+    1. Divides the signal into short windows (default 0.5s)
+    2. Computes power spectral density for each window
+    3. Calculates reference power in physiological band (2-40 Hz)
+    4. Measures power at powerline frequency and its harmonics (60, 120, 180 Hz, etc.)
+    5. Flags segments where powerline power exceeds physiological power by threshold_ratio
+    
+    .. math::
+        contaminated = \\frac{P_{powerline}}{P_{2-40Hz}} > threshold
+    
+    The default threshold of 1000 indicates that powerline power is 1000× greater
+    than the average physiological power, suggesting severe contamination.
+    
+    **Harmonics Detection:**
+    The function checks not just the fundamental powerline frequency but also its
+    harmonics, as powerline interference often creates spectral peaks at multiples
+    of the base frequency (60 Hz, 120 Hz, 180 Hz, etc.).
+    
+    **Use Case:**
+    - Preprocessing pipeline for automatic data quality assessment
+    - Adaptive filtering strategies (filter only contaminated segments)
+    - Data quality reporting and visualization
+    - Exclusion criteria for feature extraction in clean segments only
+    
+    **Practical Applications:**
+    - Sleep studies: Exclude epochs with excessive powerline noise from analysis
+    - Real-time monitoring: Alert when powerline noise exceeds acceptable levels
+    - Research studies: Ensure consistent data quality across recordings
+    
     Parameters:
         x (np.ndarray): Input signal, either 1D or 2D array.
-        fs (float): Sampling frequency.
+        fs (float): Sampling frequency in Hz.
         window_s (float): Length of the detection window in seconds. Default is 0.5 seconds.
-        powerline_freq (float): Frequency of the powerline noise. Default is 60 Hz.
-        threshold_ratio (float): Threshold ratio for detection how many times the power of the powerline noise is higher than average power in 2 Hz - 40 Hz band. Default is 1000.
+        powerline_freq (float): Frequency of the powerline noise (50 or 60 Hz). Default is 60 Hz.
+        threshold_ratio (float): Threshold ratio indicating how many times the power of the 
+                                powerline noise is higher than average power in 2-40 Hz band. 
+                                Default is 1000.
 
     Returns:
         np.ndarray: Boolean array indicating the presence of powerline noise for every detection window.
+                   Shape is (n_channels, n_windows) or (n_windows,) for 1D input.
 
     """
 

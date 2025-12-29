@@ -55,6 +55,9 @@ language = 'en'
 # Sort members by type
 #autodoc_member_order = 'groupwise'
 
+# Mock imports for modules that are not available during doc build
+autodoc_mock_imports = ['brainmaze_utils', 'matplotlib']
+
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.

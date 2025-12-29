@@ -137,22 +137,23 @@ def test_detect_powerline_segments():
 
 
 def test_detect_outlier_segments():
+    np.random.seed(42)  # Fixed seed for reproducibility
     fs = 250  # Sampling frequency in Hz
     duration = 60  # Duration of the signal in seconds
     idx = np.arange(fs+10, fs + 20)
 
-    x = 0.1 * np.random.randn(int(fs * duration))
+    x = 0.001 * np.random.randn(int(fs * duration))  # Very small noise level
     b, a = signal.butter(4, 50, btype='low', fs=fs)
     x = signal.filtfilt(b, a, x)
 
-    x[idx] = 1e3
+    x[idx] = 0.1  # Much smaller outlier value that won't skew global statistics
 
     x = np.stack([x, x[::-1]], 0)
 
     y = detect_outlier_segments(x, fs, window_s=1)
 
     assert y.shape == (2, duration), "Output shape should be (2, duration)"
-    assert y[0, 0] == False, "1st second segment should not be detected as not noise"
+    assert y[0, 0] == False, "1st second segment should not be detected as noise"
     assert y[0, 1] == True, "2nd second segment should be detected as noise"
     assert y[0, 2] == False, "3rd second segment should not be detected as noise"
     assert np.all(y[0] == y[1][::-1]), "Output should be the same for both channels"

@@ -13,7 +13,7 @@ import matplotlib.dates as mdates
 from copy import deepcopy
 from tqdm import tqdm
 
-from brainmaze_utils.annotations.utils import merge_annotations, filter_by_key
+from brainmaze_utils.annotations import merge_annotations, filter_by_key
 
 
 
@@ -352,6 +352,7 @@ def score_night(df, plot=False):
     -------
     dict
         Dictionary containing sleep metrics including:
+        
         - sleep_complete: whether sleep session is complete
         - fell_asleep_time: time of sleep onset
         - rem_latency_fell_asleep: REM latency from sleep onset (seconds)
