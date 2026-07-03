@@ -1,0 +1,977 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Classifiers &#8212; BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=3476fdda"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'classifiers';</script>
+    <link rel="icon" href="_static/brainmaze_173x173.png"/>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="CRP" href="crp.html" />
+    <link rel="prev" title="EEG Wave Detection and Analysis" href="project_wave_detector.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.7" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/brainmaze_1757x1762.PNG" class="logo__image only-light" alt="BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG - Home"/>
+    <img src="_static/brainmaze_1757x1762.PNG" class="logo__image only-dark pst-js-only" alt="BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG - Home"/>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    BrainMaze - EEG
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="project_wave_detector.html">EEG Wave Detection and Analysis</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Classifiers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crp.html">CRP</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="features.html">Features</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.dataset.html">Dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.feature_extraction.html">Feature Extraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.spectral_features.html">Spectral Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.time_domain_features.html">Time Domain Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.utils.html">Utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.wave_detector.html">Wave Detector</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="hypnogram.html">Hypnogram</a></li>
+<li class="toctree-l1"><a class="reference internal" href="preprocessing.html">Preprocessing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scikit_modules.html">Scikit Modules</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/bnelair/brainmaze_eeg" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/classifiers.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Classifiers</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel"><code class="docutils literal notranslate"><span class="pre">KDEBayesianCausalModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel.fit"><code class="docutils literal notranslate"><span class="pre">KDEBayesianCausalModel.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel.scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianCausalModel.scores()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.extract_features"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.extract_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.extract_features_bulk"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.extract_features_bulk()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.fit"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.fit_transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.fit_transform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal_scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.predict_signal_scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.preprocess_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.preprocess_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.extract_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features_bulk"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.extract_features_bulk()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.fit"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.fit_transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.fit_transform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal_scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.predict_signal_scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.preprocess_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.preprocess_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MVGaussBayesianCausalModel"><code class="docutils literal notranslate"><span class="pre">MVGaussBayesianCausalModel</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MVGaussBayesianModel"><code class="docutils literal notranslate"><span class="pre">MVGaussBayesianModel</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper"><code class="docutils literal notranslate"><span class="pre">Mapper</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.create_template"><code class="docutils literal notranslate"><span class="pre">Mapper.create_template()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.fit_genetic"><code class="docutils literal notranslate"><span class="pre">Mapper.fit_genetic()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.fit_genetic_likelihood"><code class="docutils literal notranslate"><span class="pre">Mapper.fit_genetic_likelihood()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.fit_map"><code class="docutils literal notranslate"><span class="pre">Mapper.fit_map()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.get_probabilities"><code class="docutils literal notranslate"><span class="pre">Mapper.get_probabilities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.map"><code class="docutils literal notranslate"><span class="pre">Mapper.map()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.extract_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features_bulk"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.extract_features_bulk()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit_transform"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.fit_transform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal_scores"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.predict_signal_scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.preprocess_signal"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.preprocess_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.scores"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.scores()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper"><code class="docutils literal notranslate"><span class="pre">SleepClassifierWrapper</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper.predict_signal"><code class="docutils literal notranslate"><span class="pre">SleepClassifierWrapper.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper.train"><code class="docutils literal notranslate"><span class="pre">SleepClassifierWrapper.train()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.correct_certainty"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.correct_certainty()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit_optimize"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.fit_optimize()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_priors"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_changing_state_priors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_probabilities"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_changing_state_probabilities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_prob_to_change"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_prob_to_change()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_posterior"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_change_posterior()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_prior"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_change_prior()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_idx"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_idx()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_priors"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_priors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.predict"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.remove_class"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.remove_class()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.reset_probabilities"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.reset_probabilities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.weight_probabilities"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.weight_probabilities()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStructureClassifier"><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStructureClassifier.fit"><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStructureClassifier.scores"><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier.scores()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.multivariate_normal_"><code class="docutils literal notranslate"><span class="pre">multivariate_normal_</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.multivariate_normal_.pdf"><code class="docutils literal notranslate"><span class="pre">multivariate_normal_.pdf()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-brainmaze_eeg.classifiers">
+<span id="classifiers"></span><h1>Classifiers<a class="headerlink" href="#module-brainmaze_eeg.classifiers" title="Link to this heading">#</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianCausalModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">KDEBayesianCausalModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianCausalModel.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianCausalModel.scores">
+<span class="sig-name descname"><span class="pre">scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel.scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">KDEBayesianModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fbands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[[0.5,</span> <span class="pre">5],</span> <span class="pre">[4,</span> <span class="pre">9],</span> <span class="pre">[8,</span> <span class="pre">14],</span> <span class="pre">[11,</span> <span class="pre">16],</span> <span class="pre">[14,</span> <span class="pre">20],</span> <span class="pre">[20,</span> <span class="pre">30]]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bands_to_erase</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_bands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nfft</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_smooth_n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_std</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat_bias</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'AWAKE':</span> <span class="pre">1,</span> <span class="pre">'N2':</span> <span class="pre">1,</span> <span class="pre">'N3':</span> <span class="pre">1,</span> <span class="pre">'REM':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Selector2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.extract_features">
+<span class="sig-name descname"><span class="pre">extract_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.extract_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.extract_features_bulk">
+<span class="sig-name descname"><span class="pre">extract_features_bulk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">list_of_signals</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fsamp_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.extract_features_bulk" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.fit_transform">
+<span class="sig-name descname"><span class="pre">fit_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.fit_transform" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal">
+<span class="sig-name descname"><span class="pre">predict_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal_scores">
+<span class="sig-name descname"><span class="pre">predict_signal_scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal_scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.preprocess_signal">
+<span class="sig-name descname"><span class="pre">preprocess_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.preprocess_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.scores">
+<span class="sig-name descname"><span class="pre">scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModel.transform">
+<span class="sig-name descname"><span class="pre">transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModel.transform" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">KDEBayesianModelNC</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fbands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[[0.5,</span> <span class="pre">5],</span> <span class="pre">[4,</span> <span class="pre">9],</span> <span class="pre">[8,</span> <span class="pre">14],</span> <span class="pre">[11,</span> <span class="pre">16],</span> <span class="pre">[14,</span> <span class="pre">20],</span> <span class="pre">[20,</span> <span class="pre">30]]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bands_to_erase</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_bands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nfft</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_smooth_n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_std</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat_bias</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'AWAKE':</span> <span class="pre">1,</span> <span class="pre">'N2':</span> <span class="pre">1,</span> <span class="pre">'N3':</span> <span class="pre">1,</span> <span class="pre">'REM':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Selector2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features">
+<span class="sig-name descname"><span class="pre">extract_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features_bulk">
+<span class="sig-name descname"><span class="pre">extract_features_bulk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">list_of_signals</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fsamp_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features_bulk" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.fit_transform">
+<span class="sig-name descname"><span class="pre">fit_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.fit_transform" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal">
+<span class="sig-name descname"><span class="pre">predict_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal_scores">
+<span class="sig-name descname"><span class="pre">predict_signal_scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal_scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.preprocess_signal">
+<span class="sig-name descname"><span class="pre">preprocess_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.preprocess_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.scores">
+<span class="sig-name descname"><span class="pre">scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.KDEBayesianModelNC.transform">
+<span class="sig-name descname"><span class="pre">transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.transform" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MVGaussBayesianCausalModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">MVGaussBayesianCausalModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MVGaussBayesianCausalModel" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MVGaussBayesianModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">MVGaussBayesianModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fbands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[[0.5,</span> <span class="pre">5],</span> <span class="pre">[4,</span> <span class="pre">9],</span> <span class="pre">[8,</span> <span class="pre">14],</span> <span class="pre">[11,</span> <span class="pre">16],</span> <span class="pre">[14,</span> <span class="pre">20],</span> <span class="pre">[20,</span> <span class="pre">30]]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bands_to_erase</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_bands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nfft</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_smooth_n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_std</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat_bias</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'AWAKE':</span> <span class="pre">1,</span> <span class="pre">'N2':</span> <span class="pre">1,</span> <span class="pre">'N3':</span> <span class="pre">1,</span> <span class="pre">'REM':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Selector2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MVGaussBayesianModel" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">Mapper</span></span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper.create_template">
+<span class="sig-name descname"><span class="pre">create_template</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Template'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper.create_template" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper.fit_genetic">
+<span class="sig-name descname"><span class="pre">fit_genetic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">popsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper.fit_genetic" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper.fit_genetic_likelihood">
+<span class="sig-name descname"><span class="pre">fit_genetic_likelihood</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">popsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper.fit_genetic_likelihood" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper.fit_map">
+<span class="sig-name descname"><span class="pre">fit_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'REM':</span> <span class="pre">2}</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper.fit_map" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper.get_probabilities">
+<span class="sig-name descname"><span class="pre">get_probabilities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper.get_probabilities" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.Mapper.map">
+<span class="sig-name descname"><span class="pre">map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.Mapper.map" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">MultiChannelMVGaussBayesClassifier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fbands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[[0.5,</span> <span class="pre">5],</span> <span class="pre">[4,</span> <span class="pre">9],</span> <span class="pre">[8,</span> <span class="pre">14],</span> <span class="pre">[11,</span> <span class="pre">16],</span> <span class="pre">[14,</span> <span class="pre">20],</span> <span class="pre">[20,</span> <span class="pre">30]]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bands_to_erase</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_bands</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nfft</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_smooth_n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_std</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat_bias</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'AWAKE':</span> <span class="pre">1,</span> <span class="pre">'N2':</span> <span class="pre">1,</span> <span class="pre">'N3':</span> <span class="pre">1,</span> <span class="pre">'REM':</span> <span class="pre">1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Selector2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features">
+<span class="sig-name descname"><span class="pre">extract_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features_bulk">
+<span class="sig-name descname"><span class="pre">extract_features_bulk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">list_of_signals</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fsamp_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features_bulk" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit_transform">
+<span class="sig-name descname"><span class="pre">fit_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit_transform" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal">
+<span class="sig-name descname"><span class="pre">predict_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal_scores">
+<span class="sig-name descname"><span class="pre">predict_signal_scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal_scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.preprocess_signal">
+<span class="sig-name descname"><span class="pre">preprocess_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.preprocess_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.scores">
+<span class="sig-name descname"><span class="pre">scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepClassifierWrapper">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">SleepClassifierWrapper</span></span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepClassifierWrapper.predict_signal">
+<span class="sig-name descname"><span class="pre">predict_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stim_freq</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper.predict_signal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepClassifierWrapper.train">
+<span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper.train" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">SleepStageProbabilityMarkovChainFilter</span></span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.correct_certainty">
+<span class="sig-name descname"><span class="pre">correct_certainty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">certainty</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.correct_certainty" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit_optimize">
+<span class="sig-name descname"><span class="pre">fit_optimize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Niter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">popsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit_optimize" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors">
+<span class="sig-name descname"><span class="pre">get_changing_state_posteriors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_prob</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_priors">
+<span class="sig-name descname"><span class="pre">get_changing_state_priors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_priors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_probabilities">
+<span class="sig-name descname"><span class="pre">get_changing_state_probabilities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_prob</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_probabilities" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_prob_to_change">
+<span class="sig-name descname"><span class="pre">get_prob_to_change</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_prob</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_prob_to_change" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_posterior">
+<span class="sig-name descname"><span class="pre">get_state_change_posterior</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_prob</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_posterior" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_prior">
+<span class="sig-name descname"><span class="pre">get_state_change_prior</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_prior" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_idx">
+<span class="sig-name descname"><span class="pre">get_state_idx</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_idx" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_priors">
+<span class="sig-name descname"><span class="pre">get_state_priors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_priors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scores</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.predict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.remove_class">
+<span class="sig-name descname"><span class="pre">remove_class</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">class_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.remove_class" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.reset_probabilities">
+<span class="sig-name descname"><span class="pre">reset_probabilities</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.reset_probabilities" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.weight_probabilities">
+<span class="sig-name descname"><span class="pre">weight_probabilities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stability</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.weight_probabilities" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStructureClassifier">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">SleepStructureClassifier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['WAKE',</span> <span class="pre">'N1',</span> <span class="pre">'N2',</span> <span class="pre">'N3',</span> <span class="pre">'REM']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStructureClassifier" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStructureClassifier.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStructureClassifier.fit" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.SleepStructureClassifier.scores">
+<span class="sig-name descname"><span class="pre">scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.SleepStructureClassifier.scores" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.multivariate_normal_">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.classifiers.</span></span><span class="sig-name descname"><span class="pre">multivariate_normal_</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_singular</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.multivariate_normal_" title="Link to this definition">#</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.classifiers.multivariate_normal_.pdf">
+<span class="sig-name descname"><span class="pre">pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.classifiers.multivariate_normal_.pdf" title="Link to this definition">#</a></dt>
+<dd><p>Multivariate normal probability density function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>x</strong> (<em>array_like</em>) – Quantiles, with the last axis of <cite>x</cite> denoting the components.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>pdf</strong> – Probability density function evaluated at <cite>x</cite></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ndarray or scalar</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>See class definition for a detailed description of parameters.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="project_wave_detector.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">EEG Wave Detection and Analysis</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="crp.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">CRP</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel"><code class="docutils literal notranslate"><span class="pre">KDEBayesianCausalModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel.fit"><code class="docutils literal notranslate"><span class="pre">KDEBayesianCausalModel.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianCausalModel.scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianCausalModel.scores()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.extract_features"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.extract_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.extract_features_bulk"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.extract_features_bulk()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.fit"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.fit_transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.fit_transform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.predict_signal_scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.predict_signal_scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.preprocess_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.preprocess_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModel.transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModel.transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.extract_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.extract_features_bulk"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.extract_features_bulk()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.fit"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.fit_transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.fit_transform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.predict_signal_scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.predict_signal_scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.preprocess_signal"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.preprocess_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.scores"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.KDEBayesianModelNC.transform"><code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC.transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MVGaussBayesianCausalModel"><code class="docutils literal notranslate"><span class="pre">MVGaussBayesianCausalModel</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MVGaussBayesianModel"><code class="docutils literal notranslate"><span class="pre">MVGaussBayesianModel</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper"><code class="docutils literal notranslate"><span class="pre">Mapper</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.create_template"><code class="docutils literal notranslate"><span class="pre">Mapper.create_template()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.fit_genetic"><code class="docutils literal notranslate"><span class="pre">Mapper.fit_genetic()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.fit_genetic_likelihood"><code class="docutils literal notranslate"><span class="pre">Mapper.fit_genetic_likelihood()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.fit_map"><code class="docutils literal notranslate"><span class="pre">Mapper.fit_map()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.get_probabilities"><code class="docutils literal notranslate"><span class="pre">Mapper.get_probabilities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.Mapper.map"><code class="docutils literal notranslate"><span class="pre">Mapper.map()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.extract_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.extract_features_bulk"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.extract_features_bulk()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.fit_transform"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.fit_transform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.predict_signal_scores"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.predict_signal_scores()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.preprocess_signal"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.preprocess_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.MultiChannelMVGaussBayesClassifier.scores"><code class="docutils literal notranslate"><span class="pre">MultiChannelMVGaussBayesClassifier.scores()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper"><code class="docutils literal notranslate"><span class="pre">SleepClassifierWrapper</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper.predict_signal"><code class="docutils literal notranslate"><span class="pre">SleepClassifierWrapper.predict_signal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepClassifierWrapper.train"><code class="docutils literal notranslate"><span class="pre">SleepClassifierWrapper.train()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.correct_certainty"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.correct_certainty()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.fit_optimize"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.fit_optimize()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_priors"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_changing_state_priors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_probabilities"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_changing_state_probabilities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_prob_to_change"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_prob_to_change()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_posterior"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_change_posterior()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_change_prior"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_change_prior()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_idx"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_idx()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_state_priors"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.get_state_priors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.predict"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.predict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.remove_class"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.remove_class()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.reset_probabilities"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.reset_probabilities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.weight_probabilities"><code class="docutils literal notranslate"><span class="pre">SleepStageProbabilityMarkovChainFilter.weight_probabilities()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStructureClassifier"><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStructureClassifier.fit"><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier.fit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.SleepStructureClassifier.scores"><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier.scores()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.multivariate_normal_"><code class="docutils literal notranslate"><span class="pre">multivariate_normal_</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.classifiers.multivariate_normal_.pdf"><code class="docutils literal notranslate"><span class="pre">multivariate_normal_.pdf()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Filip Mivalt M.Sc., Ph.D.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2020-present, Mayo Clinic Department of Neurology - Laboratory of Bioelectronics Neurophysiology and Engineering. All rights reserved.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

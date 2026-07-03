@@ -1,0 +1,749 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Spectral Features &#8212; BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=3476fdda"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'features.spectral_features';</script>
+    <link rel="icon" href="_static/brainmaze_173x173.png"/>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Time Domain Features" href="features.time_domain_features.html" />
+    <link rel="prev" title="Feature Extraction" href="features.feature_extraction.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.7" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/brainmaze_1757x1762.PNG" class="logo__image only-light" alt="BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG - Home"/>
+    <img src="_static/brainmaze_1757x1762.PNG" class="logo__image only-dark pst-js-only" alt="BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG - Home"/>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    BrainMaze - EEG
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="project_wave_detector.html">EEG Wave Detection and Analysis</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="classifiers.html">Classifiers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crp.html">CRP</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="features.html">Features</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="features.dataset.html">Dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.feature_extraction.html">Feature Extraction</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Spectral Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.time_domain_features.html">Time Domain Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.utils.html">Utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.wave_detector.html">Wave Detector</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="hypnogram.html">Hypnogram</a></li>
+<li class="toctree-l1"><a class="reference internal" href="preprocessing.html">Preprocessing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scikit_modules.html">Scikit Modules</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/bnelair/brainmaze_eeg" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/features.spectral_features.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Spectral Features</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.mean_bands"><code class="docutils literal notranslate"><span class="pre">mean_bands()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.mean_frequency"><code class="docutils literal notranslate"><span class="pre">mean_frequency()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.median_frequency"><code class="docutils literal notranslate"><span class="pre">median_frequency()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.non_normalized_entropy"><code class="docutils literal notranslate"><span class="pre">non_normalized_entropy()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.non_normalized_entropy_bands"><code class="docutils literal notranslate"><span class="pre">non_normalized_entropy_bands()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.normalized_entropy"><code class="docutils literal notranslate"><span class="pre">normalized_entropy()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.normalized_entropy_bands"><code class="docutils literal notranslate"><span class="pre">normalized_entropy_bands()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.relative_bands"><code class="docutils literal notranslate"><span class="pre">relative_bands()</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-brainmaze_eeg.features.spectral_features">
+<span id="spectral-features"></span><h1>Spectral Features<a class="headerlink" href="#module-brainmaze_eeg.features.spectral_features" title="Link to this heading">#</a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.mean_bands">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">mean_bands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.mean_bands" title="Link to this definition">#</a></dt>
+<dd><p>Calculate mean power spectral density for each frequency band.</p>
+<p><strong>Big Picture:</strong>
+This function computes the average spectral power within specific frequency bands
+(e.g., delta: 0.5-4 Hz, theta: 4-8 Hz, alpha: 8-12 Hz). These band-specific power
+measurements are fundamental features in EEG analysis and sleep stage classification,
+as different brain states are characterized by distinct patterns of oscillatory
+activity in different frequency ranges.</p>
+<p><strong>Technical Details:</strong>
+For each frequency band [f_low, f_high], the mean PSD is calculated as:</p>
+<div class="math notranslate nohighlight">
+\[P_{band} = \frac{1}{N} \sum_{f_i \in [f_{low}, f_{high}]} P(f_i)\]</div>
+<p>where N is the number of frequency bins in the band. This provides an absolute
+measure of power in each band, useful for comparing spectral characteristics
+across different signals or time segments.</p>
+<p><strong>Use Case:</strong>
+Essential for sleep stage classification where:
+- Delta band (0.5-4 Hz) power increases in deep sleep (N3)
+- Alpha band (8-12 Hz) power is prominent during relaxed wakefulness
+- Beta band (12-30 Hz) power increases during active wakefulness
+- Theta band (4-8 Hz) power is characteristic of light sleep (N1, N2) and REM</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – List of mean PSD values for each frequency band, one array per band</p></li>
+<li><p><strong>feature_name</strong> (<em>list(str)</em>) – Feature names in format ‘MEAN_PSD{low}-{high}Hz’ with the frequencies
+concatenated directly (e.g., ‘MEAN_PSD0.5-4Hz’) for each band</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.mean_frequency">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">mean_frequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.mean_frequency" title="Link to this definition">#</a></dt>
+<dd><p>Calculate the mean dominant frequency of the power spectral density.</p>
+<p><strong>Big Picture:</strong>
+This function computes the centroid (weighted average) of the frequency spectrum,
+which indicates where the “center of mass” of the spectral power lies. This is
+particularly useful in sleep stage classification and EEG analysis to characterize
+the dominant frequency content of brain activity.</p>
+<p><strong>Technical Details:</strong>
+The mean frequency is calculated as the power-weighted average frequency:</p>
+<div class="math notranslate nohighlight">
+\[f_{mean} = \frac{\sum_{i} P(f_i) \cdot f_i}{\sum_{i} P(f_i)}\]</div>
+<p>where P(f_i) is the power spectral density at frequency f_i. The calculation
+is performed over the frequency range defined by the minimum and maximum
+of the provided frequency bands.</p>
+<p><strong>Use Case:</strong>
+Commonly used to distinguish between sleep stages where different frequency
+bands dominate (e.g., delta in deep sleep vs. alpha/beta in wakefulness).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – Calculated mean dominant frequency for each sample</p></li>
+<li><p><strong>feature_name</strong> (<em>list(str)</em>) – Feature name: ‘MEAN_DOMINANT_FREQUENCY’</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>MATLAB meanfreq: <a class="reference external" href="https://www.mathworks.com/help/signal/ref/meanfreq.html">https://www.mathworks.com/help/signal/ref/meanfreq.html</a></p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.median_frequency">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">median_frequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.median_frequency" title="Link to this definition">#</a></dt>
+<dd><p>Calculate the spectral median frequency of the power spectral density.</p>
+<p><strong>Big Picture:</strong>
+The median frequency divides the power spectrum into two equal halves of power.
+It is the frequency below which 50% of the total power is contained. This metric
+is robust to outliers and provides an alternative to mean frequency for characterizing
+the spectral content of signals, especially useful when the power distribution is skewed.</p>
+<p><strong>Technical Details:</strong>
+The median frequency f_median is defined as the frequency where the cumulative
+power reaches 50% of the total power:</p>
+<div class="math notranslate nohighlight">
+\[\int_0^{f_{median}} P(f) df = 0.5 \cdot \int_0^{f_{max}} P(f) df\]</div>
+<p>The calculation is performed over the frequency range defined by the minimum
+and maximum of the provided frequency bands. This implementation uses cumulative
+sum and finds the crossover point where cumulative power exceeds half the total.</p>
+<p><strong>Use Case:</strong>
+Often preferred over mean frequency in EEG analysis when dealing with non-Gaussian
+spectral distributions or when the presence of high-frequency noise might skew
+the mean frequency estimate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – Calculated spectral median frequency for each sample</p></li>
+<li><p><strong>feature_name</strong> (<em>list(str)</em>) – Feature name: ‘SPECTRAL_MEDIAN_FREQUENCY’</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>MATLAB medfreq: <a class="reference external" href="https://www.mathworks.com/help/signal/ref/medfreq.html">https://www.mathworks.com/help/signal/ref/medfreq.html</a></p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.non_normalized_entropy">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">non_normalized_entropy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.non_normalized_entropy" title="Link to this definition">#</a></dt>
+<dd><p><strong>Spectral entropy (Shannon Entropy)</strong></p>
+<ul class="simple">
+<li><p>Estimates Shannon Entropy of a spectrum on a frequency range defined as min-to-max of frequency bands at the input.</p></li>
+<li><p>Source: <a class="reference external" href="https://www.mathworks.com/help/wavelet/ref/wentropy.html">https://www.mathworks.com/help/wavelet/ref/wentropy.html</a></p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – Calculated features for individual frequency bands</p></li>
+<li><p><strong>feature_name</strong> (<em>list(numpy.array)</em>) – Feature names</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.non_normalized_entropy_bands">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">non_normalized_entropy_bands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.non_normalized_entropy_bands" title="Link to this definition">#</a></dt>
+<dd><p><strong>Spectral entropy (Shannon Entropy)</strong></p>
+<ul class="simple">
+<li><p>Estimates Shannon Entropy of a spectrum on a frequency range defined as min-to-max of frequency bands at the input.</p></li>
+<li><p>Source: <a class="reference external" href="https://www.mathworks.com/help/wavelet/ref/wentropy.html">https://www.mathworks.com/help/wavelet/ref/wentropy.html</a></p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – Calculated features for individual frequency bands</p></li>
+<li><p><strong>feature_name</strong> (<em>list(numpy.array)</em>) – Feature names</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.normalized_entropy">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">normalized_entropy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.normalized_entropy" title="Link to this definition">#</a></dt>
+<dd><p><strong>Spectral entropy (Shannon Entropy)</strong></p>
+<ul class="simple">
+<li><p>Estimates Shannon Entropy of a spectrum on a frequency range defined as min-to-max of frequency bands at the input.</p></li>
+<li><p>Source: <a class="reference external" href="https://www.mathworks.com/help/wavelet/ref/wentropy.html">https://www.mathworks.com/help/wavelet/ref/wentropy.html</a></p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – Calculated features for individual frequency bands</p></li>
+<li><p><strong>feature_name</strong> (<em>list(numpy.array)</em>) – Feature names</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.normalized_entropy_bands">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">normalized_entropy_bands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.normalized_entropy_bands" title="Link to this definition">#</a></dt>
+<dd><p><strong>Spectral entropy (Shannon Entropy)</strong></p>
+<ul class="simple">
+<li><p>Estimates Shannon Entropy of a spectrum on a frequency range defined as min-to-max of frequency bands at the input.</p></li>
+<li><p>Source: <a class="reference external" href="https://www.mathworks.com/help/wavelet/ref/wentropy.html">https://www.mathworks.com/help/wavelet/ref/wentropy.html</a></p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – Calculated features for individual frequency bands</p></li>
+<li><p><strong>feature_name</strong> (<em>list(numpy.array)</em>) – Feature names</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.spectral_features.relative_bands">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.spectral_features.</span></span><span class="sig-name descname"><span class="pre">relative_bands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.spectral_features.relative_bands" title="Link to this definition">#</a></dt>
+<dd><p>Calculate relative power spectral density for each frequency band.</p>
+<p><strong>Big Picture:</strong>
+This function computes the proportion of total power contained in each frequency
+band, normalizing by the total power across all bands. Relative power features
+are more robust to inter-individual differences in overall signal amplitude and
+better reflect the relative contribution of each frequency band to the overall
+brain activity. This normalization is crucial for reliable sleep stage classification
+and cross-subject comparisons.</p>
+<p><strong>Technical Details:</strong>
+For each frequency band [f_low, f_high], the relative PSD is calculated as:</p>
+<div class="math notranslate nohighlight">
+\[P_{rel,band} = \frac{\sum_{f_i \in [f_{low}, f_{high}]} P(f_i)}{\sum_{f_i \in [f_{min}, f_{max}]} P(f_i)}\]</div>
+<p>where [f_min, f_max] is the continuous frequency interval from the smallest lower
+bound to the largest upper bound across all provided bands (i.e., <code class="docutils literal notranslate"><span class="pre">f_min</span> <span class="pre">=</span> <span class="pre">bands.min()</span></code>
+and <code class="docutils literal notranslate"><span class="pre">f_max</span> <span class="pre">=</span> <span class="pre">bands.max()</span></code>). The sum of all relative band powers equals 1.0, making
+them interpretable as percentages of total power.</p>
+<p><strong>Use Case:</strong>
+Preferred over absolute band powers for machine learning-based sleep staging because:
+- Accounts for individual differences in EEG amplitude
+- Reduces the impact of recording conditions (electrode impedance, amplifier gain)
+- Focuses on the spectral shape rather than absolute magnitude
+- More stable features across different recording sessions</p>
+<p><strong>Clinical Applications:</strong>
+- Sleep stage classification: High relative delta in N3, high relative alpha in wake
+- Anesthesia depth monitoring: Shifts in relative power distributions
+- Cognitive state assessment: Changes in relative alpha/beta ratios</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>args</strong> (<em>dictionary</em>) – <ul class="simple">
+<li><p>‘psd’ (<em>numpy.ndarray[n_samples, n_freq_samples]</em>) - one-sided PSD</p></li>
+<li><p>’fbands’ (<em>list of lists</em>) - frequency bands in which the feature is to be calculated [[0.5, 4], [5, 9]]</p></li>
+<li><p>’freq’ (<em>numpy.array[n_freq_samples]</em>) - reference frequency array for the PSD</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>x</strong> (<em>list(numpy.array)</em>) – List of relative PSD values for each frequency band (values between 0 and 1)</p></li>
+<li><p><strong>feature_name</strong> (<em>list(str)</em>) – Feature names in format ‘REL_PSD_{low}-{high}Hz’ (e.g., ‘REL_PSD_0.5-4Hz’) for each band</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="features.feature_extraction.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Feature Extraction</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="features.time_domain_features.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Time Domain Features</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.mean_bands"><code class="docutils literal notranslate"><span class="pre">mean_bands()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.mean_frequency"><code class="docutils literal notranslate"><span class="pre">mean_frequency()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.median_frequency"><code class="docutils literal notranslate"><span class="pre">median_frequency()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.non_normalized_entropy"><code class="docutils literal notranslate"><span class="pre">non_normalized_entropy()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.non_normalized_entropy_bands"><code class="docutils literal notranslate"><span class="pre">non_normalized_entropy_bands()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.normalized_entropy"><code class="docutils literal notranslate"><span class="pre">normalized_entropy()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.normalized_entropy_bands"><code class="docutils literal notranslate"><span class="pre">normalized_entropy_bands()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.spectral_features.relative_bands"><code class="docutils literal notranslate"><span class="pre">relative_bands()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Filip Mivalt M.Sc., Ph.D.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2020-present, Mayo Clinic Department of Neurology - Laboratory of Bioelectronics Neurophysiology and Engineering. All rights reserved.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
