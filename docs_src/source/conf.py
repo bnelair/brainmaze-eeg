@@ -21,12 +21,8 @@ projd = os.path.abspath(os.path.join(curwd, '..', '..'))
 
 sys.path.insert(0, projd)
 
-print(projd)
-print(curwd)
-
-os.chdir(projd)
-from brainmaze_utils import __version__
-os.chdir(curwd)
+# Version is single-sourced from the package (pyproject.toml -> importlib.metadata).
+from brainmaze_eeg import __version__
 
 # -- Project information -----------------------------------------------------
 
