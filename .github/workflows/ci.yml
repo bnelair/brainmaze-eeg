@@ -1,0 +1,9 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    uses: bnelair/brainmaze-sphinx/.github/workflows/test.yml@main
+    with:
+      package-import-name: brainmaze_eeg
