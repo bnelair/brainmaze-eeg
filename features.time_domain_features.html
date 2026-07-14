@@ -43,6 +43,7 @@
     <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'features.time_domain_features';</script>
     <link rel="icon" href="_static/brainmaze_173x173.png"/>
     <link rel="index" title="Index" href="genindex.html" />
@@ -332,6 +333,15 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#time-domain-feature-extraction">Time-domain feature extraction</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#features">Features</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor"><code class="docutils literal notranslate"><span class="pre">TimeDomainFeatureExtractor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor.AVAILABLE_FEATURES"><code class="docutils literal notranslate"><span class="pre">TimeDomainFeatureExtractor.AVAILABLE_FEATURES</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.line_length"><code class="docutils literal notranslate"><span class="pre">line_length()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.tkeo"><code class="docutils literal notranslate"><span class="pre">tkeo()</span></code></a></li>
 </ul>
             </nav>
@@ -346,16 +356,118 @@
                   
   <section id="module-brainmaze_eeg.features.time_domain_features">
 <span id="time-domain-features"></span><h1>Time Domain Features<a class="headerlink" href="#module-brainmaze_eeg.features.time_domain_features" title="Link to this heading">#</a></h1>
-<dl class="py function">
-<dt class="sig sig-object py" id="brainmaze_eeg.features.time_domain_features.tkeo">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.time_domain_features.</span></span><span class="sig-name descname"><span class="pre">tkeo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.time_domain_features.tkeo" title="Link to this definition">#</a></dt>
-<dd><p>Teager-Kaiser Energy Operator</p>
+<section id="time-domain-feature-extraction">
+<h2>Time-domain feature extraction<a class="headerlink" href="#time-domain-feature-extraction" title="Link to this heading">#</a></h2>
+<p>Windowed time-domain features for EEG/iEEG. Mirrors the call contract of
+<a class="reference internal" href="features.feature_extraction.html#brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor" title="brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor</span></code></a> –
+<code class="docutils literal notranslate"><span class="pre">extractor(x)</span> <span class="pre">-&gt;</span> <span class="pre">(values,</span> <span class="pre">names)</span></code> – so time-domain and spectral features can be
+concatenated for the same epochs.</p>
+<section id="features">
+<h3>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">LINE_LENGTH</span></code></dt><dd><p>Sum of absolute sample-to-sample differences within a window. Scales with window
+length; divide by <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span> <span class="pre">*</span> <span class="pre">segm_size</span> <span class="pre">*</span> <span class="pre">fs</span></code> to obtain a per-sample rate.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">TKEO_MEAN</span></code></dt><dd><p>Mean Teager-Kaiser energy within a window.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">brainmaze_eeg.features.time_domain_features</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeDomainFeatureExtractor</span>
+
+<span class="n">fs</span> <span class="o">=</span> <span class="mi">200</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">60</span> <span class="o">*</span> <span class="n">fs</span><span class="p">)</span>          <span class="c1"># (n_channels, n_samples)</span>
+
+<span class="n">extractor</span> <span class="o">=</span> <span class="n">TimeDomainFeatureExtractor</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span> <span class="n">segm_size</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">datarate</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">values</span><span class="p">,</span> <span class="n">names</span> <span class="o">=</span> <span class="n">extractor</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>             <span class="c1"># values: list of (n_channels, n_windows)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.time_domain_features.</span></span><span class="sig-name descname"><span class="pre">TimeDomainFeatureExtractor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">features</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">('LINE_LENGTH',</span> <span class="pre">'TKEO_MEAN')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor" title="Link to this definition">#</a></dt>
+<dd><p>Windowed time-domain feature extractor.</p>
+<p>Each feature is computed from the samples <strong>inside</strong> its window: line length sums the
+<code class="docutils literal notranslate"><span class="pre">n-1</span></code> increments between consecutive in-window samples, and TKEO averages the <code class="docutils literal notranslate"><span class="pre">n-2</span></code>
+values it can define without reaching outside. Values are therefore identical to a
+straightforward per-window computation – this class does not change the definitions,
+only how fast they are evaluated.</p>
+<p>The speed comes from evaluating each per-sample operator <strong>once</strong> across the whole
+signal and then aggregating it with a strided window view, so there is no Python-level
+loop over windows or channels and no copy of the signal. Cost is O(n_samples) per
+channel. Clean (NaN-free) input takes a branch with no masking and no nan-aware
+reductions, which is roughly 2x faster again.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>x</strong> – numpy ndarray</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency in Hz.</p></li>
+<li><p><strong>segm_size</strong> (<em>float</em>) – Window length in seconds.</p></li>
+<li><p><strong>overlap</strong> (<em>float</em>) – Window overlap in seconds. Must be in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">segm_size)</span></code>. Default 0.0.</p></li>
+<li><p><strong>features</strong> (<em>tuple</em><em> of </em><em>str</em>) – Which features to compute. Any of <code class="docutils literal notranslate"><span class="pre">'LINE_LENGTH'</span></code>, <code class="docutils literal notranslate"><span class="pre">'TKEO_MEAN'</span></code>.</p></li>
+<li><p><strong>datarate</strong> (<em>bool</em>) – If True, prepend a <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> feature: the fraction of non-NaN samples in each
+window. Default False.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>NaNs propagate as missing data, not as zeros: they are excluded from each window’s
+aggregate rather than being counted as flat signal. A window that is entirely NaN
+yields NaN. Pair with <code class="docutils literal notranslate"><span class="pre">datarate=True</span></code> to know how much of each window was real.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor.AVAILABLE_FEATURES">
+<span class="sig-name descname"><span class="pre">AVAILABLE_FEATURES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('LINE_LENGTH',</span> <span class="pre">'TKEO_MEAN')</span></em><a class="headerlink" href="#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor.AVAILABLE_FEATURES" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.time_domain_features.line_length">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.time_domain_features.</span></span><span class="sig-name descname"><span class="pre">line_length</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#brainmaze_eeg.features.time_domain_features.line_length" title="Link to this definition">#</a></dt>
+<dd><p>Per-sample line-length increments.</p>
+<div class="math notranslate nohighlight">
+\[L[n] = |x[n] - x[n-1]|\]</div>
+<p>Summing these within a window gives the classic line-length feature, a cheap proxy
+for signal complexity and amplitude that is widely used for seizure onset detection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>np.ndarray</em>) – Input signal. May be of any dimensionality.</p></li>
+<li><p><strong>axis</strong> (<em>int</em>) – Axis along which the increments are computed. Default is the last axis.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>numpy ndarray</p>
+<dd class="field-even"><p>Same shape as <code class="docutils literal notranslate"><span class="pre">x</span></code>. The first sample along <code class="docutils literal notranslate"><span class="pre">axis</span></code> is undefined and set to
+NaN, so the result stays sample-aligned with the input.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.time_domain_features.tkeo">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.time_domain_features.</span></span><span class="sig-name descname"><span class="pre">tkeo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#brainmaze_eeg.features.time_domain_features.tkeo" title="Link to this definition">#</a></dt>
+<dd><p>Teager-Kaiser Energy Operator.</p>
+<div class="math notranslate nohighlight">
+\[\Psi[n] = x[n]^2 - x[n-1] \cdot x[n+1]\]</div>
+<p>Tracks the instantaneous energy of a quasi-sinusoidal signal, being jointly
+proportional to the square of its amplitude and frequency. Sensitive to sharp
+transients, which makes it useful for spike and artefact detection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>np.ndarray</em>) – Input signal. May be of any dimensionality.</p></li>
+<li><p><strong>axis</strong> (<em>int</em>) – Axis along which the operator is applied. Default is the last axis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Same shape as <code class="docutils literal notranslate"><span class="pre">x</span></code>. The first and last samples along <code class="docutils literal notranslate"><span class="pre">axis</span></code> are undefined
+and set to NaN, so the result stays sample-aligned with the input.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
 </dd>
 </dl>
 </dd></dl>
@@ -409,6 +521,15 @@
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#time-domain-feature-extraction">Time-domain feature extraction</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#features">Features</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor"><code class="docutils literal notranslate"><span class="pre">TimeDomainFeatureExtractor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor.AVAILABLE_FEATURES"><code class="docutils literal notranslate"><span class="pre">TimeDomainFeatureExtractor.AVAILABLE_FEATURES</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.line_length"><code class="docutils literal notranslate"><span class="pre">line_length()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.time_domain_features.tkeo"><code class="docutils literal notranslate"><span class="pre">tkeo()</span></code></a></li>
 </ul>
   </nav></div>
