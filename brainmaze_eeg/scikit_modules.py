@@ -384,11 +384,12 @@ class PCAModule(PCA):
     def fit(self, X, y=None):
         testPCA = PCA()
         testPCA.fit(X)
-        n = 1
-        vals = testPCA.singular_values_
-        vals = vals / vals.sum()
-        while vals[:n].sum() < self.var_threshold:
-            n += 1
+        # select the fewest components whose *explained variance* reaches the threshold.
+        # singular values are proportional to sqrt(variance), so normalising them is not
+        # an explained-variance ratio and would over-count the number of components.
+        cum_var = np.cumsum(testPCA.explained_variance_ratio_)
+        n = int(np.searchsorted(cum_var, self.var_threshold) + 1)
+        n = min(n, testPCA.explained_variance_ratio_.shape[0])
 
         super().__init__(n_components=n)
         super().fit(X, y)

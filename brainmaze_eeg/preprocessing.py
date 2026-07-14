@@ -325,7 +325,7 @@ def detect_flat_line_segments(
     xb = np.array([
         buffer(x_, fs, segm_size=window_s, drop=True) for x_ in x
     ])
-    detected_flat_line = np.abs(np.diff(xb, axis=2).mean(axis=2)) < threshold
+    detected_flat_line = np.abs(np.diff(xb, axis=2)).mean(axis=2) < threshold
 
     if ndim == 1:
         detected_flat_line = detected_flat_line[0]

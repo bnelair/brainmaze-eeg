@@ -118,21 +118,22 @@ def median_frequency(args):
     bands = args['fbands']
     freq = args['freq']
 
+    min_position = np.nanargmin(np.abs(freq - bands.min()))
+    max_position = np.nanargmin(np.abs(freq - bands.max()))
 
-    pwr = np.sum(Pxx, axis=1)
-    #f = 0.5 * fs * np.arange(1, Pxx.shape[1]) / Pxx.shape[1]
-    f = args.freq
-    min_position = np.nanargmin(np.abs(f - bands.min()))
-    max_position = np.nanargmin(np.abs(f - bands.max()))
+    P = np.abs(Pxx[:, min_position: max_position + 1])
+    f = freq[min_position: max_position + 1]
 
-    P = Pxx[:, min_position: max_position + 1]
-    f = f[min_position: max_position + 1]
+    # median frequency: the bin at which cumulative power reaches half of the *band*
+    # total (the reference must be the same band the cumulative sum runs over, otherwise
+    # the crossing is never found for a band narrower than the full spectrum).
+    total = np.nansum(P, axis=1, keepdims=True)
+    cum = np.nancumsum(P, axis=1)
+    medfreq_pos = np.argmax(cum >= 0.5 * total, axis=1)
+    medfreq = f[medfreq_pos]
 
-    pwr05 = np.repeat(pwr / 2, P.shape[1]).reshape(P.shape)
-    P = np.cumsum(np.abs(P), axis=1)
-
-    medfreq_pos = np.argmax(np.diff(P > pwr05, axis=1), axis=1) + 1
-    medfreq = f.squeeze()[medfreq_pos]
+    # a band with no positive power has no meaningful median frequency
+    medfreq = np.where(total[:, 0] > 0, medfreq, np.nan)
     return [medfreq], ['SPECTRAL_MEDIAN_FREQUENCY']
 
 
