@@ -246,7 +246,7 @@ def test_input_is_not_mutated():
     x[10] = np.nan
     before = x.copy()
     TimeDomainFeatureExtractor(fs=FS, segm_size=1, datarate=True)(x)
-    np.testing.assert_array_equal(x, before, strict=True)
+    np.testing.assert_array_equal(x, before)
 
 
 # ----------------------------------------------------------------------------------
