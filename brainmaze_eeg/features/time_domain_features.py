@@ -206,6 +206,12 @@ class TimeDomainFeatureExtractor:
                 f'A window of {segm_size} s at fs={fs} Hz is {self._n_segm} samples; '
                 f'TKEO needs at least 3.'
             )
+        if self._n_shift < 1:
+            raise ValueError(
+                f'The window step (segm_size - overlap = {segm_size - overlap} s at '
+                f'fs={fs} Hz) rounds to {self._n_shift} samples; it must be at least 1. '
+                f'Reduce the overlap or increase the window size.'
+            )
 
     def __call__(self, x):
         """
@@ -254,7 +260,14 @@ class TimeDomainFeatureExtractor:
         if 'LINE_LENGTH' in self.features:
             # increments inside window k are d[k*sh : k*sh + n-1]
             dw = _window_view(_line_length_core(x), n - 1, sh, n_windows)
-            values.append(np.nansum(dw, axis=-1) if has_nan else dw.sum(axis=-1))
+            if has_nan:
+                # a window with no valid increment (all-NaN, or only isolated samples)
+                # is undefined -> NaN, not 0, so it is not read as a flat window
+                ll = np.nansum(dw, axis=-1)
+                ll[np.isfinite(dw).sum(axis=-1) == 0] = np.nan
+                values.append(ll)
+            else:
+                values.append(dw.sum(axis=-1))
             names.append('LINE_LENGTH')
 
         if 'TKEO_MEAN' in self.features:

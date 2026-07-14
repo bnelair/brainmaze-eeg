@@ -24,7 +24,9 @@ def reference(x, fs, segm_size, overlap=0.0):
         r_ll, r_tk, r_dr = [], [], []
         for s in range(0, len(ch) - n + 1, shift):
             w = ch[s:s + n]
-            r_ll.append(np.nansum(np.abs(np.diff(w))))
+            inc = np.abs(np.diff(w))
+            inc = inc[~np.isnan(inc)]
+            r_ll.append(inc.sum() if inc.size else np.nan)
             psi = w[1:-1] ** 2 - w[2:] * w[:-2]
             psi = psi[~np.isnan(psi)]
             r_tk.append(psi.mean() if psi.size else np.nan)
@@ -163,16 +165,19 @@ def test_all_nan_window_yields_nan_not_zero():
     values, names = TimeDomainFeatureExtractor(fs=FS, segm_size=1, datarate=True)(x)
     got = features_as_dict(values, names)
 
+    # an all-NaN window is undefined for both shape features, not a flat (zero) window
     assert np.isnan(got['TKEO_MEAN'][1])
+    assert np.isnan(got['LINE_LENGTH'][1])
     np.testing.assert_allclose(got['DATA_RATE'], [1.0, 0.0, 1.0])
 
 
 def test_nans_are_not_counted_as_flat_signal():
-    # a NaN gap must not inflate line length, nor be silently read as zeros
+    # a genuinely flat window reads 0; an all-NaN window is undefined (NaN), never 0
     x = np.concatenate([np.zeros(FS), np.full(FS, np.nan)])
     values, names = TimeDomainFeatureExtractor(fs=FS, segm_size=1)(x)
     got = features_as_dict(values, names)
-    np.testing.assert_allclose(got['LINE_LENGTH'], [0.0, 0.0])
+    assert got['LINE_LENGTH'][0] == 0.0
+    assert np.isnan(got['LINE_LENGTH'][1])
 
 
 def test_extractor_emits_no_warnings_on_all_nan_input():
@@ -264,6 +269,7 @@ def test_input_is_not_mutated():
     {'fs': FS, 'segm_size': 1, 'features': ()},
     {'fs': FS, 'segm_size': 1, 'features': ('NOPE',)},
     {'fs': FS, 'segm_size': 0.01},                 # 2 samples -> TKEO needs 3
+    {'fs': FS, 'segm_size': 1, 'overlap': 0.999},  # step rounds to 0 samples
 ])
 def test_invalid_construction_raises_value_error(kwargs):
     with pytest.raises(ValueError):
