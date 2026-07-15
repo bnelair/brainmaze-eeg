@@ -164,7 +164,10 @@ def test_detect_flat_line_segments():
     duration = 60
 
     x = 1*np.random.randn(int(fs * duration))
-    x[fs:2*fs] *= 1e-6
+    # a genuinely flat segment: sample-to-sample changes well below the 0.5 uV threshold.
+    # (1e-6 scaling is ~1 uV of noise, whose mean |diff| ~1.1 uV is *above* threshold and
+    # so is not flat under the documented definition.)
+    x[fs:2*fs] *= 1e-9
 
     x = np.stack([x, x[::-1]], 0)
 
@@ -175,6 +178,21 @@ def test_detect_flat_line_segments():
     assert y[0, 1] == True, "2nd second segment should be detected as flat line"
     assert y[0, 2] == False, "3rd second segment should not be detected as flat line"
     assert np.all(y[0] == y[1][::-1]), "Output should be the same for both channels"
+
+
+def test_detect_flat_line_segments_oscillation_is_not_flat():
+    # regression: an oscillation returns to near its starting value each cycle, so the
+    # mean *of* the differences telescopes to ~0. The detector must use the mean of the
+    # *absolute* differences, otherwise a large-amplitude periodic signal reads as flat.
+    fs = 250
+    t = np.arange(0, 10, 1 / fs)
+    x = 100e-6 * np.sin(2 * np.pi * 10 * t)   # 100 uV, 10 Hz -- clearly not flat
+
+    y = detect_flat_line_segments(x, fs, window_s=0.5)
+    assert not y.any(), "an oscillating signal must never be flagged as flat line"
+
+    # and a true DC segment of the same duration still is flat
+    assert detect_flat_line_segments(np.zeros_like(x), fs, window_s=0.5).all()
 
 def test_detect_stim_segments():
     # Parameters
