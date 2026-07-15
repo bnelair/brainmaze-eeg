@@ -73,27 +73,19 @@ __all__ = ['WaveDetector', 'detect_waves']
 # ----------------------------------------------------------------------------------
 def _bandpass_fft(x, fs, f_low, f_high):
     """
-    Ideal (brick-wall) FFT band-pass in a single FFT/IFFT round trip.
+    Ideal (brick-wall) FFT band-pass ``(f_low, f_high]`` in a single FFT/IFFT round trip.
 
-    Bit-identical to ``fft_filter(fft_filter(x, fs, f_low, 'hp'), fs, f_high, 'lp')``
-    from brainmaze_utils, which applied two round trips. Both are pure frequency-domain
-    masks, so composing them is the intersection of the kept frequency bins.
+    Replaces the two-pass ``hp -> lp`` composition; both are pure frequency-domain masks.
+    Bin frequencies use ``np.fft.fftfreq`` (true ``fs*k/n``), which also handles the
+    negative-frequency mirror automatically -- correct for any ``n``, unlike a
+    ``linspace(0, fs, n)`` axis (step ``fs/(n-1)``) that is off by one for short signals.
     """
     x = np.asarray(x, dtype=np.float64)
     n = x.shape[0]
     Xs = np.fft.fft(x)
-    freq = np.linspace(0, fs, n)
-
-    above_low = np.where(freq > f_low)[0]
-    pos_low = int(above_low[0]) if above_low.size else n
-    above_high = np.where(freq > f_high)[0]
-    pos_high = int(above_high[0]) if above_high.size else n
-
-    Xn = np.zeros_like(Xs)
-    # positive-frequency band [f_low, f_high) and its conjugate mirror
-    Xn[pos_low:pos_high] = Xs[pos_low:pos_high]
-    Xn[n - pos_high:n - pos_low] = Xs[n - pos_high:n - pos_low]
-    return np.real(np.fft.ifft(Xn))
+    freq = np.abs(np.fft.fftfreq(n, d=1.0 / fs))
+    mask = (freq > f_low) & (freq <= f_high)
+    return np.real(np.fft.ifft(np.where(mask, Xs, 0.0)))
 
 
 def _forward_fill_sign(x):
@@ -140,7 +132,7 @@ def _refine_positions(x_ref, positions, half_win, want):
         return positions
     n = x_ref.shape[0]
     lo = np.clip(positions - half_win, 0, n - 1)
-    offs = np.arange(2 * half_win)
+    offs = np.arange(2 * half_win + 1)   # symmetric window [pos-half_win, pos+half_win]
     idx = np.clip(lo[:, None] + offs[None, :], 0, n - 1)
     vals = x_ref[idx]
     rel = vals.argmin(axis=1) if want == 'min' else vals.argmax(axis=1)
@@ -239,6 +231,9 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None):
         amp = x_ref
     else:
         amp = np.asarray(measure_on, dtype=np.float64).ravel()
+        if amp.shape[0] != x0.shape[0]:
+            raise ValueError(
+                f'measure_on length ({amp.shape[0]}) must match x length ({x0.shape[0]}).')
         amp = amp - np.nanmean(amp)
 
     trough_pos, peak_pos, zero_pos = _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high)
@@ -395,7 +390,10 @@ class WaveDetector:
         names = (['DATA_RATE'] if self.datarate else []) + ['WAVE_RATE'] + list(self._SHAPE_FEATURES)
         per_signal = [self._features_for_signal(sig, det) for sig, det in zip(signals, detections)]
 
-        values = [np.array([row[k] for row in per_signal]) for k in names]
+        # np.stack (not np.array) so a shape mismatch between signals -- e.g. a list of
+        # unequal-length signals producing different window counts -- raises a clear error
+        # instead of silently building a dtype=object array.
+        values = [np.stack([row[k] for row in per_signal]) for k in names]
         if single:
             values = [v[0] for v in values]
         return values, names

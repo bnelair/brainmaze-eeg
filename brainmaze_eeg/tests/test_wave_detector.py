@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-from brainmaze_utils.signal import fft_filter
 from brainmaze_eeg.features.wave_detector import (
     WaveDetector,
     detect_waves,
@@ -20,10 +19,17 @@ def _sine(f, amp=1.0, dur=10.0, fs=FS):
 # one-pass band-pass (must equal the two-pass hp -> lp it replaces)
 # ----------------------------------------------------------------------------------
 @pytest.mark.parametrize('n', [1999, 2000, 6000])
-def test_bandpass_equals_hp_then_lp(n):
-    x = np.random.default_rng(0).standard_normal(n)
-    ref = fft_filter(fft_filter(x, FS, 0.5, 'hp'), FS, 4.0, 'lp')
-    np.testing.assert_allclose(_bandpass_fft(x, FS, 0.5, 4.0), ref, atol=1e-9)
+def test_bandpass_passes_inband_and_removes_outofband(n):
+    # correctness of the brick-wall band-pass on true FFT-bin frequencies: a tone inside
+    # (0.5, 4] Hz survives; tones below/above are removed.
+    t = np.arange(n) / FS
+    inband = np.sin(2 * np.pi * 2.0 * t)
+    below = np.sin(2 * np.pi * 0.2 * t)
+    above = np.sin(2 * np.pi * 10.0 * t)
+    m = slice(n // 5, -n // 5)   # ignore FFT edge ripple of the ideal filter
+    np.testing.assert_allclose(_bandpass_fft(inband, FS, 0.5, 4.0)[m], inband[m], atol=1e-2)
+    assert np.abs(_bandpass_fft(below, FS, 0.5, 4.0)[m]).max() < 1e-2
+    assert np.abs(_bandpass_fft(above, FS, 0.5, 4.0)[m]).max() < 1e-2
 
 
 # ----------------------------------------------------------------------------------
@@ -195,3 +201,10 @@ def test_measure_on_2d_and_length_check():
     assert all(v.shape == (2, 2) for v in values)
     with pytest.raises(ValueError):
         det(X, measure_on=X[0])                    # mismatched signal count
+
+
+def test_measure_on_length_mismatch_raises():
+    from brainmaze_eeg.features.wave_detector import detect_waves
+    x = np.random.default_rng(0).standard_normal(2000)
+    with pytest.raises(ValueError):
+        detect_waves(x, fs=FS, fband=(0.5, 4.0), measure_on=x[:-5])
