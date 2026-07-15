@@ -1,9 +1,11 @@
 name: Version guard
 
-# Enforces that [project].version is only ever changed by the release flow (the
-# release/bump-* branch opened by "Prepare release"). Any other PR that edits the version
-# fails, which keeps the version line owned solely by the release automation on main and
-# therefore keeps dev -> main merges free of version conflicts under squash merges.
+# Enforces that [project].version is only ever changed by the release flow. The exemption
+# requires all three signals of a genuine release bump -- opened by github-actions[bot],
+# from a release/bump-* branch, targeting main -- so a hand-named branch cannot slip a
+# version edit past the check. This keeps the version line owned solely by the release
+# automation on main and therefore keeps dev -> main merges free of version conflicts
+# under squash merges.
 
 on:
   pull_request:
@@ -20,8 +22,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ github.head_ref }}" == release/bump-* ]]; then
-            echo "Release bump PR -- version change allowed."
+          if [[ "${{ github.event.pull_request.base.ref }}" == "main" \
+                && "${{ github.head_ref }}" == release/bump-* \
+                && "${{ github.event.pull_request.user.login }}" == "github-actions[bot]" ]]; then
+            echo "Automated release bump PR -- version change allowed."
             exit 0
           fi
           base='${{ github.event.pull_request.base.sha }}'
