@@ -93,18 +93,6 @@ class KDEBayesianModel:
         )
 
 
-        self.FeatureExtractor_MeanBand = SleepSpectralFeatureExtractor(
-            fs=self.fs,
-            segm_size=self.segm_size,
-            fbands=self.fbands,
-            ignore_bands=self.bands_to_erase,
-            sperwelchseg=10,
-            soverlapwelchseg=5,
-            nfft=self.nfft,
-            datarate=False
-        )
-
-
 
 
         self.FeatureExtractor_MeanBand._extraction_functions = \
@@ -1186,17 +1174,6 @@ class MultiChannelMVGaussBayesClassifier:
         self.FeatureSelector = None
 
         self.SELECTOR2 = Selector2
-
-        self.FeatureExtractor_MeanBand = SleepSpectralFeatureExtractor(
-            fs=self.fs,
-            segm_size=self.segm_size,
-            fbands=self.fbands,
-            ignore_bands=self.bands_to_erase,
-            sperwelchseg=10,
-            soverlapwelchseg=5,
-            nfft=self.nfft,
-            datarate=False
-        )
 
         self.FeatureExtractor_MeanBand = SleepSpectralFeatureExtractor(
             fs=self.fs,
