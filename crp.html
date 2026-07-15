@@ -352,13 +352,18 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.crp.ccep_proj">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.crp.</span></span><span class="sig-name descname"><span class="pre">ccep_proj</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.crp.ccep_proj" title="Link to this definition">#</a></dt>
-<dd><p>Perform projections of each trial onto all other trials, and return the internal projections.</p>
+<dd><p>Semi-normalized pairwise cross-projections between trials.</p>
+<p>Each trial is L2-normalized and projected onto every other (raw) trial; the
+self-projections (diagonal) are discarded. For <code class="docutils literal notranslate"><span class="pre">K</span></code> trials this returns the
+<code class="docutils literal notranslate"><span class="pre">K^2</span> <span class="pre">-</span> <span class="pre">K</span></code> off-diagonal magnitudes, flattened in row-major order so that element
+<code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">*</span> <span class="pre">(K</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">+</span> <span class="pre">(j</span> <span class="pre">or</span> <span class="pre">j</span> <span class="pre">-</span> <span class="pre">1)</span></code> is the projection of the normalized trial <code class="docutils literal notranslate"><span class="pre">i</span></code> onto
+the raw trial <code class="docutils literal notranslate"><span class="pre">j</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>V</strong> (<em>numpy.ndarray</em>) – The input matrix of shape (M, N), collector of trials (each trial is a column).</p>
+<dd class="field-odd"><p><strong>V</strong> (<em>numpy.ndarray</em>) – Trial matrix of shape <code class="docutils literal notranslate"><span class="pre">(n_samples,</span> <span class="pre">K)</span></code> (each column is a trial).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The calculated internal projections vector after removing self-projections.</p>
+<dd class="field-even"><p>Off-diagonal cross-projection magnitudes, shape <code class="docutils literal notranslate"><span class="pre">(K^2</span> <span class="pre">-</span> <span class="pre">K,)</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>numpy.ndarray</p>
@@ -368,47 +373,105 @@
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.crp.crp_method">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.crp.</span></span><span class="sig-name descname"><span class="pre">crp_method</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_win</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune_the_data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.crp.crp_method" title="Link to this definition">#</a></dt>
-<dd><dl class="field-list simple">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.crp.</span></span><span class="sig-name descname"><span class="pre">crp_method</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_win</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune_the_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rejection_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_trials</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.crp.crp_method" title="Link to this definition">#</a></dt>
+<dd><p>Canonical Response Parameterization (CRP) of single-pulse stimulation responses.</p>
+<p>Python implementation of the method described in:</p>
+<blockquote>
+<div><p>Miller, K. J., Müller, K.-R., Valencia, G. O., Huang, H., Gregg, N. M.,
+Worrell, G. A., &amp; Hermes, D. (2023). <em>Canonical Response Parameterization:
+Quantifying the structure of responses to single-pulse intracranial electrical
+brain stimulation.</em> PLoS Computational Biology, 19(5), e1011105.
+<a class="reference external" href="https://doi.org/10.1371/journal.pcbi.1011105">https://doi.org/10.1371/journal.pcbi.1011105</a></p>
+</div></blockquote>
+<p>The method takes a set of <code class="docutils literal notranslate"><span class="pre">K</span></code> single-trial voltage traces of an evoked response
+(e.g. a cortico-cortical evoked potential, CCEP), and:</p>
+<ol class="arabic simple">
+<li><p>Builds a temporal profile of the semi-normalized pairwise cross-projection
+magnitude <code class="docutils literal notranslate"><span class="pre">S(t)</span></code> and takes its peak as the <strong>response duration</strong> <code class="docutils literal notranslate"><span class="pre">tau_R</span></code>.</p></li>
+<li><p>Extracts a <strong>canonical response shape</strong> <code class="docutils literal notranslate"><span class="pre">C(t)</span></code> over <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">tau_R]</span></code> via linear
+kernel PCA (the 1st principal component of the truncated trial matrix).</p></li>
+<li><p>Parameterizes each trial <code class="docutils literal notranslate"><span class="pre">k</span></code> as <code class="docutils literal notranslate"><span class="pre">V_k(t)</span> <span class="pre">=</span> <span class="pre">alpha_k</span> <span class="pre">*</span> <span class="pre">C(t)</span> <span class="pre">+</span> <span class="pre">eps_k(t)</span></code>,
+yielding per-trial projection weight <code class="docutils literal notranslate"><span class="pre">alpha_k</span></code>, residual <code class="docutils literal notranslate"><span class="pre">eps_k</span></code> and derived
+quantities (SNR, explained variance).</p></li>
+<li><p>Optionally rejects artefactual trials as outliers of the per-trial
+sub-distributions of <code class="docutils literal notranslate"><span class="pre">S(tau_R)</span></code> (Miller et al. 2023, “extraction significance”
+section).</p></li>
+</ol>
+<dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>v</strong> – ndarray
-Voltage matrix of shape (n_samples, n_channels).</p></li>
-<li><p><strong>t_win</strong> – ndarray
-Time array of shape (n_samples,) representing the time window.</p></li>
-<li><p><strong>prune_the_data</strong> – bool
-Flag indicating whether to prune the data or not.</p></li>
+<li><p><strong>v</strong> (<em>np.ndarray</em>) – Voltage matrix of shape <code class="docutils literal notranslate"><span class="pre">(n_samples,</span> <span class="pre">n_trials)</span></code>. Each column is one trial;
+trials must be baseline-corrected (the method is sensitive to baseline offsets).</p></li>
+<li><p><strong>t_win</strong> (<em>np.ndarray</em>) – Time vector of shape <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code> in seconds, aligned with the rows of <code class="docutils literal notranslate"><span class="pre">v</span></code>.</p></li>
+<li><p><strong>prune_the_data</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, run one pass of artefact-trial rejection and re-parameterize on the
+surviving trials. Default False.</p></li>
+<li><p><strong>rejection_coeff</strong> (<em>float</em><em>, </em><em>optional</em>) – Robust (median/MAD) z-score threshold for the two-sided artefact-trial
+rejection. Larger is more permissive. Default 3.5.</p></li>
+<li><p><strong>min_trials</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of trials required to attempt rejection, and minimum number that
+must remain after rejection. Default 5.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>tuple
-Tuple containing the output parameters and projections.</p>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>crp_parameters</strong> (<em>dict</em>) –</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">V_tR</span></code> : truncated voltage matrix <code class="docutils literal notranslate"><span class="pre">(T_R,</span> <span class="pre">K)</span></code> over <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">tau_R]</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">C</span></code> : canonical response shape <code class="docutils literal notranslate"><span class="pre">C(t)</span></code>, unit-norm vector of length <code class="docutils literal notranslate"><span class="pre">T_R</span></code>.
+Sign-normalized so the response is positively represented across trials.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">al</span></code> : projection weights <code class="docutils literal notranslate"><span class="pre">alpha_k</span></code> (length <code class="docutils literal notranslate"><span class="pre">K</span></code>), in the same units as
+<code class="docutils literal notranslate"><span class="pre">v</span></code> times <code class="docutils literal notranslate"><span class="pre">sqrt(#samples)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">al_p</span></code> : <code class="docutils literal notranslate"><span class="pre">alpha_k</span></code> normalized by <code class="docutils literal notranslate"><span class="pre">sqrt(T_R)</span></code> (paper’s <code class="docutils literal notranslate"><span class="pre">alpha'_k</span></code>, uV).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ep</span></code> : residual <code class="docutils literal notranslate"><span class="pre">eps_k(t)</span></code> after removing <code class="docutils literal notranslate"><span class="pre">alpha_k</span> <span class="pre">*</span> <span class="pre">C(t)</span></code>, shape
+<code class="docutils literal notranslate"><span class="pre">(T_R,</span> <span class="pre">K)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">erp</span></code> : fitted evoked response <code class="docutils literal notranslate"><span class="pre">alpha_k</span> <span class="pre">*</span> <span class="pre">C(t)</span></code>, shape <code class="docutils literal notranslate"><span class="pre">(T_R,</span> <span class="pre">K)</span></code> – the
+part of each trial captured by the canonical shape (over the response window).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">erp_full</span></code> : <code class="docutils literal notranslate"><span class="pre">erp</span></code> embedded in a full-length <code class="docutils literal notranslate"><span class="pre">(n_samples,</span> <span class="pre">K)</span></code> array, zero
+after <code class="docutils literal notranslate"><span class="pre">tau_R</span></code>. Subtract from <code class="docutils literal notranslate"><span class="pre">v</span></code> to remove the evoked response across the
+whole epoch.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Vsnr</span></code> : per-trial signal-to-noise magnitude <code class="docutils literal notranslate"><span class="pre">|alpha_k|</span> <span class="pre">/</span> <span class="pre">||eps_k||</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">expl_var</span></code> : per-trial fraction of variance explained by <code class="docutils literal notranslate"><span class="pre">C(t)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tR</span></code> : response duration <code class="docutils literal notranslate"><span class="pre">tau_R</span></code> in seconds.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">epep_root</span></code> : <code class="docutils literal notranslate"><span class="pre">sqrt(diag(ep.T</span> <span class="pre">&#64;</span> <span class="pre">ep))</span></code>, per-trial residual norm.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">avg_trace_tR</span></code> / <code class="docutils literal notranslate"><span class="pre">std_trace_tR</span></code> : mean / std trace over <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">tau_R]</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">parms_times</span></code> : time vector over <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">tau_R]</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kept_trials</span></code> : indices (into the <strong>original</strong> trial axis) of retained trials.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rejected_trials</span></code> : indices (into the original trial axis) of rejected trials.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rejection_stat</span></code> : per-original-trial anomaly statistic used for rejection
+(mean of the trial’s <code class="docutils literal notranslate"><span class="pre">S(tau_R)</span></code> sub-distribution; <code class="docutils literal notranslate"><span class="pre">NaN</span></code> if not computed).</p></li>
+</ul>
+</li>
+<li><p><strong>crp_projections</strong> (<em>dict</em>) –</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">proj_tpts</span></code> : profile time points (seconds).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">s_all</span></code> : all cross-projection magnitudes, shape <code class="docutils literal notranslate"><span class="pre">(K^2</span> <span class="pre">-</span> <span class="pre">K,</span> <span class="pre">n_tpts)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mean_proj_profile</span></code> / <code class="docutils literal notranslate"><span class="pre">var_proj_profile</span></code> : mean / variance of <code class="docutils literal notranslate"><span class="pre">S</span></code> vs time.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tR_index</span></code> : index into <code class="docutils literal notranslate"><span class="pre">proj_tpts</span></code> of the response duration.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">avg_trace_input</span></code> / <code class="docutils literal notranslate"><span class="pre">std_trace_input</span></code> : mean / std of the full input traces.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">stat_indices</span></code> : the non-overlapping half-selection of <code class="docutils literal notranslate"><span class="pre">s_all</span></code> rows used for
+significance and rejection.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">t_value_tR</span></code> / <code class="docutils literal notranslate"><span class="pre">p_value_tR</span></code> : extraction significance at <code class="docutils literal notranslate"><span class="pre">tau_R</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">t_value_full</span></code> / <code class="docutils literal notranslate"><span class="pre">p_value_full</span></code> : extraction significance at the full window.</p></li>
+</ul>
+</li>
+</ul>
+</p>
 </dd>
 </dl>
-<p>The function <code class="docutils literal notranslate"><span class="pre">crp_method</span></code> implements the Canonical Response Parametrization (CRP) method for ERP analysis of brain electrophysiology data. It takes in a voltage matrix <code class="docutils literal notranslate"><span class="pre">v</span></code>, a time array <code class="docutils literal notranslate"><span class="pre">t_win</span></code>, and a flag <code class="docutils literal notranslate"><span class="pre">prune_the_data</span></code>. It returns a tuple containing the output parameters and projections. Note that the methodology behind this is described in the manuscript:</p>
-<p><code class="docutils literal notranslate"><span class="pre">Canonical</span> <span class="pre">Response</span> <span class="pre">Parametrization:</span> <span class="pre">Quantifying</span> <span class="pre">the</span> <span class="pre">structure</span> <span class="pre">of</span> <span class="pre">responses</span> <span class="pre">to</span> <span class="pre">single-pulse</span> <span class="pre">intracranial</span> <span class="pre">electrical</span> <span class="pre">brain</span> <span class="pre">stimulation</span></code>
-by Kai J. Miller, et al., 2022. Python implementation by Vaclav Kremen, 1/2024 version 1.0.</p>
-<p>The voltage matrix <code class="docutils literal notranslate"><span class="pre">v</span></code> is a 2D ndarray of shape <code class="docutils literal notranslate"><span class="pre">(n_samples,</span> <span class="pre">n_channels)</span></code>, where <code class="docutils literal notranslate"><span class="pre">n_samples</span></code> is the number of samples and <code class="docutils literal notranslate"><span class="pre">n_channels</span></code> is the number of channels.</p>
-<p>The time array <code class="docutils literal notranslate"><span class="pre">t_win</span></code> is a 1D ndarray of shape <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code> representing the time window.</p>
-<p>The flag <code class="docutils literal notranslate"><span class="pre">prune_the_data</span></code> is a boolean indicating whether to prune the data or not.</p>
-<p>The function performs the following steps:</p>
-<ol class="arabic simple">
-<li><p>Calculates the sampling rate based on the time window.</p></li>
-<li><p>Calculates sets of normalized single stimulation cross-projection magnitudes using a specified time step.</p></li>
-<li><p>Parameterizes the trials by reducing the voltage matrix to the response duration, performing kernel trick PCA to capture structure, and calculating the first principal component and residual epsilon.</p></li>
-<li><p>Returns the projections data, including projection timepoints, mean and variance of projection profiles, response duration index, average and standard deviation of input traces.</p></li>
-<li><p>Calculates significance statistics, such as the t-value and p-value at the response duration and full time sent in.</p></li>
-<li><p>Returns the parameterization data, including the reduced voltage matrix, alpha coefficient weights, canonical shape, residual epsilon, response time, parameter timepoints, average and standard deviation of response traces, alpha coefficient weights normalized by the square root of the length of <code class="docutils literal notranslate"><span class="pre">C</span></code>, and the square root of the diagonal elements of <code class="docutils literal notranslate"><span class="pre">ep.T</span> <span class="pre">&#64;</span> <span class="pre">ep</span></code>.</p></li>
-<li><p>Calculates extracted single-trial quantities, such as signal-to-noise ratio (<code class="docutils literal notranslate"><span class="pre">Vsnr</span></code>) and explained variance (<code class="docutils literal notranslate"><span class="pre">expl_var</span></code>) for each trial.</p></li>
-<li><p>Optionally prunes the data if requested, by removing trials that are too far from the given template and outliers.</p></li>
-<li><p>Returns the final output parameters and projections.</p></li>
-</ol>
-<p>Example usage:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">10</span><span class="p">,</span> <span class="mi">1000</span><span class="p">))</span>
-<span class="n">t_win</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1000</span><span class="o">/</span><span class="n">fs</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">fs</span><span class="p">)</span>
-<span class="n">prune_the_data</span> <span class="o">=</span> <span class="kc">True</span>
-
-<span class="n">crp_parameters</span><span class="p">,</span> <span class="n">crp_projections</span> <span class="o">=</span> <span class="n">crp_method</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">t_win</span><span class="p">,</span> <span class="n">prune_the_data</span><span class="p">)</span>
+<p class="rubric">Notes</p>
+<p>The sign of <code class="docutils literal notranslate"><span class="pre">C</span></code> (and hence <code class="docutils literal notranslate"><span class="pre">al</span></code> / <code class="docutils literal notranslate"><span class="pre">al_p</span></code>) is fixed so that the projection
+weights are predominantly positive; the product <code class="docutils literal notranslate"><span class="pre">alpha_k</span> <span class="pre">*</span> <span class="pre">C(t)</span></code> (<code class="docutils literal notranslate"><span class="pre">erp</span></code>) is
+sign-invariant regardless.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">v</span></code> has 10 or fewer samples (the projection profile cannot be formed).</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Remove the evoked response from every trial across the full epoch, and inspect which
+trials were rejected as artefacts:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="p">,</span> <span class="n">proj</span> <span class="o">=</span> <span class="n">crp_method</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">t_win</span><span class="p">,</span> <span class="n">prune_the_data</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">clean</span> <span class="o">=</span> <span class="n">v</span><span class="p">[:,</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;kept_trials&#39;</span><span class="p">]]</span> <span class="o">-</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;erp_full&#39;</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;rejected trials:&#39;</span><span class="p">,</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;rejected_trials&#39;</span><span class="p">])</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -416,15 +479,19 @@ by Kai J. Miller, et al., 2022. Python implementation by Vaclav Kremen, 1/2024 v
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.crp.get_stat_indices">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.crp.</span></span><span class="sig-name descname"><span class="pre">get_stat_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">N</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.crp.get_stat_indices" title="Link to this definition">#</a></dt>
-<dd><p>This function picks out the indices of S that can be used for statistical comparison.
-For each trial, half of normalized projections to other trials are used,
-and the other half of trials are the projected into ones. No overlapping comparison pairs are used.</p>
+<dd><p>Non-overlapping half-selection of the cross-projection magnitudes for statistics.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ccep_proj</span></code> returns both orientations of every trial pair (<code class="docutils literal notranslate"><span class="pre">i</span></code> normalized onto
+<code class="docutils literal notranslate"><span class="pre">j</span></code>, and <code class="docutils literal notranslate"><span class="pre">j</span></code> normalized onto <code class="docutils literal notranslate"><span class="pre">i</span></code>). Using both double-counts each interaction and
+inflates significance (Miller et al. 2023). This function selects <strong>one orientation
+per unordered pair</strong> – exactly <code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">*</span> <span class="pre">(N</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">/</span> <span class="pre">2</span></code> of the <code class="docutils literal notranslate"><span class="pre">N^2</span> <span class="pre">-</span> <span class="pre">N</span></code> projections –
+balancing which trial plays the normalized role so that each trial is the normalized
+one in as close to half of its pairs as possible (exactly half when <code class="docutils literal notranslate"><span class="pre">N</span></code> is odd).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>N</strong> – Scalar - number of trials</p>
+<dd class="field-odd"><p><strong>N</strong> – Number of trials.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>stat_indices (N^2-N,1) - Vector of indices to be used for statistical comparison</p>
+<dd class="field-even"><p>Sorted flat indices into <code class="docutils literal notranslate"><span class="pre">ccep_proj</span></code>’s output, shape <code class="docutils literal notranslate"><span class="pre">(N</span> <span class="pre">*</span> <span class="pre">(N</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">/</span> <span class="pre">2,)</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -432,13 +499,22 @@ and the other half of trials are the projected into ones. No overlapping compari
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.crp.kt_pca">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.crp.</span></span><span class="sig-name descname"><span class="pre">kt_pca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.crp.kt_pca" title="Link to this definition">#</a></dt>
-<dd><p>This is an implementation of the linear kernel PCA method (“kernel trick”)
-described in “Kernel PCA Pattern Reconstruction via Approximate Pre-Images”
-by Scholkopf et al., ICANN, 1998, pp 147-15.</p>
-<p>param: X - Matrix of data in. Only need this trick if T&gt;&gt;N</p>
+<dd><p>Linear kernel PCA (“kernel trick”) of <code class="docutils literal notranslate"><span class="pre">X</span></code>.</p>
+<p>Implements the trick from Schölkopf et al., ICANN 1998, needed when the number of
+timepoints <code class="docutils literal notranslate"><span class="pre">T</span></code> greatly exceeds the number of trials <code class="docutils literal notranslate"><span class="pre">N</span></code>: the eigenvectors of the
+<code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">x</span> <span class="pre">T</span></code> matrix <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">&#64;</span> <span class="pre">X.T</span></code> are recovered from the eigendecomposition of the much
+smaller <code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">x</span> <span class="pre">N</span></code> matrix <code class="docutils literal notranslate"><span class="pre">X.T</span> <span class="pre">&#64;</span> <span class="pre">X</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">X.T</span> <span class="pre">&#64;</span> <span class="pre">X</span></code> is symmetric positive-semidefinite, so <code class="docutils literal notranslate"><span class="pre">np.linalg.eigh</span></code> is used: it
+returns real, ascending eigenvalues and orthonormal eigenvectors (no complex
+round-off, no manual re-orthogonalization).</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>E, S - Eigenvectors and Eigenvalues of X in descending order</p>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>X</strong> – Data matrix of shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N)</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(E,</span> <span class="pre">S)</span></code> – eigenvectors of <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">&#64;</span> <span class="pre">X.T</span></code> (columns) and <code class="docutils literal notranslate"><span class="pre">S</span></code>, the
+<strong>singular values</strong> of <code class="docutils literal notranslate"><span class="pre">X</span></code> (square roots of the eigenvalues of <code class="docutils literal notranslate"><span class="pre">X.T</span> <span class="pre">&#64;</span> <span class="pre">X</span></code>),
+both in descending order.</p>
 </dd>
 </dl>
 </dd></dl>
