@@ -1,0 +1,32 @@
+name: Version guard
+
+# Enforces that [project].version is only ever changed by the release flow (the
+# release/bump-* branch opened by "Prepare release"). Any other PR that edits the version
+# fails, which keeps the version line owned solely by the release automation on main and
+# therefore keeps dev -> main merges free of version conflicts under squash merges.
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject version edits outside the release flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.head_ref }}" == release/bump-* ]]; then
+            echo "Release bump PR -- version change allowed."
+            exit 0
+          fi
+          base='${{ github.event.pull_request.base.sha }}'
+          if git diff "$base" HEAD -- pyproject.toml | grep -qE '^[+-][[:space:]]*version[[:space:]]*='; then
+            echo "::error::This PR changes [project].version in pyproject.toml. The version is owned by the release automation on main -- use the 'Prepare release' action instead. See the README 'How to contribute' section."
+            exit 1
+          fi
+          echo "No version change -- OK."

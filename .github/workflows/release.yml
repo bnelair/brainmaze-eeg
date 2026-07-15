@@ -1,13 +1,12 @@
 name: Release
 
+# Runs on every push to main but only releases when the current pyproject version has no
+# tag yet -- i.e. right after a "Release vX.Y.Z" bump PR is merged. Ordinary dev -> main
+# feature merges leave the version unchanged and therefore no-op. Never writes to main.
+
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump"
-        type: choice
-        options: [patch, minor, major]
-        default: patch
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -17,7 +16,6 @@ jobs:
   release:
     uses: bnelair/brainmaze-sphinx/.github/workflows/release.yml@main
     with:
-      bump: ${{ inputs.bump }}
       pypi-auth: trusted
     secrets:
       PYPI_Token_General: ${{ secrets.PYPI_Token_General }}
