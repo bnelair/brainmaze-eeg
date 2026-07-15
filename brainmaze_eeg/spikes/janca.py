@@ -261,9 +261,12 @@ class SpikeDetectorHilbert:
         if phat.shape[0] > 1:
             centers = index + round(winsize / 2)
             xs = np.arange(centers[0], centers[-1] + 1)
+            # cubic interpolation needs >= 4 points; short recordings (2-3 window centers)
+            # fall back to linear rather than raising a ValueError inside interp1d.
+            kind = 'cubic' if centers.size >= 4 else 'linear'
             pi = np.empty((xs.size, 2))
             for c in range(2):
-                pi[:, c] = interp1d(centers, phat[:, c], kind='cubic',
+                pi[:, c] = interp1d(centers, phat[:, c], kind=kind,
                                     fill_value='extrapolate')(xs)
             top = int(np.floor(winsize / 2))
             head = np.repeat(pi[:1], top, axis=0)

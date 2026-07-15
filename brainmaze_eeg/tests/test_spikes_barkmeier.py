@@ -123,3 +123,16 @@ def test_default_thresholds_not_mutated_by_call():
     before = dict(DEFAULT_THRESHOLDS)
     detect_spikes_barkmeier(_noise(2 * FS), FS, thresholds={'total_amp': 1, 'slope': 1, 'half_dur': 0})
     assert DEFAULT_THRESHOLDS == before
+
+
+def test_partial_thresholds_dict_merges_with_defaults():
+    # review #61: a partial dict must fill from defaults, not raise a later KeyError
+    x = _noise(6 * FS, seed=11)
+    _biphasic(x, int(3 * FS))
+    out = detect_spikes_barkmeier(x, FS, thresholds={'total_amp': 600.0})  # slope/half_dur from defaults
+    assert isinstance(out, list)
+
+
+def test_unknown_threshold_key_raises():
+    with pytest.raises(ValueError):
+        detect_spikes_barkmeier(_noise(2 * FS), FS, thresholds={'TAMP': 600})  # wrong key name

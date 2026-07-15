@@ -123,13 +123,25 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         One dict per detected spike, sorted by time, with keys:
         ``channel, peak_index, peak_time, peak_amp, left_amp, left_dur, left_slope,
         right_amp, right_dur, right_slope, total_amp``. Indices/times are into ``sig``.
+        The amplitude and slope fields (``peak_amp``, ``*_amp``, ``*_slope``,
+        ``total_amp``) are in the **block-scaled domain** (see ``scale``), not the input's
+        uV; only the duration fields are physical seconds.
 
     Raises
     ------
     ValueError
-        If ``sig`` is not 1-D or 2-D, or a band edge is at/above Nyquist.
+        If ``sig`` is not 1-D or 2-D, a band edge is at/above Nyquist, or ``thresholds``
+        contains an unknown key.
     """
-    thr = dict(DEFAULT_THRESHOLDS if thresholds is None else thresholds)
+    if thresholds is None:
+        thr = dict(DEFAULT_THRESHOLDS)
+    else:
+        unknown = set(thresholds) - set(DEFAULT_THRESHOLDS)
+        if unknown:
+            raise ValueError(
+                f"unknown threshold key(s) {sorted(unknown)}; "
+                f"expected {sorted(DEFAULT_THRESHOLDS)}.")
+        thr = {**DEFAULT_THRESHOLDS, **thresholds}   # partial dict -> fill from defaults
 
     sig = np.asarray(sig, dtype=np.float64)
     if sig.ndim == 1:

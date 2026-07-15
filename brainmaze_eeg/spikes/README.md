@@ -5,6 +5,13 @@ published literature. The implementations here are **written from scratch agains
 papers**; they are not copies of the reference repositories listed below, which carry
 their own (restrictive) licenses.
 
+> ⚠️ **The two detectors use opposite multi-channel array conventions**, each following
+> its source. **Barkmeier** takes `(n_channels, n_samples)`; **Janca** takes
+> `(n_samples, n_channels)` (matching the MATLAB `[samples, channels]`). A transposed
+> array will not raise but will give meaningless results. This divergence is intentional
+> for now, to keep each detector faithful to its reference during validation; unifying it
+> is a candidate follow-up once both are validated.
+
 ## Detectors
 
 ### Barkmeier (`barkmeier.py`)
