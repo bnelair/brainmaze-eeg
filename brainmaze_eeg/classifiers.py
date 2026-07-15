@@ -85,21 +85,7 @@ class KDEBayesianModel:
             fs=self.fs,
             segm_size=self.segm_size,
             fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
-            filter_bands=self.filter_bands,
-            sperwelchseg=10,
-            soverlapwelchseg=5,
-            nfft=self.nfft,
-            datarate=False
-        )
-
-
-        self.FeatureExtractor_MeanBand = SleepSpectralFeatureExtractor(
-            fs=self.fs,
-            segm_size=self.segm_size,
-            fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
-            filter_bands=self.filter_bands,
+            ignore_bands=self.bands_to_erase,
             sperwelchseg=10,
             soverlapwelchseg=5,
             nfft=self.nfft,
@@ -119,7 +105,7 @@ class KDEBayesianModel:
         self.FeatureExtractor = SleepSpectralFeatureExtractor(
             fs=self.fs,
             fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
+            ignore_bands=self.bands_to_erase,
             segm_size=self.segm_size,
             sperwelchseg=10,
             soverlapwelchseg=5,
@@ -663,9 +649,7 @@ class KDEBayesianModelNC:
             fs=self.fs,
             segm_size=self.segm_size,
             fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
-            filter_bands=self.filter_bands,
-            nfiltorder=self.filter_order,
+            ignore_bands=self.bands_to_erase,
             sperwelchseg=10,
             soverlapwelchseg=5,
             nfft=self.nfft,
@@ -684,7 +668,7 @@ class KDEBayesianModelNC:
         self.FeatureExtractor = SleepSpectralFeatureExtractor(
             fs=self.fs,
             fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
+            ignore_bands=self.bands_to_erase,
             segm_size=self.segm_size,
             sperwelchseg=10,
             soverlapwelchseg=5,
@@ -1195,20 +1179,7 @@ class MultiChannelMVGaussBayesClassifier:
             fs=self.fs,
             segm_size=self.segm_size,
             fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
-            filter_bands=self.filter_bands,
-            sperwelchseg=10,
-            soverlapwelchseg=5,
-            nfft=self.nfft,
-            datarate=False
-        )
-
-        self.FeatureExtractor_MeanBand = SleepSpectralFeatureExtractor(
-            fs=self.fs,
-            segm_size=self.segm_size,
-            fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
-            filter_bands=self.filter_bands,
+            ignore_bands=self.bands_to_erase,
             sperwelchseg=10,
             soverlapwelchseg=5,
             nfft=self.nfft,
@@ -1223,7 +1194,7 @@ class MultiChannelMVGaussBayesClassifier:
         self.FeatureExtractor = SleepSpectralFeatureExtractor(
             fs=self.fs,
             fbands=self.fbands,
-            bands_to_erase=self.bands_to_erase,
+            ignore_bands=self.bands_to_erase,
             segm_size=self.segm_size,
             sperwelchseg=10,
             soverlapwelchseg=5,
