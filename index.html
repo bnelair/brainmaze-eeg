@@ -337,6 +337,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#releasing">Releasing</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#building-documentation">Building Documentation</a></li>
 </ul>
 </li>
@@ -382,9 +383,14 @@
 <h2>How to contribute<a class="headerlink" href="#how-to-contribute" title="Link to this heading">#</a></h2>
 <p>The project has 2 main protected branches <em>main</em> that contains official software releases and <em>dev</em> that contains the latest feature implementations shared with developers.
 To implement a new feature a new branch should be created from the <em>dev</em> branch with name pattern of <em>developer_identifier/feature_name</em>.</p>
-<p>After the feature is implemented, a pull request can be created to merge the feature branch into the <em>dev</em> branch with. Pull requests need to be reviewed by the code owners.
-Drafting of new releases will be performed by the code owners in using pull request from <em>dev</em> to <em>main</em> and drafting a new release on GitHub.</p>
+<p>After the feature is implemented, a pull request can be created to merge the feature branch into the <em>dev</em> branch with. Pull requests need to be reviewed by the code owners.</p>
+<section id="releasing">
+<h3>Releasing<a class="headerlink" href="#releasing" title="Link to this heading">#</a></h3>
+<p>Releases are automated and never bypass branch protection. To cut a release, a code owner runs the <strong>Prepare release</strong> GitHub Action (<em>Actions</em> tab, <code class="docutils literal notranslate"><span class="pre">workflow_dispatch</span></code>) and selects the bump (<em>patch</em> / <em>minor</em> / <em>major</em>). This opens a small <code class="docutils literal notranslate"><span class="pre">Release</span> <span class="pre">vX.Y.Z</span></code> pull request that bumps <code class="docutils literal notranslate"><span class="pre">[project].version</span></code> in <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> on a <code class="docutils literal notranslate"><span class="pre">release/bump-*</span></code> branch off <em>main</em>. Once a code owner approves and merges that pull request into <em>main</em>, the <strong>Release</strong> workflow tags the version, builds the distributions, publishes to PyPI, and drafts the GitHub release automatically. The build reads the version from <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>, which remains the single source of truth.</p>
+<p>Promotion of features from <em>dev</em> to <em>main</em> is independent of releases and <strong>must not change</strong> <code class="docutils literal notranslate"><span class="pre">[project].version</span></code> – a <em>Version guard</em> CI check fails any pull request outside the release flow that edits it. The version line is owned solely by the release automation on <em>main</em>; this is what keeps <code class="docutils literal notranslate"><span class="pre">dev</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">main</span></code> merges free of version conflicts under the squash-merge policy (a version edited on both branches would otherwise conflict every release cycle).</p>
+<p>The <strong>Prepare release</strong> action requires the repository/organization setting <em>Allow GitHub Actions to create and approve pull requests</em> to be enabled, so it can open the bump pull request.</p>
 <p>New functions need to be implemented with Sphinx compatible docstrings. The documentation is automatically generated from the docstrings using Sphinx.</p>
+</section>
 <section id="building-documentation">
 <h3>Building Documentation<a class="headerlink" href="#building-documentation" title="Link to this heading">#</a></h3>
 <p>To build the documentation locally:</p>
@@ -754,6 +760,7 @@ Drafting of new releases will be performed by the code owners in using pull requ
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#releasing">Releasing</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#building-documentation">Building Documentation</a></li>
 </ul>
 </li>
