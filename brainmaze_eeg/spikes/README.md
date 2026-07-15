@@ -15,8 +15,12 @@ Amplitude/slope/duration half-wave detector.
 > detection on intracranial EEG addressed by an automated multi-channel algorithm.*
 > Clinical Neurophysiology 123(6), 1088–1095. https://doi.org/10.1016/j.clinph.2011.09.023
 
-### Janca (Hilbert envelope) — *planned* (`janca.py`)
-Envelope-distribution-modelling detector.
+### Janca (Hilbert envelope) — `janca.py`
+Envelope-distribution-modelling detector. Class `SpikeDetectorHilbert` (alias
+`spike_detector_hilbert_v24`), `.run(data, fs)`. Independent implementation against the
+paper and the public MATLAB reference; corrects the decimation and segment-overlap defects
+of an earlier internal port. Beta/mu rejection and the `ti_switch==2` timing mode are not
+implemented (both were untested upstream).
 
 > Janca, R., Jezdik, P., Cmejla, R., Tomasek, M., Worrell, G.A., Stead, M., Wagenaar, J.,
 > Jefferys, J.G.R., Krsek, P., Komarek, V., Jiruska, P., Marusic, P. (2015). *Detection of

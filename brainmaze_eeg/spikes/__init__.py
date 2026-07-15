@@ -10,5 +10,9 @@ See ``brainmaze_eeg/spikes/README.md`` for algorithm references and attribution.
 """
 
 from brainmaze_eeg.spikes.barkmeier import detect_spikes_barkmeier, DEFAULT_THRESHOLDS
+from brainmaze_eeg.spikes.janca import SpikeDetectorHilbert, spike_detector_hilbert_v24
 
-__all__ = ['detect_spikes_barkmeier', 'DEFAULT_THRESHOLDS']
+__all__ = [
+    'detect_spikes_barkmeier', 'DEFAULT_THRESHOLDS',
+    'SpikeDetectorHilbert', 'spike_detector_hilbert_v24',
+]
