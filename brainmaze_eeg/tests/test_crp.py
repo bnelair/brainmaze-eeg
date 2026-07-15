@@ -257,3 +257,16 @@ def test_reject_helper_zero_mad_nonzero_std():
     # tied median (MAD == 0) but a real outlier via the std fallback
     stat = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 100.0])
     assert 7 in _reject_artifact_trials(stat, coeff=3.0).tolist()
+
+
+def test_t_test_greater_guards_degenerate_input():
+    # regression (review #59): small-N / zero-variance must return NaN, not inf/NaN+warning
+    import warnings
+    from brainmaze_eeg.crp import _t_test_greater
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        assert _t_test_greater([]) == (np.nan, np.nan) or all(np.isnan(_t_test_greater([])))
+        assert all(np.isnan(v) for v in _t_test_greater([3.0]))
+        assert all(np.isnan(v) for v in _t_test_greater([2.0, 2.0, 2.0]))
+    t, p = _t_test_greater([1.0, 2.0, 3.0, 4.0])
+    assert np.isfinite(t) and np.isfinite(p)

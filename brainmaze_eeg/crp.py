@@ -3,6 +3,20 @@ import numpy as np
 from scipy.stats import ttest_1samp
 
 
+def _t_test_greater(s):
+    """One-sample t-test of ``s`` against 0 (alternative='greater').
+
+    Returns ``(t_value, p_value)``, or ``(nan, nan)`` when the statistic is undefined --
+    fewer than two samples, or zero variance (constant ``s``) -- instead of dividing by
+    zero and emitting inf/NaN with a warning.
+    """
+    s = np.asarray(s, dtype=np.float64)
+    if s.size < 2 or np.std(s) == 0:
+        return np.nan, np.nan
+    t_value, p_value = ttest_1samp(s, 0, alternative='greater')
+    return float(t_value), float(p_value)
+
+
 def crp_method(v, t_win, prune_the_data=False, rejection_coeff=3.5, min_trials=5):
     """
     Canonical Response Parameterization (CRP) of single-pulse stimulation responses.
@@ -167,10 +181,8 @@ def crp_method(v, t_win, prune_the_data=False, rejection_coeff=3.5, min_trials=5
 
     s_tR = s_all[stat_indices, tt]
     s_full = s_all[stat_indices, -1]
-    crp_projections['t_value_tR'] = np.mean(s_tR) / (np.std(s_tR) / np.sqrt(len(s_tR)))
-    _, crp_projections['p_value_tR'] = ttest_1samp(s_tR, 0, alternative='greater')
-    crp_projections['t_value_full'] = np.mean(s_full) / (np.std(s_full) / np.sqrt(len(s_full)))
-    _, crp_projections['p_value_full'] = ttest_1samp(s_full, 0, alternative='greater')
+    crp_projections['t_value_tR'], crp_projections['p_value_tR'] = _t_test_greater(s_tR)
+    crp_projections['t_value_full'], crp_projections['p_value_full'] = _t_test_greater(s_full)
 
     # ----- parameterization output -----
     epep_root = np.sqrt(np.diag(ep.T @ ep))
@@ -262,8 +274,9 @@ def kt_pca(X):
     round-off, no manual re-orthogonalization).
 
     :param X: Data matrix of shape ``(T, N)``.
-    :return: ``(E, S)`` -- eigenvectors of ``X @ X.T`` (columns) and eigenvalues, both in
-        descending order of eigenvalue.
+    :return: ``(E, S)`` -- eigenvectors of ``X @ X.T`` (columns) and ``S``, the
+        **singular values** of ``X`` (square roots of the eigenvalues of ``X.T @ X``),
+        both in descending order.
     """
     # Symmetric eigendecomposition of the (small) N x N Gram matrix.
     S2, F = np.linalg.eigh(X.T @ X)  # ascending, real, orthonormal
