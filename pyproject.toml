@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brainmaze-eeg"
-version = "0.1.7"
+version = "1.0.0"
 description = "BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox"
 authors = [
     { name = "Filip Mivalt", email = "mivalt.filip@mayo.edu" }
