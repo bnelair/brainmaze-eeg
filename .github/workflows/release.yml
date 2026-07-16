@@ -2,7 +2,14 @@ name: Release
 
 # Runs on every push to main but only releases when the current pyproject version has no
 # tag yet -- i.e. right after a "Release vX.Y.Z" bump PR is merged. Ordinary dev -> main
-# feature merges leave the version unchanged and therefore no-op. Never writes to main.
+# feature merges leave the version unchanged and no-op.
+#
+# The shared reusable workflow does guard + test + build (and uploads the `dist` artifact).
+# Publishing to PyPI happens HERE, in this repo's own top-level workflow, because PyPI
+# Trusted Publishing does not support publishing from a reusable workflow -- the OIDC
+# identity must be this repo's release.yml for the trusted publisher to match. The tag and
+# GitHub Release are created only after a successful PyPI upload, so a failed publish leaves
+# nothing to clean up (the guard simply retries next run).
 
 on:
   push:
@@ -13,9 +20,38 @@ permissions:
   id-token: write
 
 jobs:
-  release:
+  build:
     uses: bnelair/brainmaze-sphinx/.github/workflows/release.yml@main
-    with:
-      pypi-auth: trusted
-    secrets:
-      PYPI_Token_General: ${{ secrets.PYPI_Token_General }}
+
+  publish:
+    needs: build
+    if: needs.build.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # push the tag + create the GitHub Release
+      id-token: write      # PyPI Trusted Publishing (OIDC) -- matched against THIS repo
+    steps:
+      - name: Download built distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="v${{ needs.build.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$v"
+          git push origin "$v"                 # tag ref -- not covered by the branch ruleset
+          gh release create "$v" --title "$v" --generate-notes
