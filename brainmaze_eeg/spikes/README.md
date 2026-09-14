@@ -35,26 +35,3 @@ implemented (both were untested upstream).
 > Application to Epileptic and Non-Epileptic Intracranial Recordings.* Brain Topography
 > 28(1), 172–183. https://doi.org/10.1007/s10548-014-0379-1
 
-## Reference implementations (NOT vendored — see licensing)
-
-- **Janca original MATLAB** — EpiReC-ISARG/IED_detector
-  (`spike_detector_hilbert_v23.m`, `v24.m`): https://github.com/EpiReC-ISARG/IED_detector
-- **Frauscher Spike-Gamma pipeline** (`spike_detector_hilbert_v25.m`, gamma/boundary/
-  post-processing): https://github.com/Lab-Frauscher/Spike-Gamma — associated with
-  Thomas, J. et al. (2023), *A subpopulation of spikes predicts successful epilepsy
-  surgery outcome*, Annals of Neurology 93(3), 522–535.
-
-## ⚠️ Licensing
-
-Neither reference repository is permissively licensed:
-
-- **Lab-Frauscher/Spike-Gamma** is under a **research-only license** ("intended for
-  academic and research purposes only; for any commercial or non-academic use, please
-  contact the respective authors").
-- **EpiReC-ISARG/IED_detector** ships **no license file**, which under default copyright
-  means all rights reserved.
-
-Therefore their source is **not** copied into this repository. The detectors here are
-independent implementations of the published algorithms, and the papers and repositories
-are cited for attribution only. If verbatim reuse of either codebase is ever desired,
-obtain explicit permission from the respective authors first.
