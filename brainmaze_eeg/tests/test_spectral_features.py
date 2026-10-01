@@ -60,3 +60,26 @@ def test_mean_frequency_flat_spectrum_is_band_midpoint():
     # cross-check: mean frequency of a flat band is also the midpoint
     out = mean_frequency(_args(np.ones(FREQ.size), np.array([[1.0, 20.0]]), FREQ))[0]
     assert np.asarray(out).ravel()[0] == pytest.approx(10.5, abs=0.5)
+
+
+def test_mean_frequency_ignores_nan_bins_from_ignore_bands():
+    # the extractor marks bins inside ``ignore_bands`` as NaN; up to v1.0.0 mean_frequency
+    # then returned NaN for every epoch (breaking every classifier with bands_to_erase).
+    psd = np.ones(FREQ.size)
+    psd[(FREQ > 6) & (FREQ < 8)] = np.nan
+    out = np.asarray(mean_frequency(_args(psd, np.array([[1.0, 20.0]]), FREQ))[0]).ravel()[0]
+    keep = (FREQ >= 1.0) & (FREQ <= 20.0) & ~((FREQ > 6) & (FREQ < 8))
+    assert np.isfinite(out)
+    assert out == pytest.approx(FREQ[keep].mean(), rel=1e-12)
+
+
+def test_extractor_mean_frequency_finite_with_ignore_bands():
+    from brainmaze_eeg.features.feature_extraction import SleepSpectralFeatureExtractor
+    x = np.random.default_rng(0).normal(size=3000)
+    e = SleepSpectralFeatureExtractor(fs=100, segm_size=30, fbands=[[0.5, 5], [4, 9], [8, 14]],
+                                      ignore_bands=[[6, 8]], sperwelchseg=10, soverlapwelchseg=5,
+                                      nfft=2000, datarate=False)
+    e._extraction_functions = [mean_frequency]
+    vals, names = e(x)
+    assert names == ['MEAN_DOMINANT_FREQUENCY']
+    assert np.all(np.isfinite(vals[0]))

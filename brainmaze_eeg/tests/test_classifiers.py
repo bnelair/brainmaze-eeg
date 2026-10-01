@@ -3,8 +3,8 @@ Import + construction smoke tests for brainmaze_eeg.classifiers.
 
 The module was left unimportable / unconstructible by the best -> brainmaze migration
 (#40). These tests pin that it imports and that every public class constructs with
-sensible defaults, so the migration cannot silently regress. They intentionally do NOT
-exercise fit/predict -- several methods still have runtime bugs tracked separately.
+sensible defaults, so the migration cannot silently regress. fit/predict of every class
+is validated end to end in ``test_classifiers_validation.py`` (issue #57).
 """
 import warnings
 
