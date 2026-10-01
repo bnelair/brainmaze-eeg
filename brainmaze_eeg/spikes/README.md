@@ -2,11 +2,39 @@
 
 Interictal epileptiform discharge (IED, "spike") detectors for scalp EEG and iEEG.
 
-| detector | function | layout | output |
+The package has **two layers**:
+
+1. **Raw detectors**: the algorithms only. The input must be finite; NaN or ±inf raise a
+   `ValueError`. Use them directly on clean data or inside your own pipeline.
+2. **`GapAwareSpikeDetector`**: the easy path for signals with missing data, e.g. artifacts
+   replaced by NaN. It wraps any detector object, then:
+   - fills the gaps;
+   - runs the detector;
+   - removes detections in or near gaps;
+   - reports the valid time per channel, so rates can be normalised by it.
+
+   See [Gaps](#gaps-gapawarespikedetector).
+
+```python
+from brainmaze_eeg.spikes import (GapAwareSpikeDetector, JancaDetector, BarkmeierDetector,
+                                  detect_spikes_janca)
+
+# raw: finite (n_channels, n_samples) array -> sample indices per channel
+spikes = detect_spikes_janca(x, fs, powerline=60)
+
+# with gaps (NaN/inf anywhere, including whole channels)
+det = GapAwareSpikeDetector(JancaDetector(powerline=60))        # or BarkmeierDetector()
+spikes, info = det.detect(x_with_nans, fs, return_info=True)
+rate_per_min = [len(s) / (v / 60) for s, v in zip(spikes, info['valid_s'])]
+```
+
+Raw detectors:
+
+| detector | function / detector object | layout | output |
 |---|---|---|---|
-| Janca, eeg_forge formulation (**recommended**) | `detect_spikes_janca(x, fs, ...)` | `(n_samples,)` or `(n_channels, n_samples)` | sample indices per channel |
-| Janca, MATLAB v24 port | `SpikeDetectorHilbert(...).run(d, fs)` | `(n_samples,)` or **`(n_samples, n_channels)`** | v24 output dicts (positions, weights, discharges) |
-| Barkmeier 2012 | `detect_spikes_barkmeier(sig, fs, ...)` | `(n_samples,)` or `(n_channels, n_samples)` | list of dicts with half-wave metrics |
+| Janca, eeg_forge formulation (**recommended**) | `detect_spikes_janca(x, fs, ...)` / `JancaDetector(...)` | `(n_samples,)` or `(n_channels, n_samples)` | sample indices per channel |
+| Janca, MATLAB v24 port | `SpikeDetectorHilbert(...).run(d, fs)` (`.detect(x, fs)` for the wrapper, channels first) | `(n_samples,)` or **`(n_samples, n_channels)`** | v24 output dicts (positions, weights, discharges) |
+| Barkmeier 2012 | `detect_spikes_barkmeier(sig, fs, ...)` / `BarkmeierDetector(...)` | `(n_samples,)` or `(n_channels, n_samples)` | list of dicts with half-wave metrics |
 
 `SpikeDetectorHilbert` keeps MATLAB's `[samples, channels]` layout; the two functions use
 the family convention `(n_channels, n_samples)`. Every 2-D detector raises `ValueError` when
@@ -62,10 +90,7 @@ exact sliding-statistics definition of the reference, is in the module docstring
 | `threshold` | `3.65` | – | reference (`thr`), paper `k1` | threshold multiplier |
 | `min_distance_s` | `0.1` | s | reference | minimum distance between detections |
 | `eps_rel` | `1e-6` | – | ours | offset before the log, relative to the median envelope (the reference uses an absolute 1e-6) |
-| `nan_policy` | `'fill'` | – | ours | see [Gaps](#gaps-nan) |
-| `gap_margin_s` | `0.1` | s | ours | detections within this distance of a gap are dropped |
-| `fill_kwargs` | `None` | – | ours | options for the gap fill |
-| `return_details` | `False` | – | ours | also return the envelope, threshold curve, filters, gaps, rates |
+| `return_details` | `False` | – | ours | also return the envelope, threshold curve, filters and rates |
 
 Parameters are validated. A band edge at or above the Nyquist frequency of the input or of
 the analysis rate, a low edge ≥ the high edge, a non-positive order, window or threshold,
@@ -93,7 +118,7 @@ Intentional differences (each a fix):
 | filters as `b, a` polynomials: the 50 Hz band-stop loses precision as fs grows (max response error 5e-5 at 5 kHz, 2e-3 at 8 kHz, 6e-2 at 16 kHz) and is **unstable at 32 kHz** (pole radius 1.0006) → NaN → no detections, silently | second-order sections; same response where `b, a` is accurate; stable up to 32 kHz | 16 kHz: 1 of 23 detections moved by one analysis sample; 32 kHz: reference 0, ours 17 (of 25 injected transients) |
 | `log(envelope + 1e-6)`: data in volts have envelopes of 1e-5–1e-8, the constant dominates and the detector stops adapting | `eps = eps_rel * median(envelope)` | 6.8 h recording in volts: reference 600 detections, ours 1494 (same as in µV) |
 | integer decimation only: analysis at 256 Hz for 512 Hz input, 204.8 Hz for 2048 Hz, none for 250–399 Hz | same by default; `decimation='exact'` resamples to exactly `target_fs` | 6.8 h recording at 500 Hz: exact 200 Hz gives 1466 detections, 96 % of them within 20 ms of the default (250 Hz) ones |
-| 1-D only, no checks; a NaN anywhere → no detections for that channel | `(n_channels, n_samples)`, validated parameters, gap handling | tests |
+| 1-D only, no checks; a NaN anywhere → no detections for that channel, silently | `(n_channels, n_samples)`, validated parameters; NaN/inf raise `ValueError`; gaps handled by `GapAwareSpikeDetector` | tests |
 | `int(0.1*fs) < 1` raises in `find_peaks` | distance clamped to 1 sample | – |
 
 ### Ripple / HFO band
@@ -172,7 +197,7 @@ Each step is marked [paper] or [ours] in the module docstring. In brief:
 | `artifact_sd` | `10` | SD | paper (`None` = off) |
 | `trough_search` | `0.05` | s | ours |
 | `refractory` | `0` | s | ours |
-| `nan_policy`, `gap_margin_s`, `fill_kwargs` | `'fill'`, `0.1`, `None` | –, s, – | ours |
+| `valid` | `None` | bool mask | ours: samples used for the block statistics (set by the wrapper to exclude filled gaps) |
 | `return_info` | `False` | – | ours: per-block scale factors, artifact flags, thresholds, filters |
 
 Filters: both are 2nd-order Butterworth band-passes applied zero-phase, so the response is
@@ -187,38 +212,80 @@ Changes from the previous version:
   the old band also produced 4–10× more extra detections.
 - **Blocks.** There used to be no one-minute blocks and no artifact rule.
 - **NaN.** One NaN in one channel made the scaling factor NaN for every channel, so all
-  thresholds silently applied to unscaled data. It is now confined to the gap.
+  thresholds silently applied to unscaled data. The raw detector now raises. Through
+  `GapAwareSpikeDetector` the gap is filled and excluded from the block statistics, and
+  the other channels' detections are unchanged (tested).
 - **Refractory order.** The refractory period was applied before the merge. It now comes
   after.
 - **Transposed input.** A transposed array was accepted silently. It now raises.
 
-## Gaps (NaN)
+## Gaps: `GapAwareSpikeDetector`
 
-Gaps are handled by separate pre- and post-processing helpers (`brainmaze_eeg/spikes/_gaps.py`).
-The detection algorithms themselves never see a NaN.
+```python
+GapAwareSpikeDetector(detector, detector_kwargs=None, *, short_gap_s=0.1, fill='mirror',
+                      edge_margin_s=0.1, seed=0, fill_kwargs=None).detect(x, fs,
+                      return_info=False, return_mask=False)
+```
 
-- `nan_policy='fill'` (default):
-  - *Before detection:* the gaps of each channel are found on the original signal.
-    Gaps ≤ `max_interp_s` (0.1 s) are linearly interpolated. Longer gaps are filled with
-    1/f noise at the neighbouring data's robust amplitude and level, cross-faded
-    (raised cosine, 0.5 s) into the mirrored neighbouring signal at both edges, so there is
-    no step at the edges. Every channel and gap gets its own reproducible noise stream.
-  - *After detection:* detections inside a gap or within `gap_margin_s` (0.1 s) of it are
-    dropped. A channel that is entirely NaN gives no detections and a `RuntimeWarning`.
-- `nan_policy='raise'`: `ValueError` on any NaN.
-- `±inf` always raises; it is not a gap marker.
+Steps:
 
-Options go through `fill_kwargs`, e.g. `{'max_interp_s': 0.2, 'taper_s': 1.0}` or
-`{'method': 'linear'}`.
+1. **Find gaps.** Gaps are runs of NaN or ±inf, found per channel on the original signal.
+2. **Fill.** Gaps up to `short_gap_s` are interpolated linearly. Longer gaps get `fill`:
+   - `'mirror'` (default): the neighbouring signal is mirrored into the gap from both sides
+     and the two images are cross-faded.
+   - `'pink'`: 1/f noise at the neighbours' robust amplitude and level, cross-faded into the
+     mirrored signal at the edges. It is seeded per gap, so it is reproducible and
+     independent between channels.
+   - `'linear'`.
 
-Measured on the 6.8 h recording (Janca, 30 gaps of 0.5–10 s in 1 h): far from gaps the
-detections are unchanged. Within 3 s of a gap the background threshold rises by a median
-2–5 % (90th percentile 6–17 %), and the net detection count there is 3–6 lower than in
-the gap-free signal (no burst of false detections, a slight loss of sensitivity).
+   Channels without any finite sample are left out, so they cannot bias cross-channel
+   statistics such as Barkmeier's median scaling. They are flagged and give no detections.
+3. **Detect.** The detector runs on the filled montage. Detectors with
+   `accepts_valid = True` (Barkmeier) also receive the gap mask and keep filled samples out
+   of their statistics.
+4. **Remove.** Every detection inside a gap, or within `edge_margin_s` of one, is dropped.
+5. **Report.** With `return_info=True`, per channel:
+   - `gaps` (samples) and `gap_intervals_s`;
+   - `all_nan`;
+   - `n_removed`;
+   - `valid_s`: record length minus the gaps widened by the margin, i.e. the time in which a
+     detection could be reported. Normalise rates by this.
+   - `valid_fraction`;
+   - with `return_mask=True`, `gap_mask`.
 
-`_gaps.py` mirrors the API of `brainmaze_utils.gaps` (brainmaze-utils PR #26, not yet
-released): `find_gaps`, `fill_gaps`, `mask_in_gaps(times_s, gaps_samples, fs, margin_s)`,
-`drop_in_gaps`. It will be replaced by that module once it is released.
+On gap-free data the result is **identical** to the raw detector (tested for all three
+detectors).
+
+**Detector protocol.** Any object with `detect(x, fs)` plugs in:
+
+- **Input:** `x`, finite, of shape `(n_channels, n_samples)`.
+- **Output:** one entry per channel. Each entry is either an int array of sample indices,
+  or a list of dicts with `'peak_index'`.
+- **Optional:** `accepts_valid = True` makes the wrapper call `detect(x, fs, valid=mask)`.
+
+So a future detector (e.g. a ripple preset `JancaDetector(band=(80, 250), target_fs=1000)`)
+works without changes to the wrapper.
+
+**Why `'mirror'` is the default.** Measured on 1 h of the real recording with 30 gaps per
+length and IED-like transients injected 0.15–1.2 s outside both gap edges (Janca; see PR #67
+for the measurement):
+
+| long-gap fill | Janca threshold 0.1–3 s from a gap, vs gap-free (median / 90th pct) | sensitivity to the transients (gap-free: 0.85–0.93 at 60 µV, 0.98–1.0 at 120 µV) | extra detections within 3 s |
+|---|---|---|---|
+| mirror | ×1.00–1.02 / ×1.04–1.08 | −0.00 to −0.03 | 0–2 per 30 gaps |
+| pink | ×1.02–1.07 / ×1.07–1.21 | down to −0.18 (2 s gaps, 60 µV) | 0–1 |
+| linear | ×0.2–0.6 | ≈ 1.0 (the threshold collapses) | ~40 (0.5 s gaps) to ~710 (≥ 2 s gaps) |
+
+**Helpers.** `brainmaze_eeg/spikes/_gaps.py` provides `find_gaps`, `gap_intervals`,
+`fill_gaps`, `mask_in_gaps(det, gaps, fs, *, units, margin_s, end)` and `drop_in_gaps`.
+Units are always explicit; a units mix-up raises instead of silently masking nothing.
+
+These helpers are a thin stand-in with the same names and semantics as the final API of
+`brainmaze_utils.gaps` (brainmaze-utils PR #26, not yet released). The stand-in has no
+`'spectral'` fill; that fill matches the neighbours' spectrum and is the default there.
+
+Follow-up: replace `_gaps.py` with `brainmaze_utils.gaps` once it is released, and
+re-evaluate making `'spectral'` the default.
 
 ## Filter verification
 
