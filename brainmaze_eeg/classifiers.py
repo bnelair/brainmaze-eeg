@@ -188,6 +188,8 @@ UNKNOWN_LABEL = 'UNKNOWN'
 # log-likelihood minus 30 nats; see ``_EpochClassifierMixin`` and the PR #69 notes.
 _DEFAULT_LOG_LIK_QUANTILE = 0.001
 _DEFAULT_LOG_LIK_MARGIN = 30.0
+# below this many training epochs ``fit`` warns that the 'auto' floor is unreliable
+_MIN_TRAIN_EPOCHS_AUTO_FLOOR = 100
 
 # maximum relative RMS error of the resampling self-test (see ``_resample_epochs``)
 _RESAMPLE_SELF_TEST_TOL = 1e-3
@@ -205,6 +207,21 @@ def _labels_from_scores(scores):
     if valid.any():
         out[valid] = cols[np.nanargmax(arr[valid], axis=1)]
     return out
+
+
+def _check_training_labels(y, owner):
+    """
+    Raise ``ValueError`` if the training labels contain ``UNKNOWN_LABEL``: the models
+    use that label for epochs they cannot classify, so a trained ``'UNKNOWN'`` state
+    would make an out-of-distribution epoch and a confidently predicted "UNKNOWN"
+    indistinguishable (review V4 of PR #69). Drop those epochs before ``fit``.
+    """
+    y = np.asarray(y, dtype=object).reshape(-1)
+    n_bad = int(sum(1 for v in y if isinstance(v, str) and v == UNKNOWN_LABEL))
+    if n_bad:
+        raise ValueError(f'{owner}.fit: {n_bad} training label(s) are {UNKNOWN_LABEL!r}, the label '
+                         'reserved for epochs the model cannot classify; drop those epochs '
+                         'before fitting.')
 
 
 def _consecutive_runs(n, flagged, start_time=None, segm_size=None):
@@ -255,37 +272,74 @@ def _resampling_probe(t, f_ref):
             + 0.25 * np.sin(2 * np.pi * 0.15 * f_ref * t + 2.0))
 
 
+# DC offset added to the self-test probe, in units of the probe's RMS (~0.8). Real
+# recordings can carry a large DC offset (electrode / amplifier offset, unremoved
+# baseline); the probe includes one so that the self-test exercises the same path as
+# the data (review V1 of PR #69).
+_RESAMPLE_SELF_TEST_DC = 1e6
+
+
+def _demeaned_resample(list_of_signals, fsamp_list, fs_new):
+    """
+    Subtract each signal's ``nanmean`` (all-NaN signals: 0), then resample all of them
+    with ``brainmaze_utils.signal.unify_sampling_frequency``. The mean is **not** added
+    back: the returned signals are zero-mean (up to resampling edge effects).
+
+    Why (review V1 of PR #69): brainmaze_utils 2.0.0 filters with an unstable
+    transfer-function Butterworth whose error scales with the signal's DC level. A
+    DC offset of 1e3-1e6 x the signal RMS gave 0.6 % to 600 % error at 1000 Hz (and
+    3-31 % for DC/RMS 100-1000 at 1400 Hz) that the probe-based self-test did not
+    see. The classifiers' spectral features do not depend on the DC level
+    (``SleepSpectralFeatureExtractor`` subtracts each epoch's ``nanmean`` before the
+    Welch PSD and drops the 0 Hz bin), so the mean is not restored.
+    """
+    data = []
+    for s in list_of_signals:
+        x = np.array(s, dtype=float, copy=True)
+        fin = np.isfinite(x)
+        if fin.any():
+            x = x - x[fin].mean()
+        data.append(x)
+    out, fs = unify_sampling_frequency(data, sampling_frequency=list(fsamp_list), fs_new=fs_new)
+    return [np.asarray(o, dtype=float) for o in out], fs
+
+
 def _resampling_self_test(fs, fs_new, n):
     """
     Resample a known 3-sine probe (0.02, 0.07 and 0.15 x ``min(fs, fs_new)``, i.e. well
-    inside every anti-alias passband) of ``n`` samples from ``fs`` to ``fs_new`` with
-    ``brainmaze_utils.signal.unify_sampling_frequency`` and raise ``ValueError`` unless
-    the output is finite and its RMS error, excluding up to 1 s at each edge, is
-    <= ``_RESAMPLE_SELF_TEST_TOL`` (1e-3) of the probe's RMS.
+    inside every anti-alias passband) **plus a DC offset** of ``_RESAMPLE_SELF_TEST_DC``
+    (1e6) x its RMS, ``n`` samples, from ``fs`` to ``fs_new`` through exactly the path the
+    data takes (:func:`_demeaned_resample`), and raise ``ValueError`` unless the output is
+    finite and its RMS error against the (demeaned) probe, excluding up to 1 s at each
+    edge, is <= ``_RESAMPLE_SELF_TEST_TOL`` (1e-3) of the probe's RMS.
 
     Why: brainmaze_utils 2.0.0 designs a 16th-order Butterworth in transfer-function form,
     which is numerically unstable near the input Nyquist or at very low normalised
     cutoffs. Resampling to 200 Hz it raises below ~134 Hz, returns all-NaN at 134-138 Hz,
     returns values of 1e72-1e230 at 139-141 Hz and distorts the signal at 142-145 Hz
-    (rel. error 0.29 at 142 Hz) and at >= ~1600 Hz (0.36 at 2048 Hz, all-NaN >= 3000 Hz).
-    brainmaze_utils 2.1.0 (PR #28) fixes this (error <= 1e-6 at every rate tested).
+    (rel. error 0.29 at 142 Hz) and at >= ~1600 Hz (0.36 at 2048 Hz, all-NaN >= 3000 Hz);
+    its error also grows with the DC level (see :func:`_demeaned_resample`).
+    brainmaze_utils 3.0.0 (PR #28) fixes this (error <= 1e-6 at every rate tested).
     """
     f_ref = min(float(fs), float(fs_new))
     t = np.arange(int(n)) / float(fs)
     what = (f'resampling {float(fs):g} Hz -> {float(fs_new):g} Hz with brainmaze_utils '
             f'{_utils_version()}')
-    hint = ('brainmaze_utils >= 2.1.0 resamples correctly at every rate; with older versions '
+    hint = ('brainmaze_utils >= 3.0.0 resamples correctly at every rate; with older versions '
             'resample the data to the model rate yourself before calling this method.')
+    probe = _resampling_probe(t, f_ref)
+    rms = np.sqrt(np.mean(probe ** 2)) if probe.size else 1.0
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            y, _ = unify_sampling_frequency([_resampling_probe(t, f_ref)], [float(fs)], fs_new=fs_new)
+            y, _ = _demeaned_resample([probe + _RESAMPLE_SELF_TEST_DC * rms], [float(fs)], fs_new)
     except Exception as e:
         raise ValueError(f'{what} fails ({type(e).__name__}: {e}). {hint}') from e
     y = np.asarray(y[0], dtype=float)
     if y.size == 0 or not np.all(np.isfinite(y)):
         raise ValueError(f'{what} returns non-finite values for a finite test signal. {hint}')
-    expected = _resampling_probe(np.arange(y.size) / float(fs_new), f_ref)
+    # the path removes the input mean (DC + the probe's own small mean)
+    expected = _resampling_probe(np.arange(y.size) / float(fs_new), f_ref) - probe.mean()
     edge = int(min(float(fs_new), y.size // 4))
     core = slice(edge, y.size - edge)
     err = np.sqrt(np.mean((y[core] - expected[core]) ** 2)) / np.sqrt(np.mean(expected[core] ** 2))
@@ -294,32 +348,46 @@ def _resampling_self_test(fs, fs_new, n):
                          f'{_RESAMPLE_SELF_TEST_TOL:g}). {hint}')
 
 
-def _resample_epochs(list_of_signals, fsamp_list, fs_new, owner='classifier'):
+def _resample_epochs(list_of_signals, fsamp_list, fs_new, owner='classifier', on_bad='raise'):
     """
-    ``unify_sampling_frequency`` to ``fs_new`` with sanity checks (review R1 of PR #69).
+    Demean (:func:`_demeaned_resample`) and resample epochs to ``fs_new`` with sanity
+    checks (reviews R1 and V1/V2 of PR #69).
 
     For every distinct (input rate, epoch length) that needs resampling the path is first
-    checked with :func:`_resampling_self_test`. After resampling, every resampled epoch
-    must (a) contain no +-inf, (b) keep at least half of its input's finite fraction
-    (brainmaze_utils >= 2.1.0 re-applies NaN gaps, slightly widened; 2.0.0 fills them)
-    and (c) not grow in RMS (about its mean) by more than 10x. Any violation raises
-    ``ValueError``: a resampler failure must never turn into confident sleep labels.
+    checked with :func:`_resampling_self_test` (a failure means the resampler is broken
+    for that rate: always ``ValueError``). After resampling, every resampled epoch must
+    (a) contain no +-inf, (b) keep at least half of its input's finite fraction
+    (brainmaze_utils >= 3.0.0 re-applies NaN gaps, slightly widened; 2.0.0 fills them)
+    and (c) not grow in RMS (about its mean) by more than 10x.
 
-    Returns ``(list of np.ndarray, fs_new)``.
+    Epochs that are resampled are returned **demeaned** (the features do not depend on
+    the DC level); epochs already at ``fs_new`` are returned unchanged.
+
+    on_bad : ``'raise'`` (default) or ``'mask'``
+        What to do with an epoch failing (a)-(c): ``'raise'`` -> ``ValueError``;
+        ``'mask'`` -> report it in the third return value (used by ``predict_signal``,
+        where one bad epoch must not abort the whole recording; review V2).
+
+    Returns ``(list of np.ndarray, fs_new)``, or with ``on_bad='mask'``
+    ``(list of np.ndarray, fs_new, dict epoch index -> reason)``.
     """
+    if on_bad not in ('raise', 'mask'):
+        raise ValueError(f"on_bad must be 'raise' or 'mask', got {on_bad!r}")
     data = [np.array(s, dtype=float, copy=True) for s in list_of_signals]
     fsamp = np.asarray(fsamp_list, dtype=float).reshape(-1)
     if fsamp.shape[0] != len(data):
         raise ValueError(f'{owner}: {len(data)} signals but {fsamp.shape[0]} sampling rates')
     need = np.flatnonzero(fsamp != float(fs_new))
+    bad_epochs = {}
     if need.size == 0:
-        return data, fs_new
+        return (data, fs_new, bad_epochs) if on_bad == 'mask' else (data, fs_new)
     for fs_k, n_k in sorted({(float(fsamp[k]), int(data[k].shape[-1])) for k in need}):
         _resampling_self_test(fs_k, fs_new, n_k)
-    out, fs = unify_sampling_frequency([d.copy() for d in data], sampling_frequency=list(fsamp), fs_new=fs_new)
-    out = [np.asarray(o, dtype=float) for o in out]
-    for k in need:
-        xin, xout = data[k], out[k]
+    res, fs = _demeaned_resample([data[k] for k in need], fsamp[need], fs_new)
+    out = list(data)
+    for i, k in enumerate(need):
+        xin, xout = data[k], res[i]
+        out[k] = xout
         bad = None
         fin_in, fin_out = np.isfinite(xin), np.isfinite(xout)
         if np.any(np.isinf(xout)):
@@ -333,10 +401,13 @@ def _resample_epochs(list_of_signals, fsamp_list, fs_new, owner='classifier'):
             if rms_out > 10.0 * rms_in + tiny:
                 bad = f'RMS grew from {rms_in:.3g} to {rms_out:.3g}'
         if bad is not None:
-            raise ValueError(f'{owner}: resampling epoch {k} from {fsamp[k]:g} Hz to {float(fs_new):g} Hz '
-                             f'with brainmaze_utils {_utils_version()}: output {bad}. '
-                             'brainmaze_utils >= 2.1.0 fixes the known resampling failures.')
-    return out, fs
+            msg = (f'resampling epoch {k} from {fsamp[k]:g} Hz to {float(fs_new):g} Hz with '
+                   f'brainmaze_utils {_utils_version()}: output {bad}')
+            if on_bad == 'raise':
+                raise ValueError(f'{owner}: {msg}. brainmaze_utils >= 3.0.0 fixes the known '
+                                 'resampling failures; a NaN-heavy epoch can also trigger this.')
+            bad_epochs[int(k)] = msg
+    return (out, fs, bad_epochs) if on_bad == 'mask' else (out, fs)
 
 
 def _loo_logpdf_kde(kde, X):
@@ -390,8 +461,8 @@ class _EpochClassifierMixin:
     --------------------------------
     The class probabilities are a softmax over the states' log-likelihoods, so an epoch
     far from *every* trained state still gets probability ~1 for whichever state's density
-    decays slowest. Such epochs (saturation, disconnection, heavy artefacts) are flagged
-    instead: if an epoch's best-state log-likelihood ``max_s log p(x | s)`` is below
+    decays slowest. Epochs far from every trained state are flagged instead (only
+    those: see "not an artifact detector" below): if an epoch's best-state log-likelihood ``max_s log p(x | s)`` is below
     ``self.log_lik_floor_``, its probabilities are NaN and its label is
     ``UNKNOWN_LABEL`` (``'UNKNOWN'``). Constructor parameters:
 
@@ -403,21 +474,40 @@ class _EpochClassifierMixin:
     ``log_lik_quantile`` : float, default 0.001
     ``log_lik_margin`` : float, nats, default 30
         30 nats = a density about 1e13 times lower than the 0.1 %-quantile training epoch.
-        Evidence (PR #69, through this pipeline, ~170 and ~700 training epochs, ~19 600
-        held-out in-distribution epochs per run): false-flag rate 0 for Gaussian
-        features (all models) and for synthetic raw EEG (1255 held-out epochs);
-        1e-4 to 7e-4 for heavy-tailed Student-t5 features (some held-out epochs are
-        farther from the training data than any training epoch). Artefact rows
-        (features + 1e3) were flagged in 100 % of cases, flat/disconnected raw epochs
-        too. Smaller margins flag more in-distribution epochs (Student-t features:
-        about 1e-3 at 10 nats); larger ones miss moderate outliers.
+
+    **The floor is not an artifact detector.** It only catches epochs whose features lie
+    far from every trained state; many real artefacts do not.
+
+    Measured behaviour (PR #69 round-2 verification: realistic synthetic sleep EEG with
+    15 % transitional / mixed-state epochs, 3127 held-out epochs, 4 seeds per size, plus
+    real iEEG artefacts; default floor):
+
+    * false flags (held-out in-distribution epochs labelled ``'UNKNOWN'``): about 1e-3
+      for >= ~150 training epochs (KDE / MVGauss 0-1.9e-3; MultiChannel up to 9e-3 at
+      ~165), essentially all on transitional (mixed-state) epochs (3.4 % of those vs 0 of
+      3054 pure ones at 417 training epochs). With fewer than ~100 training epochs:
+      0-0.6 % (KDE / MVGauss) and 0.6-1.8 % (MultiChannel); ``fit`` warns below
+      ``_MIN_TRAIN_EPOCHS_AUTO_FLOOR`` (100) training epochs. A change of recording
+      session (e.g. 1/f exponent +0.3) gave up to 3 % (KDE) / 12 % (MultiChannel).
+    * seed variability: below ~1000 training epochs the 0.1 % quantile *is* the
+      training minimum, so ``'auto'`` = (lowest training log-likelihood) - 30 nats and
+      the floor varies by 15-35 nats between training sets of the same size. Set a
+      float ``log_lik_floor`` (e.g. from ``train_max_log_lik_``) for a fixed criterion.
+    * caught: features far outside the training range (e.g. + 100 or + 1e3 SD), EMG-
+      dominated epochs (70-100 %), usually flat / disconnected and white-noise epochs.
+    * NOT reliably caught (0-45 % flagged): flat / disconnected channels and white noise
+      in some fits (0-25 % in one ~450-epoch fit, i.e. a disconnected channel got a
+      confident sleep label), movement (0-45 %), electrode pops (0 %), 60 Hz line noise
+      (0 %), clipping / saturation (<= 5 %; the spectral features are amplitude-
+      invariant ratios), seizures (real iEEG, 0-25 %).
+
+    Use a dedicated artefact / signal-quality detector before classification; a
+    non-``'UNKNOWN'`` label does not mean the epoch is clean.
 
     Limits: OOD is judged in the model's own feature space (after selection / PCA for the
-    KDE family), so a change confined to discarded features or directions is invisible,
-    and the spectral features are amplitude-invariant ratios, so artefacts that keep
-    the spectral shape (e.g. clipping / saturation of a normal-looking epoch) are not
-    flagged. A row about 7 SD from every state in that space is not flagged by default
-    (lower ``log_lik_margin`` to be stricter).
+    KDE family), so a change confined to discarded features or directions is invisible.
+    A row about 7 SD from every state in that space is not flagged by default (lower
+    ``log_lik_margin`` to be stricter, at the cost of more false flags).
 
     After ``fit``: ``log_lik_floor_`` (float, ``-inf`` if disabled) and
     ``train_max_log_lik_`` (np.ndarray, (n_train,)). After every ``scores`` call:
@@ -435,6 +525,15 @@ class _EpochClassifierMixin:
         spec, q, m = self._log_lik_params()
         self.train_max_log_lik_ = np.asarray(train_max_log_lik, dtype=float)
         self.log_lik_floor_ = _resolve_log_lik_floor(spec, self.train_max_log_lik_, q, m)
+        n = int(np.isfinite(self.train_max_log_lik_).sum())
+        if isinstance(spec, str) and n < _MIN_TRAIN_EPOCHS_AUTO_FLOOR:
+            # review V3 of PR #69: 0.6-1.8 % false UNKNOWN measured below ~100 epochs
+            warnings.warn(f"{type(self).__name__}.fit: log_lik_floor='auto' estimated from only {n} "
+                          f'training epochs (< {_MIN_TRAIN_EPOCHS_AUTO_FLOOR}): the floor is the '
+                          'lowest training log-likelihood - margin and depends strongly on the '
+                          'training sample; expect up to ~2 % of in-distribution epochs labelled '
+                          'UNKNOWN. Use more training epochs or a fixed float log_lik_floor.',
+                          UserWarning, stacklevel=3)
 
     def _ood_mask(self, max_log_lik):
         """True where an epoch is out of distribution (below the floor) or non-finite."""
@@ -476,13 +575,43 @@ class _EpochClassifierMixin:
         keep = datarate >= datarate_threshold
         return list(data[keep]), start_time[keep], end_time[keep]
 
+    def _signal_features(self, data, fs):
+        """Features of the kept epochs of one signal and ``{epoch index: reason}`` for
+        epochs that could not be processed (overridden by the KDE family, which
+        resamples)."""
+        x, _ = self.extract_features_bulk(data, [fs] * len(data))
+        return np.asarray(x, dtype=float), {}
+
     def _signal_scores(self, signal, fs, datarate_threshold):
         data, start_time, _ = self.preprocess_signal(signal, fs, datarate_threshold)
+        states = list(self.STATES)
         if len(data) == 0:
             self.max_log_lik_ = np.zeros(0)
-            return pd.DataFrame(np.zeros((0, len(self.STATES))), columns=list(self.STATES)), start_time
-        x, _ = self.extract_features_bulk(data, [fs] * len(data))
-        return self.scores(x, start_time=start_time), start_time
+            return pd.DataFrame(np.zeros((0, len(states))), columns=states), start_time
+        x, bad = self._signal_features(data, fs)
+        x = np.asarray(x, dtype=float).reshape(len(data), -1)
+        # one unusable epoch must not abort the whole recording (review V2 of PR #69):
+        # epochs that failed the resampling checks or have non-finite features are
+        # labelled UNKNOWN (all-NaN score row) and break the smoothing / Markov runs
+        bad = dict(bad)
+        for k in np.flatnonzero(~np.all(np.isfinite(x), axis=1)):
+            bad.setdefault(int(k), 'non-finite features')
+        invalid = np.zeros(len(data), dtype=bool)
+        invalid[list(bad)] = True
+        out = np.full((len(data), len(states)), np.nan)
+        max_ll = np.full(len(data), np.nan)
+        if (~invalid).any():
+            sc = self.scores(x[~invalid], start_time=np.asarray(start_time)[~invalid])
+            out[~invalid] = sc[states].to_numpy(dtype=float)
+            max_ll[~invalid] = self.max_log_lik_
+        self.max_log_lik_ = max_ll
+        if bad:
+            first = sorted(bad)[:3]
+            warnings.warn(f'{type(self).__name__}.predict_signal: {len(bad)} of {len(data)} epochs '
+                          'could not be processed and are labelled UNKNOWN (e.g. '
+                          + '; '.join(f'epoch at {float(start_time[k]):g} s: {bad[k]}' for k in first)
+                          + ').', RuntimeWarning, stacklevel=3)
+        return pd.DataFrame(out, columns=states), start_time
 
     def predict_signal(self, signal, fs, datarate_threshold=0.85):
         """
@@ -504,7 +633,10 @@ class _EpochClassifierMixin:
             Times in seconds relative to the first sample; epochs of ``self.segm_size``
             seconds, consecutive equal labels merged (see ``_scores_to_annotations``).
             Skipped (low-datarate) epochs leave a gap in the table. Out-of-distribution
-            epochs are annotated ``'UNKNOWN'``. Smoothing (and the Markov filter of the
+            epochs are annotated ``'UNKNOWN'``, and so are epochs that could not be
+            processed (an epoch failing the per-epoch resampling checks, or with
+            non-finite features), with one ``RuntimeWarning`` per call giving their
+            count; such an epoch no longer aborts the whole call (review V2 of PR #69). Smoothing (and the Markov filter of the
             causal models) runs separately on each run of consecutive scored epochs: it
             never crosses a skipped or out-of-distribution epoch. Empty table (same
             columns) if no epoch is usable.
@@ -532,8 +664,10 @@ class _KDEFamilyMixin(_EpochClassifierMixin):
     def extract_features_bulk(self, list_of_signals, fsamp_list, return_names=False):
         """
         Features of a list of epochs, after resampling each to ``self.fs`` with
-        ``unify_sampling_frequency`` (checked by ``_resample_epochs``: raises
-        ``ValueError`` instead of returning features of a corrupted resampled signal).
+        ``unify_sampling_frequency`` (each epoch demeaned first; checked by
+        ``_resample_epochs``: raises ``ValueError`` instead of returning features of a
+        corrupted resampled signal. ``predict_signal`` instead labels such an epoch
+        ``'UNKNOWN'`` with a warning).
 
         Returns ``(features (n_epochs, n_features), fs)``, or ``(features,
         feature_names)`` if ``return_names``.
@@ -546,6 +680,24 @@ class _KDEFamilyMixin(_EpochClassifierMixin):
             _, feature_names = self.extract_features(data[k], return_names=True)
             return np.array(x), feature_names
         return np.array(x), fs
+
+    def _signal_features(self, data, fs):
+        """As ``extract_features_bulk`` but epochs failing the per-epoch resampling
+        checks get a NaN feature row and are reported (``predict_signal`` labels them
+        UNKNOWN) instead of raising for the whole recording (review V2 of PR #69)."""
+        data, _, bad = _resample_epochs(data, [fs] * len(data), self.fs,
+                                        owner=type(self).__name__, on_bad='mask')
+        x = None
+        for k in tqdm(range(len(data))):
+            if k in bad:
+                continue
+            f = np.asarray(self.extract_features(data[k]), dtype=float)
+            if x is None:
+                x = np.full((len(data), f.shape[0]), np.nan)
+            x[k] = f
+        if x is None:
+            x = np.full((len(data), 1), np.nan)
+        return x, bad
 
     def _make_density(self, X_state):
         """Density of one state, fitted on (n_state, d) transformed features."""
@@ -884,6 +1036,7 @@ class KDEBayesianModel(_KDEFamilyMixin):
             Labels; every state needs enough rows for a non-singular density
             (more rows than retained dimensions).
         """
+        _check_training_labels(y, type(self).__name__)
         X, y = self._fit(X, y)
         self._fit_kde(X, y)
 
@@ -1441,6 +1594,7 @@ class KDEBayesianModelNC(_KDEFamilyMixin):
             Labels; every state needs enough rows for a non-singular density
             (more rows than retained dimensions).
         """
+        _check_training_labels(y, type(self).__name__)
         X, y = self._fit(X, y)
         self._fit_kde(X, y)
 
@@ -1526,7 +1680,7 @@ class Mapper:
 
     The KL costs come from ``brainmaze_utils.stat.kl_divergence_nonparametric`` on the
     (n_dims, 200) histogram array: the sum of the per-dimension divergences. Every bin is
-    floored at 1e-9 in ``get_probabilities``, so the ``inf`` that brainmaze_utils >= 2.1.0
+    floored at 1e-9 in ``get_probabilities``, so the ``inf`` that brainmaze_utils >= 3.0.0
     returns for ``q == 0, p > 0`` cannot occur. (An intermediate state of brainmaze_utils
     PR #28 averaged over dimensions instead, which would have rescaled the stored
     ``MAPS[name]['cost']`` but not the selected transform; the released behaviour keeps
@@ -1828,6 +1982,10 @@ class SleepStructureClassifier:
         x = np.asarray(x, dtype=float)
         y = np.asarray(y)
         states_init = list(getattr(self, '_states_init', self.STATES))
+        _check_training_labels(y, 'SleepStructureClassifier')
+        if UNKNOWN_LABEL in states_init:
+            raise ValueError(f'SleepStructureClassifier.fit: states contains {UNKNOWN_LABEL!r}, the '
+                             'label reserved for unclassifiable epochs; remove it.')
         unknown = sorted(set(np.unique(y).tolist()) - set(states_init))
         if unknown:
             # up to round 1 of PR #69 these epochs were silently ignored (review R3)
@@ -2203,6 +2361,7 @@ class MultiChannelMVGaussBayesClassifier(_EpochClassifierMixin):
         X : np.ndarray, shape (n_epochs, n_features)
         y : array-like, shape (n_epochs,)
         """
+        _check_training_labels(y, type(self).__name__)
         self.classifier = GaussianNB()
         self.classifier.fit(X, y)
         self.STATES = self.classifier.classes_

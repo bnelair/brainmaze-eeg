@@ -608,7 +608,7 @@ def _utils_resamples_141_hz_correctly():
 def test_resampling_141_hz_never_silently_wrong():
     """Review R1: with brainmaze_utils 2.0.0, 139-141 Hz input resampled to 200 Hz is
     finite but blown up (1e72-1e230) and every epoch was labelled REM without an error.
-    Now: a ValueError naming brainmaze_utils (2.0.0), or correct labels (>= 2.1.0)."""
+    Now: a ValueError naming brainmaze_utils (2.0.0), or correct labels (>= 3.0.0)."""
     fs_tr, fs_in, seg = 200, 141, 30
     ytr = np.repeat(CYCLE * 2, 6)
     m = make(C.KDEBayesianModel, fs=fs_tr, segm_size=seg)
@@ -662,3 +662,183 @@ def test_sleep_structure_classifier_default_wake_label_is_awake():
     y = np.repeat(['WAKE', 'N2'], 6)
     with pytest.raises(ValueError, match='WAKE'):
         m.fit(features(y, d=3, seed=0), y)    # the old label is not silently accepted
+
+
+# ---- round 3 (review 5385725783): V1 DC offset, V2 one bad epoch, V3 small-n floor, V4 'UNKNOWN' label
+def _dc_sensitive(real):
+    """A resampler whose error grows with the input's DC level, like brainmaze_utils 2.0.0
+    (adds a ramp of 1e-3 x mean(x))."""
+    def fake(x, sampling_frequency, fs_new=None):
+        out, fs = real(x, sampling_frequency, fs_new=fs_new)
+        return [np.asarray(o, float) + 1e-3 * np.nanmean(xi) * np.linspace(-1, 1, len(o))
+                for o, xi in zip(out, x)], fs
+    return fake
+
+
+def test_resampling_self_test_includes_dc(monkeypatch):
+    """V1: the self-test probe carries a large DC offset, so a DC-sensitive resampler is
+    caught if the data path did not remove the mean."""
+    monkeypatch.setattr(C, 'unify_sampling_frequency', _dc_sensitive(C.unify_sampling_frequency))
+    C._resampling_self_test(250, 200, 250 * 30)                  # demeaned path: passes
+
+    def no_demean(list_of_signals, fsamp_list, fs_new):
+        out, fs = C.unify_sampling_frequency([np.asarray(s, float) for s in list_of_signals],
+                                             sampling_frequency=list(fsamp_list), fs_new=fs_new)
+        return [np.asarray(o, float) for o in out], fs
+    monkeypatch.setattr(C, '_demeaned_resample', no_demean)
+    with pytest.raises(ValueError, match='distorts'):
+        C._resampling_self_test(250, 200, 250 * 30)
+
+
+def test_resampled_epochs_are_demeaned_and_features_dc_invariant(monkeypatch):
+    """V1: each epoch's mean is removed before resampling; the features do not depend on
+    the DC level, so a DC-sensitive resampler cannot change them."""
+    m = make(C.KDEBayesianModel, fs=200, segm_size=30)
+    r = np.random.default_rng(0)
+    ep = _epoch('N2', 250, 30, r)
+    f_ref = m.extract_features(_epoch('N2', 200, 30, np.random.default_rng(0)))
+    # at the model rate (no resampling) the features ignore the DC level
+    e200 = _epoch('N2', 200, 30, np.random.default_rng(0))
+    np.testing.assert_allclose(m.extract_features(e200 + 1e5 * e200.std()), f_ref, rtol=1e-6)
+    monkeypatch.setattr(C, 'unify_sampling_frequency', _dc_sensitive(C.unify_sampling_frequency))
+    x0, _ = m.extract_features_bulk([ep], [250])
+    x1, _ = m.extract_features_bulk([ep + 1e5 * ep.std()], [250])
+    np.testing.assert_allclose(x1, x0, rtol=1e-6)
+    out, _ = C._resample_epochs([ep + 1e5 * ep.std()], [250], 200)
+    assert abs(np.nanmean(out[0])) < 1e-6 * ep.std() * 1e5
+
+
+@pytest.mark.parametrize('dc', [1e3, 1e5])
+def test_predict_signal_dc_offset_does_not_change_labels(dc):
+    """V1 end to end with the installed brainmaze_utils: a DC offset of ``dc`` x RMS at
+    1400 Hz (with utils 2.0.0 and no demeaning: 31 % resampling error at 1e3 that passed
+    the guard and changed 10 % of the labels silently)."""
+    fs_tr, fs_in, seg = 200, 1400, 30
+    ytr = np.repeat(CYCLE * 2, 6)
+    m = make(C.KDEBayesianModel, fs=fs_tr, segm_size=seg)
+    X, _ = m.extract_features_bulk(list(_recording(ytr, fs_tr, seg, 0).reshape(len(ytr), -1)), [fs_tr] * len(ytr))
+    m.fit(X, ytr)
+    yte = np.repeat(CYCLE, 3)
+    sig = _recording(yte, fs_in, seg, 1, noise_fs=fs_tr)
+    lab0 = C._labels_from_scores(m.predict_signal_scores(sig, fs_in))
+    lab1 = C._labels_from_scores(m.predict_signal_scores(sig + dc * sig.std(), fs_in))
+    assert np.array_equal(lab0, lab1)
+    assert np.mean(lab0 == yte) > 0.9
+
+
+def _fit_signal_model(cls, fs=100, seg=10):
+    ytr = np.repeat(CYCLE * 2, 6)
+    m = make(cls, fs=fs, segm_size=seg)
+    X, _ = m.extract_features_bulk(list(_recording(ytr, fs, seg, 0).reshape(len(ytr), -1)), [fs] * len(ytr))
+    m.fit(X, ytr)
+    return m
+
+
+@pytest.mark.parametrize('cls', [C.KDEBayesianModel, C.KDEBayesianCausalModel], ids=lambda c: c.__name__)
+def test_one_bad_resampled_epoch_does_not_abort_predict_signal(monkeypatch, cls):
+    """V2: an epoch failing the per-epoch resampling checks is labelled UNKNOWN with a
+    warning counting it; the other epochs are labelled as without it."""
+    fs, seg, fs_in = 100, 10, 250
+    m = _fit_signal_model(cls, fs, seg)
+    yte = np.repeat(CYCLE, 4)
+    sig = _recording(yte, fs_in, seg, 1, noise_fs=fs)
+    ref = C._labels_from_scores(m.predict_signal_scores(sig, fs_in))
+    real = C.unify_sampling_frequency
+
+    def fake(x, sampling_frequency, fs_new=None):
+        out, f = real(x, sampling_frequency, fs_new=fs_new)
+        if len(x) > 1:                                  # not the self-test
+            out = list(out)
+            out[7] = np.full_like(np.asarray(out[7], float), np.nan)
+        return out, f
+    monkeypatch.setattr(C, 'unify_sampling_frequency', fake)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        sc = m.predict_signal_scores(sig, fs_in)
+        df = m.predict_signal(sig, fs_in)
+    lab = C._labels_from_scores(sc)
+    assert lab[7] == C.UNKNOWN_LABEL and np.all(np.isnan(m.max_log_lik_[7:8]))
+    others = np.arange(len(lab)) != 7
+    assert np.array_equal(lab[others], ref[others])
+    msgs = [str(x.message) for x in w if issubclass(x.category, RuntimeWarning)]
+    assert any('1 of 20 epochs could not be processed' in s and 'finite fraction' in s for s in msgs)
+    unk = df[df.annotation == C.UNKNOWN_LABEL]
+    assert ((unk.start == 7 * seg) & (unk.end == 8 * seg)).sum() == 1
+
+
+@pytest.mark.parametrize('cls', [C.KDEBayesianModel, C.MultiChannelMVGaussBayesClassifier],
+                         ids=lambda c: c.__name__)
+def test_flat_epoch_with_nan_features_is_unknown_not_an_error(cls):
+    """V2: an exactly flat (disconnected) epoch has NaN features; up to round 2 the
+    feature selector raised ValueError for the whole recording."""
+    fs, seg = 100, 10
+    m = _fit_signal_model(cls, fs, seg)
+    yte = np.repeat(CYCLE, 4)
+    sig = _recording(yte, fs, seg, 1)
+    sig[5 * fs * seg:6 * fs * seg] = 3.0
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        lab = C._labels_from_scores(m.predict_signal_scores(sig, fs))
+    assert lab[5] == C.UNKNOWN_LABEL
+    assert any('non-finite features' in str(x.message) for x in w)
+    assert np.mean(np.delete(lab, 5) == np.delete(yte, 5)) > 0.9
+
+
+def test_resample_epochs_mask_mode_reports_bad_epochs(monkeypatch):
+    real = C.unify_sampling_frequency
+
+    def fake(x, sampling_frequency, fs_new=None):
+        out, f = real(x, sampling_frequency, fs_new=fs_new)
+        if len(x) > 1:
+            out = list(out)
+            out[1] = np.asarray(out[1], float) * 1e80
+        return out, f
+    monkeypatch.setattr(C, 'unify_sampling_frequency', fake)
+    sigs = list(np.random.default_rng(0).normal(size=(3, 250 * 30)))
+    out, fs, bad = C._resample_epochs(sigs, [250] * 3, 200, on_bad='mask')
+    assert list(bad) == [1] and 'RMS grew' in bad[1] and len(out) == 3
+    with pytest.raises(ValueError, match='RMS grew'):
+        C._resample_epochs(sigs, [250] * 3, 200)
+
+
+@pytest.mark.parametrize('cls', ALL_MODELS, ids=lambda c: c.__name__)
+def test_auto_floor_warns_for_small_training_sets(cls, feature_data):
+    """V3: below 100 training epochs the 'auto' floor is the training minimum - margin
+    and gave 0.6-1.8 % false UNKNOWN; fit warns."""
+    X, y, _, _ = feature_data
+    small = np.concatenate([np.flatnonzero(y == s)[:20] for s in STATES])     # 80 epochs
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        make(cls).fit(X[small], y[small])
+    assert any("log_lik_floor='auto'" in str(x.message) for x in w)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        make(cls).fit(X, y)                                                   # ~170 epochs
+        make(cls, log_lik_floor=-50.0).fit(X[small], y[small])                # fixed floor
+    assert not any("log_lik_floor='auto'" in str(x.message) for x in w)
+
+
+@pytest.mark.parametrize('cls', ALL_MODELS, ids=lambda c: c.__name__)
+def test_fit_rejects_unknown_training_label(cls, feature_data):
+    """V4: 'UNKNOWN' is the out-of-distribution label; a trained 'UNKNOWN' state would be
+    indistinguishable from it."""
+    X, y, _, _ = feature_data
+    y = np.array(y, dtype=object)
+    y[:15] = C.UNKNOWN_LABEL
+    with pytest.raises(ValueError, match="'UNKNOWN'"):
+        make(cls).fit(X, y)
+
+
+def test_sleep_structure_classifier_rejects_unknown_label_and_state():
+    y = np.repeat(['AWAKE', 'N2', 'UNKNOWN'], 6)
+    with pytest.raises(ValueError, match="'UNKNOWN'"):
+        C.SleepStructureClassifier().fit(features(y, d=3, seed=0), y)
+    m = C.SleepStructureClassifier(states=['AWAKE', 'N2', 'UNKNOWN'])
+    with pytest.raises(ValueError, match="'UNKNOWN'"):
+        m.fit(features(y, d=3, seed=0), y)
+
+
+def test_markov_filter_rejects_unknown_label():
+    sc = pd.DataFrame(np.full((4, 2), 0.5), columns=['AWAKE', 'N2'])
+    with pytest.raises(ValueError, match='UNKNOWN'):
+        C.SleepStageProbabilityMarkovChainFilter().fit(sc, ['AWAKE', 'N2', 'UNKNOWN', 'N2'])
