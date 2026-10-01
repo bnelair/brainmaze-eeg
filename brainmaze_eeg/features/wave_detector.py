@@ -57,7 +57,7 @@ never cut a wave):
    :func:`brainmaze_utils.gaps.fill_gaps` with ``method='spectral'`` and
    ``max_interp_s=0.1`` (both passed explicitly): gaps up to 0.1 s are interpolated
    linearly, longer gaps get noise whose spectrum matches the neighbouring data, with
-   tapered edges. This only lets the filters run; the fill is never measured: step 6
+   edges conditioned on the neighbouring samples. This only lets the filters run; the fill is never measured: step 6
    discards every wave near a gap. With ``nan_policy='raise'`` any gap raises
    ``ValueError``. Clean signals skip this step entirely.
 2. **Filtering.** The mean is removed, then zero-phase filters produce two signals:
@@ -996,8 +996,8 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
         if gaps.size:
             m = _gap_margins(gaps, fs, f_low, gap_margin_s, trough)
             wide = np.column_stack((gaps[:, 0] / fs - m, gaps[:, 1] / fs + m))
-            bad |= mask_in_gaps(s0 / fs, wide, fs, units='seconds', margin_s=0.0,
-                                end=s1 / fs)
+            bad |= mask_in_gaps(s0 / fs, wide, fs, units='seconds', gap_units='seconds',
+                                margin_s=0.0, end=s1 / fs)
         keep = ~bad
         trough_pos, peak_pos, b_trough, b_peak = (trough_pos[keep], peak_pos[keep],
                                                   b_trough[keep], b_peak[keep])
