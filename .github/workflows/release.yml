@@ -8,20 +8,34 @@ name: Release
 # Publishing to PyPI happens HERE, in this repo's own top-level workflow, because PyPI
 # Trusted Publishing does not support publishing from a reusable workflow -- the OIDC
 # identity must be this repo's release.yml for the trusted publisher to match. The tag and
-# GitHub Release are created only after a successful PyPI upload, so a failed publish leaves
-# nothing to clean up (the guard simply retries next run).
+# GitHub Release are created only after a successful PyPI upload.
+#
+# If a run fails part-way, do NOT wait for the next push to main: that run would build,
+# publish and tag a different commit. Re-run the failed jobs of THIS run, or finish by hand;
+# see "Recovering from a failed release" in the family guide:
+# https://github.com/bnelair/brainmaze-sphinx/blob/main/RELEASING.md
 
 on:
   push:
     branches: [main]
 
+# One release run at a time, so two quick pushes cannot both see an untagged version and
+# race to publish/tag it. The name must differ from the group the shared workflow uses
+# (release-<repo>), or the called workflow would wait on its own caller.
+concurrency:
+  group: release-caller-${{ github.repository }}
+  cancel-in-progress: false
+
+# Least privilege by default: the reusable guard/test/build jobs (which install and run
+# third-party code) get a read-only token. Only `publish` gets write + OIDC.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   build:
     uses: bnelair/brainmaze-sphinx/.github/workflows/release.yml@main
+    permissions:
+      contents: read
 
   publish:
     needs: build
@@ -30,7 +44,17 @@ jobs:
     permissions:
       contents: write      # push the tag + create the GitHub Release
       id-token: write      # PyPI Trusted Publishing (OIDC) -- matched against THIS repo
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
     steps:
+      - name: Validate version
+        shell: bash
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '${VERSION}' read from pyproject.toml is not X.Y.Z; refusing to publish."
+            exit 1
+          fi
+
       - name: Download built distributions
         uses: actions/download-artifact@v4
         with:
@@ -45,11 +69,12 @@ jobs:
           fetch-depth: 0
 
       - name: Tag and create GitHub Release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          v="v${{ needs.build.outputs.version }}"
+          v="v${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "$v"

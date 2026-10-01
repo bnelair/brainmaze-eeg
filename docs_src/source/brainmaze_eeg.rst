@@ -15,5 +15,6 @@
    hypnogram
    preprocessing
    scikit_modules
+   spikes
 
 

@@ -91,22 +91,67 @@ def test_all_zero_channel_is_handled():
 
 
 def test_pure_noise_low_false_positive_rate():
-    X = _recording(30, {}, n_ch=1, seed=7)
-    out, *_ = SpikeDetectorHilbert().run(X, FS)
-    assert len(out['pos']) / 30.0 < 1.0
+    # measured: 0 detections in 30 s of white noise for seeds 7-11 (review R10: the old
+    # bound of 1/s could not catch a real regression)
+    for seed in range(7, 10):
+        X = _recording(30, {}, n_ch=1, seed=seed)
+        out, *_ = SpikeDetectorHilbert().run(X, FS)
+        assert len(out['pos']) / 30.0 <= 0.1
 
 
-def test_ambiguous_markers_with_k2_above_k1():
-    # k2 > k1 enables the ambiguous (0.5) class; detector must still run and may emit them
-    truth = {0: [5, 12]}
-    X = _recording(20, truth, n_ch=1)
-    out, *_ = SpikeDetectorHilbert(k1=3.65, k2=4.5).run(X, FS)
-    assert set(out['con'].tolist()) <= {1.0, 0.5}
+def _ambiguous_montage():
+    # ch0: clear spikes every 2 s; ch1: small spikes 4 ms later (between the k2 and k1
+    # thresholds), so they can only be reported as ambiguous next to ch0's obvious ones
+    times = np.arange(3, 57, 2.0)
+    X = _recording(60, {0: times}, n_ch=2, seed=3)
+    for t in times:
+        _spike(X[:, 1], int(t * FS) + int(0.004 * FS), 40.0)
+    return X
 
 
-def test_k2_below_k1_raises():
-    with pytest.raises(ValueError):
-        SpikeDetectorHilbert(k1=3.65, k2=3.0)
+def test_ambiguous_class_fires_with_k2_below_k1():
+    # V2: MATLAB v24 requires k1 >= k2 (the ambiguous threshold is the lower one)
+    X = _ambiguous_montage()
+    out, *_ = SpikeDetectorHilbert(k1=3.65, k2=2.0).run(X, FS)
+    amb = (out['chan'] == 1) & (out['con'] == 0.5)
+    assert amb.sum() >= 10
+    assert not ((out['chan'] == 1) & (out['con'] == 1.0)).any()
+    # each ambiguous detection has an obvious one (any channel) within the preceding 10 ms
+    obv = out['pos'][out['con'] == 1.0]
+    for p in out['pos'][amb]:
+        assert np.any((obv <= p + 1e-9) & (obv >= p - 0.01 - 1e-9))
+    # disabled with k2 == k1 (default): obvious only
+    out_d, *_ = SpikeDetectorHilbert(k1=3.65).run(X, FS)
+    assert set(out_d['con'].tolist()) == {1.0}
+
+
+def test_ambiguous_class_needs_the_other_channels():
+    X = _ambiguous_montage()
+    det = SpikeDetectorHilbert(k1=3.65, k2=2.0)
+    alone, *_ = det.run(X[:, 1:2], FS)                  # no obvious detection anywhere
+    assert not (alone['con'] == 0.5).any()
+    # so the detector is not channel-independent, and the gap-aware wrapper must pass the
+    # whole montage: its result equals the raw multichannel result, ambiguous ones included
+    from brainmaze_eeg.spikes import GapAwareSpikeDetector
+    assert det.channel_independent is False
+    assert SpikeDetectorHilbert().channel_independent is True
+    raw = det.detect(X.T, FS)
+    wrapped = GapAwareSpikeDetector(det).detect(X.T, FS)
+    assert raw[1].size >= 10
+    for a, b in zip(raw, wrapped):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_k2_above_k1_raises():
+    with pytest.raises(ValueError, match='k2'):
+        SpikeDetectorHilbert(k1=3.65, k2=4.5)
+    det = SpikeDetectorHilbert(k1=3.65, k2=3.0)        # allowed now
+    assert det.k2 == 3.0
+    det.k2 = 5.0                                       # re-checked at run time
+    with pytest.raises(ValueError, match='k2'):
+        det.run(_recording(10, {}), FS)
+    with pytest.raises(TypeError):
+        SpikeDetectorHilbert(channel_independent=False)
 
 
 def test_beta_detection_not_implemented():
@@ -132,3 +177,187 @@ def test_discharges_shapes_match_channels():
     _, discharges, *_ = SpikeDetectorHilbert().run(X, FS)
     for key in ('MV', 'MA', 'MP', 'MD', 'MW', 'MPDF'):
         assert discharges[key].shape[1] == 2
+
+
+# =========================================================================================
+# detect_spikes_janca (eeg_forge formulation)
+# =========================================================================================
+import os
+import warnings
+from pathlib import Path
+
+from brainmaze_eeg.spikes import detect_spikes_janca, janca_resampling
+from brainmaze_eeg.tests.spike_synth import synth_ieeg
+
+_FIXTURE = Path(__file__).parent / 'data' / 'janca_eeg_forge_reference.npz'
+_REF = np.load(_FIXTURE)
+_CASES = sorted(k for k in _REF.files if k.startswith('fs'))
+
+
+def _case(key):
+    fs, seed = key[2:].split('_seed')
+    return int(fs), int(seed)
+
+
+@pytest.mark.parametrize('key', _CASES)
+def test_janca_matches_eeg_forge_reference_fixture(key):
+    """Detection indices identical to eeg_forge's spike_detection_Janca (default params)."""
+    fs, seed = _case(key)
+    x, _ = synth_ieeg(fs, dur=float(_REF['dur']), seed=seed)
+    np.testing.assert_array_equal(detect_spikes_janca(x, fs), _REF[key])
+
+
+@pytest.mark.skipif(not os.environ.get('EEG_FORGE_PATH'),
+                    reason='set EEG_FORGE_PATH to an eeg_forge clone for the live comparison')
+@pytest.mark.parametrize('fs', [200, 256, 512, 2048, 5000])
+def test_janca_matches_live_eeg_forge(fs):
+    from brainmaze_eeg.tests.data.make_janca_reference_fixtures import load_reference
+    ref = load_reference(os.environ['EEG_FORGE_PATH'])
+    x, _ = synth_ieeg(fs, dur=60.0, seed=7)
+    np.testing.assert_array_equal(detect_spikes_janca(x, fs), ref(x, fs))
+
+
+def _hits(det, truth, tol):
+    return sum(bool(np.any(np.abs(det - t) <= tol)) for t in truth)
+
+
+def test_janca_finds_injected_spikes():
+    x, truth = synth_ieeg(500, dur=60.0, seed=3, amp_range=(250, 400))
+    det = detect_spikes_janca(x, 500)
+    assert _hits(det, truth, 0.05 * 500) >= 0.9 * truth.size
+    assert det.size <= truth.size + 3
+
+
+def test_janca_works_at_32k_where_reference_is_unstable():
+    x, truth = synth_ieeg(32000, dur=30.0, seed=3, amp_range=(250, 400))
+    det = detect_spikes_janca(x, 32000)
+    assert _hits(det, truth, 0.05 * 32000) >= 0.9 * truth.size
+
+
+@pytest.mark.parametrize('scale', [1e-6, 1e-8, 1e3])
+def test_janca_is_scale_invariant(scale):
+    x, _ = synth_ieeg(500, dur=60.0, seed=0)
+    np.testing.assert_array_equal(detect_spikes_janca(x * scale, 500), detect_spikes_janca(x, 500))
+
+
+def test_janca_multichannel_equals_per_channel():
+    a, _ = synth_ieeg(512, dur=30.0, seed=0)
+    b, _ = synth_ieeg(512, dur=30.0, seed=1)
+    out = detect_spikes_janca(np.vstack([a, b]), 512)
+    assert isinstance(out, list) and len(out) == 2
+    np.testing.assert_array_equal(out[0], detect_spikes_janca(a, 512))
+    np.testing.assert_array_equal(out[1], detect_spikes_janca(b, 512))
+
+
+def test_janca_transposed_input_raises():
+    with pytest.raises(ValueError, match='transpose'):
+        detect_spikes_janca(np.zeros((5000, 4)), 500)
+
+
+@pytest.mark.parametrize('kw', [dict(band=(10, 150)), dict(band=(60, 10)), dict(band=(0, 60)),
+                                dict(filter_order=0), dict(window_s=0), dict(threshold=-1),
+                                dict(min_distance_s=-0.1), dict(target_fs=-5),
+                                dict(decimation='bogus'),
+                                dict(powerline=-50), dict(notch_width=0),
+                                dict(notch_harmonics=0)])
+def test_janca_invalid_parameters_raise(kw):
+    x, _ = synth_ieeg(500, dur=10.0, seed=0)
+    with pytest.raises(ValueError):
+        detect_spikes_janca(x, 500, **kw)
+
+
+def test_janca_notch_order_validated_even_if_all_notches_skipped():
+    from brainmaze_eeg.spikes import design_janca_filters
+    with pytest.raises(ValueError, match='notch_order'):
+        design_janca_filters(80, band=(10, 30), notch_order=0)    # 50 Hz notch skipped at 80 Hz
+
+
+def test_janca_band_above_analysis_nyquist_raises_with_hint():
+    x, _ = synth_ieeg(2000, dur=10.0, seed=0, mains_hz=None)
+    with pytest.raises(ValueError, match='analysis'):
+        detect_spikes_janca(x, 2000, band=(80, 250))          # analysis rate 200 Hz
+    # a ripple-band configuration works once the analysis rate allows it
+    det = detect_spikes_janca(x, 2000, band=(80, 250), target_fs=1000)
+    assert det.dtype == np.int64
+
+
+def test_janca_notch_above_nyquist_is_skipped_with_warning():
+    x, _ = synth_ieeg(100, dur=30.0, seed=0, mains_hz=None)
+    with pytest.warns(UserWarning, match='skipped'):
+        detect_spikes_janca(x, 100, band=(10, 40))
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        detect_spikes_janca(x, 100, band=(10, 40), powerline=None)
+
+
+@pytest.mark.parametrize('fs,expect', [(200, (1, 1, 200.0)), (399, (1, 1, 399.0)),
+                                       (400, (1, 2, 200.0)), (512, (1, 2, 256.0)),
+                                       (2048, (1, 10, 204.8)), (32000, (1, 160, 200.0))])
+def test_janca_integer_decimation_rule(fs, expect):
+    assert janca_resampling(fs, 200.0, 'integer') == expect
+
+
+@pytest.mark.parametrize('fs', [256, 512, 2048, 30000])
+def test_janca_exact_resampling_reaches_target(fs):
+    up, down, fs_a = janca_resampling(fs, 200.0, 'exact')
+    assert fs_a == pytest.approx(200.0, rel=1e-12)
+    x, truth = synth_ieeg(fs, dur=30.0, seed=3, amp_range=(250, 400))
+    det, info = detect_spikes_janca(x, fs, decimation='exact', return_details=True)
+    assert info['fs_analysis'] == pytest.approx(200.0)
+    assert _hits(det, truth, 0.05 * fs) >= 0.9 * truth.size
+
+
+@pytest.mark.parametrize('bad', [np.nan, np.inf, -np.inf])
+def test_janca_raw_detector_raises_on_non_finite(bad):
+    # the raw detector never silently returns zero detections (the reference's behaviour)
+    x, _ = synth_ieeg(500, dur=10.0, seed=0)
+    x[1000] = bad
+    with pytest.raises(ValueError, match='GapAwareSpikeDetector'):
+        detect_spikes_janca(x, 500)
+
+
+def test_janca_return_details():
+    x, _ = synth_ieeg(512, dur=20.0, seed=0)
+    det, info = detect_spikes_janca(x, 512, return_details=True)
+    assert info['fs_analysis'] == 256.0 and (info['up'], info['down']) == (1, 2)
+    assert info['envelope'].shape == info['threshold'].shape == (x.size // 2,)
+    assert np.all(info['envelope'][det // 2] > info['threshold'][det // 2])
+    assert set(info) == {'fs_analysis', 'up', 'down', 'envelope', 'threshold', 'filters',
+                         'preset', 'params'}
+    assert info['preset'] == 'spike' and info['params']['band'] == (10.0, 60.0)
+
+
+def test_v24_raw_raises_on_nan_and_detect_protocol():
+    fs = 512
+    x, truth = synth_ieeg(fs, dur=60.0, seed=3, amp_range=(250, 400))
+    out, *_ = SpikeDetectorHilbert().run(x, fs)
+    det = SpikeDetectorHilbert().detect(x[None, :], fs)
+    assert len(det) == 1
+    np.testing.assert_array_equal(det[0], np.unique(np.round(out['pos'] * fs).astype(int)))
+    xg = x.copy()
+    xg[30 * fs] = np.nan
+    with pytest.raises(ValueError, match='NaN'):
+        SpikeDetectorHilbert().run(xg, fs)
+
+
+def test_janca_detector_object():
+    from brainmaze_eeg.spikes import JancaDetector
+    x, _ = synth_ieeg(512, dur=30.0, seed=0)
+    X = np.vstack([x, x[::-1]])
+    a = JancaDetector(threshold=4.0).detect(X, 512)
+    b = detect_spikes_janca(X, 512, threshold=4.0)
+    assert all(np.array_equal(p, q) for p, q in zip(a, b))
+    with pytest.raises(TypeError):
+        JancaDetector(nonsense=1)
+    with pytest.raises(ValueError):
+        JancaDetector().detect(x, 512)          # protocol is 2-D
+
+
+@pytest.mark.parametrize('fs', [204.8, 1000.5])
+def test_v24_non_integer_rate_resamples_exactly(fs):
+    det = SpikeDetectorHilbert()
+    x = np.sin(2 * np.pi * 30 * np.arange(int(20 * fs)) / fs)[:, None]
+    y = det._resample(x, fs, 200.0)
+    assert y.shape[0] == pytest.approx(20 * 200, abs=1)
+    f = np.fft.rfftfreq(y.shape[0], 1 / 200)
+    assert f[np.abs(np.fft.rfft(y[:, 0])).argmax()] == pytest.approx(30, abs=0.06)

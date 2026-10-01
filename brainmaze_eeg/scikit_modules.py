@@ -305,34 +305,96 @@ class Log10Module:
 
 class PCAModuleSVD:
     """
-    PCA using SVD decomposition with automatic component selection based on variance threshold.
-    Compatible with scikit-learn pipelines.
+    PCA via eigendecomposition of the covariance matrix, with automatic component
+    selection by an explained-variance threshold. Compatible with scikit-learn pipelines.
+
+    .. note::
+       Despite the name, this does not use an SVD: it eigendecomposes the sample
+       covariance ``C = X.T @ X / (n - 1)``. It does **not** centre ``X``; it assumes the
+       input is already zero-mean per feature (e.g. the output of a z-score step). On
+       non-centred data the "covariance" is the second-moment matrix and the components
+       are not principal components. Use :class:`PCAModule` (scikit-learn, centres the
+       data) if that assumption does not hold.
+
+    Attributes
+    ----------
+    eigen_vals : np.ndarray, shape (n_features,), float
+        Set by ``fit``. Eigenvalues of ``C`` (variance along each component), real and sorted in
+        **descending** order. Tiny negative values from round-off are clipped to 0.
+    eigen_vecs : np.ndarray, shape (n_features, n_features), float
+        Matching unit eigenvectors in columns (``eigen_vecs[:, i]`` <-> ``eigen_vals[i]``).
+        Sign convention (like scikit-learn's ``svd_flip``): the largest-magnitude loading
+        of each column is positive (the first one on ties), so the projections do not
+        depend on the LAPACK build.
+    explained_variance_ratio : np.ndarray, shape (n_features,)
+        ``eigen_vals / eigen_vals.sum()``.
+    n : int
+        Number of retained components: the smallest ``n`` such that the cumulative
+        explained-variance ratio of the first ``n`` components is ``>= var_threshold``
+        (clipped to ``n_features``).
     """
 
     def __init__(self, var_threshold = 0.98):
         """
         Initialize PCA module with variance threshold.
-        
+
         Parameters
         ----------
         var_threshold : float, optional
-            Variance threshold for selecting number of components. Default is 0.98.
+            Fraction (0-1] of the total variance the retained components must explain.
+            Default is 0.98.
         """
         self.var_threshold = var_threshold
 
     def fit(self, X, Y=None):
-        # Data matrix X, assumes 0-centered
-        n, m = X.shape
-        #assert np.allclose(X.mean(axis=0), np.zeros(m))
-        # Compute covariance matrix
-        C = np.dot(X.T, X) / (n-1)
-        # Eigen decomposition
-        self.eigen_vals, self.eigen_vecs = np.linalg.eig(C)
+        """
+        Fit the components on ``X``.
 
-        norm_eigs = self.eigen_vals / self.eigen_vals.sum()
-        self.n = 1
-        while norm_eigs[:self.n].sum() < self.var_threshold:
-            self.n += 1
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+            Zero-mean data (see the class note; ``X`` is not centred here).
+        Y : ignored
+
+        Returns
+        -------
+        self
+
+        Notes
+        -----
+        Up to v1.0.0 this used ``np.linalg.eig`` (general, non-symmetric solver) and took
+        the first ``n`` eigenpairs as if they were in descending order. ``eig`` does not
+        guarantee any order (e.g. it returned ``[.., 0.896, 0.292, 0.589, 0.449]`` for an
+        8-feature covariance) and returns complex dtype, so the selected components and
+        ``n`` could be wrong. It now uses ``np.linalg.eigh`` (symmetric solver, real
+        output) and sorts explicitly in descending order (issue #39).
+        """
+        X = np.asarray(X, dtype=float)
+        n, m = X.shape
+        # sample covariance of (assumed zero-mean) data, shape (m, m), symmetric PSD
+        C = np.dot(X.T, X) / (n - 1)
+        eigen_vals, eigen_vecs = np.linalg.eigh(C)       # ascending, real
+        order = np.argsort(eigen_vals)[::-1]               # -> descending
+        self.eigen_vals = np.clip(eigen_vals[order], 0.0, None)
+        eigen_vecs = eigen_vecs[:, order]
+        # deterministic signs: largest |loading| of each component positive
+        pivot = np.argmax(np.abs(eigen_vecs), axis=0)
+        signs = np.sign(eigen_vecs[pivot, np.arange(m)])
+        signs[signs == 0] = 1.0
+        self.eigen_vecs = eigen_vecs * signs
+
+        total = self.eigen_vals.sum()
+        if total > 0:
+            self.explained_variance_ratio = self.eigen_vals / total
+        else:  # constant data: no variance to explain
+            self.explained_variance_ratio = np.zeros_like(self.eigen_vals)
+        cum_var = np.cumsum(self.explained_variance_ratio)
+        # fewest components whose cumulative explained variance reaches the threshold
+        # (same semantics as PCAModule); clipped so round-off (cum_var[-1] = 0.9999999)
+        # with var_threshold = 1.0 cannot run past n_features (the old while-loop could
+        # loop forever in that case).
+        self.n = int(min(np.searchsorted(cum_var, self.var_threshold) + 1, m))
+        return self
 
     def transform(self, X, Y=None):
         """

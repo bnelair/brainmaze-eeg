@@ -2,6 +2,10 @@ name: CI
 
 on: [push, pull_request]
 
+# Tests only read the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     uses: bnelair/brainmaze-sphinx/.github/workflows/test.yml@main

@@ -27,6 +27,8 @@ def mean_frequency(args):
     where P(f_i) is the power spectral density at frequency f_i. The calculation
     is performed over the frequency range defined by the minimum and maximum
     of the provided frequency bands.
+    PSD bins that are NaN (bands excluded with the extractor's ``ignore_bands``) are
+    left out of both sums.
     
     **Use Case:**
     Commonly used to distinguish between sleep stages where different frequency
@@ -64,8 +66,13 @@ def mean_frequency(args):
     f = f[min_position: max_position + 1]
 
     f = np.reshape(f, (1, -1))
-    pwr = np.sum(P, axis=1)
-    mnfreq = np.dot(P, f.T).squeeze() / pwr
+    # NaN-aware: the extractor sets PSD bins inside ``ignore_bands`` to NaN. Up to v1.0.0
+    # plain sums were used here, so with any ``ignore_bands`` this feature was NaN for
+    # every epoch (and the classifiers using it, e.g. ``SleepClassifierWrapper``'s 2 Hz
+    # and 7 Hz models, failed in RFECV). Ignored bins are now excluded from both sums;
+    # without ignored bins the value is unchanged.
+    pwr = np.nansum(P, axis=1)
+    mnfreq = np.nansum(P * f, axis=1) / pwr
     return [mnfreq], ['MEAN_DOMINANT_FREQUENCY']
 
 
