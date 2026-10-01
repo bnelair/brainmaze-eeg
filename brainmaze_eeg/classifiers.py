@@ -187,13 +187,14 @@ class multivariate_normal_(multivariate_normal_frozen):
         mu = X.mean(axis=0)
         super().__init__(mu, cov, allow_singular, seed)
 
-    def pdf(self, X):
-        X = X.copy().T
-        return super().pdf(X)
-
     def logpdf(self, X):
-        X = X.copy().T
-        return super().logpdf(X)
+        # call the base implementation explicitly: depending on the scipy version the
+        # frozen ``pdf`` is implemented via ``self.logpdf``, so delegating ``pdf`` to
+        # ``super().pdf`` would transpose twice.
+        return multivariate_normal_frozen.logpdf(self, np.asarray(X).T)
+
+    def pdf(self, X):
+        return np.exp(self.logpdf(X))
 
 
 class KDEBayesianModel:
