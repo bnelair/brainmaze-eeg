@@ -118,3 +118,27 @@ def test_generator_seed_gives_independent_per_gap_streams():
     np.testing.assert_array_equal(a[8000:9000], b[8000:9000])
     with pytest.raises(TypeError):
         fill_gaps(one, fs, method='pink', seed=np.random.RandomState(0))
+
+
+def test_fill_nd_axis_copy_and_dtype():
+    fs = 200.0
+    rng = np.random.default_rng(7)
+    X = np.vstack([pink_background(4000, fs, 30.0, rng) for _ in range(3)])
+    X[0, 1000:1500] = np.nan
+    X[2, 3000:3100] = np.inf
+    rows = np.vstack([fill_gaps(r, fs) for r in X])
+    np.testing.assert_array_equal(fill_gaps(X, fs), rows)          # row == 1-D call
+    np.testing.assert_array_equal(fill_gaps(X.T, fs, axis=0), rows.T)
+    f32 = fill_gaps(X.astype(np.float32), fs)
+    assert f32.dtype == np.float32 and np.isfinite(f32).all()
+    Y = X.copy()
+    out = fill_gaps(Y, fs, copy=False)
+    assert out is Y and np.isfinite(Y).all()
+    Z = X.copy()
+    Z[1] = np.nan
+    with pytest.warns(RuntimeWarning, match='no finite sample'):
+        assert np.isnan(fill_gaps(Z, fs)[1]).all()
+    with pytest.raises(ValueError):
+        fill_gaps(Z, fs, all_nan='raise')
+    with pytest.raises(ValueError):
+        fill_gaps(X, fs, axis=2)

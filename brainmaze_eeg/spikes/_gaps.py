@@ -34,15 +34,17 @@ Three steps around an unchanged detector:
 Relation to ``brainmaze_utils.gaps``
 ------------------------------------
 The canonical gap helpers of the BrainMaze family are being added to brainmaze-utils
-(``brainmaze_utils.gaps``, PR bnelair/brainmaze-utils#26, not yet released). This module is
-a deliberately thin, self-contained stand-in with the same names, signatures and semantics
-as that module's final API (``find_gaps``, ``gap_intervals``, ``fill_gaps(x, fs, *, ...)``
-with ``all_nan``, ``pink_noise``, ``mask_in_gaps``/``drop_in_gaps(det, gaps, fs, *, units,
-margin_s=0.1, end=None)`` with explicit units), restricted to what the detectors need:
-1-D ``fill_gaps`` only (no ``axis``/``copy``), and **no** ``'spectral'`` fill -- the default
-long-gap fill there; here the default is ``'mirror'``, the best of the available methods in
-the benchmarks (see the README). Follow-up: replace this module by ``brainmaze_utils.gaps``
-once it is released (and make ``'spectral'`` the wrapper default).
+(``brainmaze_utils.gaps``, PR bnelair/brainmaze-utils#26, to ship in brainmaze-utils 2.1.0).
+This module is a deliberately thin, self-contained stand-in with the same names, signatures
+and semantics as that module's final API: ``find_gaps``, ``gap_intervals``,
+``fill_gaps(x, fs, *, max_interp_s, method, context_s, taper_s, beta, seed, axis, all_nan,
+copy)``, ``pink_noise``, and ``mask_in_gaps``/``drop_in_gaps(det, gaps, fs, *, units,
+margin_s=0.1, end=None)`` with explicit units. The one difference: there is **no**
+``'spectral'`` fill here (the default there), so this module's default ``method`` is
+``'mirror'``. :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` always passes
+``method`` explicitly, so switching to ``from brainmaze_utils.gaps import ...`` is a one-line
+change (follow-up, once 2.1.0 is released; then benchmark ``'spectral'`` as the wrapper
+default).
 """
 
 import hashlib
@@ -209,14 +211,16 @@ def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, entropy):
 
 
 def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper_s=0.5,
-              beta=1.0, seed=0, all_nan='keep'):
+              beta=1.0, seed=0, axis=-1, all_nan='keep', copy=True):
     """
-    Fill the non-finite gaps of a 1-D signal (see module docstring).
+    Fill the non-finite gaps of a signal (see module docstring).
 
     Parameters
     ----------
-    x : array_like, shape (n_samples,)
-        Signal; not modified.
+    x : array_like
+        Signal, 1-D ``(n_samples,)`` or N-D with time along ``axis``; every other index is
+        filled independently (a row of an N-D array is filled exactly as the same 1-D
+        signal).
     fs : float
         Sampling frequency (Hz).
     max_interp_s : float
@@ -236,14 +240,20 @@ def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper
         Noise seed (default 0: reproducible). Each gap gets its own stream derived from the
         seed, the gap's position and a hash of its neighbouring data, so channels with the
         same seed still get independent noise.
+    axis : int
+        Time axis (default -1).
     all_nan : {'keep', 'zero', 'raise'}
-        A signal without any finite sample: returned unchanged (``'keep'``, with a warning),
-        as zeros (``'zero'``, with a warning), or ``ValueError`` (``'raise'``).
+        A channel without any finite sample: left unchanged (``'keep'``), set to zeros
+        (``'zero'``) -- both with one warning listing the channels -- or ``ValueError``
+        (``'raise'``).
+    copy : bool
+        ``True`` (default): ``x`` is not modified. ``False``: a writable floating-point
+        ndarray is filled in place and returned.
 
     Returns
     -------
-    np.ndarray (float64)
-        Filled copy.
+    np.ndarray
+        Same shape as ``x``; floating input keeps its dtype, anything else becomes float64.
     """
     _check_fs(fs)
     if method not in FILL_METHODS:
@@ -254,21 +264,39 @@ def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper
             and taper_s >= 0 and context_s > 0 and np.isfinite(beta)):
         raise ValueError('max_interp_s and taper_s must be finite >= 0, context_s > 0 and '
                          'beta finite')
+    x_in = x
     x = np.asarray(x)
-    if np.iscomplexobj(x) or not np.issubdtype(x.dtype, np.number):
+    if np.iscomplexobj(x) or not (np.issubdtype(x.dtype, np.number)
+                                  or np.issubdtype(x.dtype, np.bool_)):
         raise TypeError(f'x must be a real numeric array, got dtype {x.dtype}')
-    x = x.astype(np.float64)
-    if x.ndim != 1:
-        raise ValueError(f'fill_gaps expects a 1-D signal here, got shape {x.shape}')
-    if x.size and not np.isfinite(x).any():
+    if x.ndim == 0:
+        raise ValueError('x must have at least one dimension')
+    if not -x.ndim <= axis < x.ndim:
+        raise ValueError(f'axis {axis} out of range for {x.ndim}-D input')
+    dtype = x.dtype if np.issubdtype(x.dtype, np.floating) else np.float64
+    in_place = (not copy and isinstance(x_in, np.ndarray) and x_in.dtype == dtype
+                and x_in.flags.writeable)
+    out = x_in if in_place else np.array(x, dtype=dtype, copy=True)
+    entropy = _root_entropy(seed)
+    view = np.moveaxis(out, axis, -1)
+    dead = []
+    for idx in np.ndindex(view.shape[:-1]):
+        row = view[idx]
+        if row.size == 0 or np.isfinite(row).all():
+            continue
+        if not np.isfinite(row).any():
+            dead.append(idx)
+            if all_nan == 'zero':
+                row[...] = 0
+            continue
+        row[...] = _fill_1d(row, fs, max_interp_s, method, context_s, taper_s, beta, entropy)
+    if dead:
         if all_nan == 'raise':
-            raise ValueError('signal contains no finite sample')
-        warnings.warn('fill_gaps: signal contains no finite sample; '
-                      + ('returned unchanged' if all_nan == 'keep' else 'returned as zeros'),
+            raise ValueError(f'channel(s) {dead} contain no finite sample')
+        warnings.warn(f'fill_gaps: channel(s) {dead} contain no finite sample; '
+                      + ('left unchanged' if all_nan == 'keep' else 'set to zeros'),
                       RuntimeWarning, stacklevel=2)
-        return x.copy() if all_nan == 'keep' else np.zeros_like(x)
-    return _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta,
-                    _root_entropy(seed))
+    return out
 
 
 def _as_positions(v, units, name):
