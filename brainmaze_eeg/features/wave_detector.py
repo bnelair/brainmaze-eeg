@@ -10,128 +10,227 @@ Wave detection
 
 :class:`WaveDetector` finds waves (a negative half-wave followed by a positive
 half-wave) inside a chosen frequency band and reports morphological features of
-those waves -- amplitude, peak-to-peak, duration and slope.
+those waves: rate, amplitude, peak-to-peak, duration and slope.
 
 It is a general half-wave detector: with ``fband=(0.5, 4)`` it detects delta waves,
 with ``(0.5, 0.9)`` slow oscillations, and any other band works too. The interface
-mirrors :class:`brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor`
-and :class:`brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor`:
-calling the detector returns ``(values, names)`` so wave features can be concatenated
-with spectral / time-domain features for the same epochs.
+follows :class:`brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor`
+(and, for the ``(values, names)`` return,
+:class:`brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor`):
+configure it once with ``fs`` and ``segm_size``, call it on a 1-D signal or an
+``(n_channels, n_samples)`` array, and concatenate the wave features with spectral /
+time-domain features for the same windows.
 
 Two ways to use it
 ------------------
 
-Windowed feature extraction (``__call__``)::
+Windowed feature extraction (``__call__``), e.g. a 30-minute, 32-channel segment::
 
     from brainmaze_eeg.features.wave_detector import WaveDetector
 
-    det = WaveDetector(fs=200, fband=(0.5, 4.0), segm_size=30)
-    values, names = det(x)                 # x: 1-D or (n_signals, n_samples)
+    det = WaveDetector(fs=500, fband=(0.5, 4.0), segm_size=30, datarate=True,
+                       features_on='both')
+    values, names = det(x)        # x: (32, 900000) -> each value (32, 60)
+    # names: DATA_RATE, WAVE_RATE, WAVE_PK2PK_MEAN, ..., WAVE_PK2PK_MEAN_BAND, ...
 
 Raw detections, for plotting or custom analysis (``detect``)::
 
-    det = WaveDetector(fs=200, fband=(0.5, 4.0))
-    waves = det.detect(x)                  # dict (1-D) or list of dicts (2-D)
-    plt.plot(x)
-    plt.plot(waves['min_pos'], waves['min_val'], 'v')
-    plt.plot(waves['max_pos'], waves['max_val'], '^')
+    det = WaveDetector(fs=500, fband=(0.5, 4.0))
+    w = det.detect(x[0], return_signals=True)          # dict (1-D) or list of dicts (2-D)
+    plt.plot(w['x_amp']); plt.plot(w['x_band'])
+    plt.plot(w['min_pos'], w['min_val'], 'v')               # unfiltered trough values
+    plt.plot(w['min_pos_band'], w['min_val_band'], 'v')     # filtered trough values
 
 Algorithm
 ---------
 
-For every signal, independently:
+For every signal, independently and on the **whole** signal at once (window borders
+never cut a wave):
 
-1. **Gaps.** Non-finite samples (NaN, +/-inf) are gaps. With ``nan_policy='fill'``
-   (default) they are filled by :func:`brainmaze_utils.gaps.fill_gaps` (short gaps
-   linearly, long gaps with amplitude-matched pink noise) so the filters can run; with
+1. **Gaps.** Non-finite samples (NaN, +/-inf) in ``x`` or ``measure_on`` are gaps.
+   With ``nan_policy='fill'`` (default) they are filled by
+   :func:`brainmaze_utils.gaps.fill_gaps` (gaps up to 0.1 s linearly, longer gaps with
+   amplitude-matched pink noise with tapered edges) so the filters can run; with
    ``nan_policy='raise'`` any gap raises ``ValueError``. The fill is never measured:
-   step 6 discards every wave that touches a gap.
-2. **Filtering.** The mean is removed, then two zero-phase filters are applied:
+   step 6 discards every wave near a gap. Clean signals skip this step entirely.
+2. **Filtering.** The mean is removed, then zero-phase filters produce two signals:
 
-   * the *detection* signal: band-pass to ``fband``;
-   * the *reference* signal: drift removal (high-pass at ``fband[0]``) plus a moderate
-     low-pass at ``refine_lowpass * fband[1]`` (see *Refinement* below).
+   * the *filtered* (detection) signal: band-pass to ``fband``;
+   * the *unfiltered* (broadband amplitude) signal: drift removal only (high-pass
+     at ``0.5 * fband[0]``), or ``measure_on`` when given (mean-subtracted, used
+     as-is).
 
-   ``filter='butter'`` (default) uses a Butterworth band-pass of order ``filter_order``
-   applied forward-backward (``scipy.signal.sosfiltfilt``, so the magnitude response is
-   squared: -6 dB at the cutoffs, zero phase). ``filter='fft'`` uses the ideal brick-wall
-   FFT mask of earlier versions. The brick-wall filter has a sinc impulse response that
-   rings for many seconds around any transient and invents waves there (one isolated
-   50 uV, 1 Hz cycle in 30 s of silence gave 14 detections with ``'fft'`` vs 1 with
-   ``'butter'``), which is why it is no longer the default.
-3. **Half-waves.** The detection signal is split at its zero crossings into negative
+   ``filter='butter'`` (default) uses a Butterworth band-pass of order
+   ``filter_order`` (default 2) in second-order sections applied forward-backward
+   (``scipy.signal.sosfiltfilt``): zero phase, magnitude ``|H(f)|^2`` -- gain 1 in
+   the band centre, **0.5 (-6 dB) at the band edges**, -48 dB/octave outside for
+   order 2. The drift high-pass is a 4th-order Butterworth at ``0.5 * fband[0]``,
+   forward-backward: gain 0.996 at ``fband[0]``, 0.004 at ``fband[0] / 4``. The measured
+   response matches this design to within 0.003 for fs from 200 Hz to 25 kHz (see
+   ``test_wave_detector.py``). ``filter='fft'`` uses the ideal brick-wall FFT mask of
+   v1.0.0 (its drift removal is a brick-wall high-pass at ``fband[0]``). The
+   brick-wall filter has a sinc impulse response that rings for many
+   seconds around any transient and invents waves there (one isolated 50 uV, 1 Hz
+   cycle in 30 s of silence: 14 detections with ``'fft'``, 1 with ``'butter'``), and
+   it is 10-15x slower on long signals, so it is no longer the default.
+3. **Half-waves.** The filtered signal is split at its zero crossings into negative
    and positive half-waves. A *wave* is a negative half-wave immediately followed by a
    positive one. Both half-waves must be bounded by **real** zero crossings: the
    truncated half-waves at the start and end of the signal are never paired.
 4. **Positions.** The trough (minimum of the negative half-wave) and the peak (maximum
-   of the positive half-wave) are located on the detection signal, then *refined* to the
-   extreme of the reference signal within +/- a quarter period of ``fband[1]``,
-   **clamped to the wave's own half-wave** (the trough never leaves its negative
-   half-wave, the peak never leaves its positive half-wave). The refinement window is
-   truncated (not shifted) at the half-wave borders.
-5. **Duration gate.** Keep waves whose trough->peak duration lies within half a period
-   of the band edges, with a tolerance of one sample for integer sample positions::
+   of the positive half-wave) are located on the filtered signal. With the default
+   ``refine_lowpass=0`` these positions are used for both signals. Otherwise they are
+   *refined*, for the unfiltered outputs only, to the extreme of a reference
+   signal (the drift-removed signal low-passed at ``refine_lowpass * fband[1]``, or
+   not low-passed if ``refine_lowpass=None``) within +/- a quarter period of
+   ``fband[1]``, **clamped to the wave's own half-wave** (window truncated, not
+   shifted). See *Refinement* below for why this is not the default.
+5. **Duration gate.** Keep waves whose trough->peak duration on the filtered signal
+   lies within half a period of the band edges, with a one-sample tolerance for
+   integer sample positions::
 
        1 / (2 * fband[1]) - 1/fs  <=  t_peak - t_trough  <=  1 / (2 * fband[0]) + 1/fs
 
-   This (not the filter) is what defines the *effective* band of the detected waves:
-   a wave of instantaneous frequency ``f`` (= 1 / (2 * (t_peak - t_trough))) is kept iff
-   ``fband[0] - tol <= f <= fband[1] + tol`` with ``tol`` from the one-sample tolerance.
-6. **Gap exclusion.** A wave whose span (interpolated zero crossing -> peak) overlaps a
-   gap widened by ``gap_margin_s`` on each side is discarded.
-7. **Morphology.** Amplitudes are read at the refined positions on the *amplitude
-   signal*: the drift-removed (high-passed, *not* low-passed) signal, or ``measure_on``
-   when given (mean-subtracted, otherwise used as-is).
+   This gate (more than the filter) defines the *effective* band of the detected
+   waves: a wave of instantaneous frequency ``f = 1 / (2 * (t_peak - t_trough))`` is
+   kept iff ``f`` is within ``fband`` up to the one-sample tolerance. A sine at exactly
+   ``fband[1]`` is therefore detected (v1.0.0 lost about a third of them).
+6. **Edges and gaps.** A wave's *span* runs from its interpolated down-going zero
+   crossing (``zero_pos_frac``) to the end of its positive half-wave (``end_pos``). A
+   wave is discarded when its span starts within ``edge_margin_s`` of the first sample
+   or ends within ``edge_margin_s`` of the last sample, or overlaps a gap widened by
+   ``gap_margin_s`` on each side. Both margins default to ``3 / fband[0]`` (three
+   periods of the lower band edge; 6 s for the 0.5 Hz edge). Reason: the zero-phase
+   filters need that long to forget the signal edge or the gap fill. Measured on 1/f
+   EEG (fs 250 Hz), comparing waves in 60 s cuts with the same waves in the 30 min
+   recording, the share of waves whose trough moved or whose unfiltered amplitude
+   changed by more than 1 uV fell from 25 % at 2-2.5 periods from the cut to about
+   1 % at 2.5-3 periods and 0.4 % at 3-4 periods (band 0.5-4 Hz). Gaps of 0.5-5 s gave
+   the same picture; gaps of 20 ms or less (interpolated) barely matter. Lower the
+   margins (e.g. ``gap_margin_s=0.1``) if your data has many very short dropouts and
+   you accept that.
+7. **Morphology.** Amplitudes, durations and slopes are read at the wave's positions
+   on both signals (outputs below).
 
-Outputs (per wave)
-------------------
+Two signals: filtered and unfiltered
+------------------------------------
 
-``min_pos``, ``max_pos``
-    Trough / peak sample index (int).
+Every wave is measured twice, on the same set of detected waves:
+
+* **unfiltered** (broadband; keys without suffix, features ``WAVE_*``): values of the
+  drift-removed input (or of ``measure_on``) -- what the EEG really looked like,
+  including faster activity riding on the wave;
+* **filtered** (band-passed; keys suffixed ``_band``, features suffixed ``_BAND``):
+  values of the band-passed detection signal -- the band-limited component only.
+  Note the filter gain: ``|H(f)|^2`` is 0.5 at the band edges, so the filtered
+  amplitude of a wave near a band edge is attenuated (a pure sine at ``fband[0]``
+  or ``fband[1]`` comes out at half amplitude).
+
+``WaveDetector(features_on=...)`` selects which set the windowed features use;
+``detect()`` always returns both.
+
+Outputs (per wave, from ``detect`` / :func:`detect_waves`)
+----------------------------------------------------------
+
 ``zero_pos``
-    First sample after the preceding positive->negative zero crossing (int).
+    First negative sample after the down-going zero crossing (int sample index).
 ``zero_pos_frac``
     The same crossing linearly interpolated between the two samples that bracket it
-    (fractional sample index, float). Durations and the downslope use this value.
+    (fractional sample index). Durations and the downslope use this value.
+``end_pos``
+    Last sample of the positive half-wave (int). ``[zero_pos_frac, end_pos]`` is the
+    wave's span used for edge / gap exclusion.
+``min_pos``, ``max_pos``
+    Trough / peak sample index (int).
 ``min_val``, ``max_val``
-    Amplitude-signal value at the trough / peak (input units, e.g. uV).
+    Signal value at the trough / peak (input units, e.g. uV).
 ``pk2pk``
-    ``max_val - min_val``.
+    ``max_val - min_val`` (input units).
 ``delta_t``
     ``(max_pos - min_pos) / fs`` (s).
 ``down_dur``
-    ``(min_pos - zero_pos_frac) / fs`` (s), always > 0.
+    ``(min_pos - zero_pos_frac) / fs`` (s), > 0.
 ``upslope``
-    ``pk2pk / delta_t`` (units/s).
+    ``pk2pk / delta_t`` (input units / s).
 ``downslope``
-    ``-min_val / down_dur`` (units/s). Positive for a trough below zero (the normal
-    case); it is negative if the amplitude signal at the trough is above zero (possible
-    with ``measure_on``). ``amplitude_threshold`` removes such waves.
+    ``-min_val / down_dur`` (input units / s). Positive for a trough below zero (the
+    normal case). It can be negative if the unfiltered value at the trough is above
+    zero; ``amplitude_threshold`` removes such waves.
+``*_band``
+    The nine keys ``min_pos`` ... ``downslope`` again, measured on the filtered signal.
+``gaps``
+    ``(n_gaps, 2)`` ``[start, stop)`` sample indices of the non-finite runs.
+``x_band``, ``x_amp``
+    Only with ``return_signals=True``: the filtered and unfiltered signals (NaN in
+    gaps).
+
+Windowed features (``__call__``)
+--------------------------------
+
+See :class:`WaveDetector`. ``DATA_RATE`` (fraction of finite samples), ``WAVE_RATE``
+(waves per analysable second, Hz), and per-window means of ``pk2pk``, the selected
+slope, ``delta_t``, ``min_val`` and ``max_val``.
 
 Slope conventions
 -----------------
 
-``slope='upslope'``
-    Trough -> peak rate, ``(max_val - min_val) / (t_peak - t_trough)``. This is the
-    historical behaviour of this class.
-``slope='downslope'``
+``slope='downslope'`` (default)
     Zero-crossing -> negative-trough rate, ``-min_val / (t_trough - t_zero_cross)``.
-    This is the slow-wave downslope used by Carvalho et al. 2024, who measure it on a
-    broadband trace (pass that trace via ``measure_on=``) after detecting on the narrow
-    band, and apply an amplitude threshold on the negative peak (``amplitude_threshold``).
+    This is the slow-wave downslope of Carvalho et al. 2024 (``SlowWaveDetect``), who
+    detect on the narrow band, measure on a broadband 0.5-35 Hz trace (pass it as
+    ``measure_on=``) and keep waves with a negative peak of at least 5 uV
+    (``amplitude_threshold=5``). See ``demo/eeg_wave_detection/example_one_file.py``.
+``slope='upslope'``
+    Trough -> peak rate, ``(max_val - min_val) / (t_peak - t_trough)`` (the
+    ``WAVE_SLOPE_MEAN`` of v1.0.0 before the published downslope was restored).
+
+For ``A sin(2 pi f t)`` both equal ``4 A f``.
 
 Refinement and amplitude bias
 -----------------------------
 
-Positions are refined on a reference that is drift-removed and low-passed at
-``refine_lowpass * fband[1]`` (default 4x the upper band edge). Refining on the fully
-broadband signal (``refine_lowpass=None``, the behaviour before v2.1) lets the window
-argmin/argmax pick noise excursions, so ``min_val`` / ``max_val`` / ``pk2pk`` are biased
-outward by noise (white noise SD 10 on a 100 uV pk2pk 1 Hz sine at 200 Hz: pk2pk 136.8);
-refining on the detection signal only (``refine_lowpass=0``) is unbiased for sines but
-misses sharp, non-sinusoidal troughs. The default is the compromise; see
-``test_wave_detector.py`` for the measured numbers.
+``refine_lowpass`` decides where the unfiltered trough / peak are read:
+
+* ``0`` (default): at the filtered signal's trough / peak. Unbiased under noise
+  (100 uV pk2pk 1 Hz sine + white noise SD 10 uV, fs 200: pk2pk 101.4), and the
+  downslope has no heavy tail. Sharp, non-sinusoidal extremes are underestimated
+  (a 1 Hz wave with harmonics: min -1.59 vs true -1.73, max 0.74 vs 0.89).
+* ``>= 1``: refined to the extreme of the drift-removed signal low-passed at
+  ``refine_lowpass * fband[1]``. Follows sharp extremes, but picks noise
+  excursions: pk2pk 110.7 (``4``) / 105.3 (``2``) in the example above, and the
+  trough can land just after the zero crossing, which makes ``downslope`` (an
+  amplitude divided by a short duration) heavy-tailed.
+* ``None``: refined on the unfiltered drift-removed signal (v1.0.0 behaviour):
+  pk2pk 137.6 in the example above.
+
+On the demo recording (6.8 h Fz-Cz, NREM epochs, ``measure_on`` 0.5-35 Hz,
+``amplitude_threshold=5``) the mean downslope is SO 51.8 / delta 155.0 uV/s with
+``0``, 333.0 / 299.7 with ``4`` and 136.3 / 235.5 with ``None`` (v1.0.0: 186.0 /
+250.2). With refinement, 1-2 % of waves have a trough < 20 ms after the zero crossing
+and slopes > 1000 uV/s, which dominate the window means. Carvalho et al. report a
+delta downslope of 130.8 +/- 34.8 uV/s across subjects. ``refine_lowpass`` does not
+change the filtered (``_band``) outputs.
+
+Performance
+-----------
+
+Everything is vectorised (no Python loop over samples, waves or windows); time and
+memory are O(n) per signal, dominated by the three ``sosfiltfilt`` passes. Measured
+on a 12-core workstation (single process), seconds per 30-minute channel: 0.06 at
+250 Hz, 0.4 at 1 kHz, 1.8 at 5 kHz; v1.0.0 needed 0.4 / 2.6 / 14.3. Use
+``n_processes`` to spread channels over processes.
+
+Changes from v1.0.0 (class version 2.0.0 -> 2.1.0)
+--------------------------------------------------
+
+Butterworth instead of brick-wall FFT filter; NaN gaps no longer zero the whole
+signal; truncated edge half-waves are no longer paired; waves near the signal edges
+and gaps are excluded and ``WAVE_RATE`` is normalised by analysable time; positions
+come from the filtered signal by default (``refine_lowpass=0``); interpolated zero
+crossing; duration gate with a one-sample tolerance; ``*_band`` outputs and
+``features_on``; ``return_signals``; numpy scalar ``fs`` accepted. Expect different
+numbers from v1.0.0 for the same input; see the PR that introduced 2.1.0 for a
+side-by-side.
 
 References
 ----------
@@ -140,8 +239,10 @@ are associated with amyloid accumulation in older adults with obstructive sleep 
 Brain Communications 6(5): fcae354. https://doi.org/10.1093/braincomms/fcae354
 
 Lineage: this detector is the successor of the ``SlowWaveDetect`` routine used in the
-study above, generalised to an arbitrary band; the ``slope='downslope'`` +
-``amplitude_threshold`` + ``measure_on`` options reproduce that original feature.
+study above, generalised to an arbitrary band; ``slope='downslope'`` +
+``amplitude_threshold`` + ``measure_on`` reproduce that original feature's definition.
+The original ``SlowWaveDetect`` source is not part of this repository, so numerical
+identity with the published values cannot be verified here.
 """
 
 import multiprocessing
@@ -170,6 +271,9 @@ _FILTERS = ('butter', 'fft')
 _DRIFT_ORDER = 4
 _DRIFT_FACTOR = 0.5
 _NAN_POLICIES = ('fill', 'raise')
+#: default edge / gap exclusion margin, in periods of fband[0] (see module docstring,
+#: "Edges and gaps", for the measurements behind this value)
+_MARGIN_PERIODS = 3.0
 
 
 # ----------------------------------------------------------------------------------
@@ -374,6 +478,11 @@ def _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high):
     neg_idx, zero_pos, zero_frac = neg_idx[keep], zero_pos[keep], zero_frac[keep]
     band_trough, band_peak = trough_pos[keep], peak_pos[keep]
 
+    end_pos = seg_ends[neg_idx + 1]
+    if x_ref is x_narrow:                                    # refine_lowpass=0: no refinement
+        return (band_trough.copy(), band_peak.copy(), zero_pos, zero_frac,
+                band_trough, band_peak, end_pos)
+
     # refine on the reference within +/- a quarter period of f_high, clamped to the
     # wave's own half-wave
     half_win = int(round(fs / (4.0 * f_high)))
@@ -381,7 +490,6 @@ def _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high):
                                    seg_starts[neg_idx], seg_ends[neg_idx])
     peak_pos = _refine_positions(x_ref, band_peak, half_win, 'max',
                                  seg_starts[neg_idx + 1], seg_ends[neg_idx + 1])
-    end_pos = seg_ends[neg_idx + 1]
     return trough_pos, peak_pos, zero_pos, zero_frac, band_trough, band_peak, end_pos
 
 
@@ -393,9 +501,9 @@ def _empty_detection():
 
 
 def _resolve_margin(margin_s, f_low, name):
-    """``None`` -> one period of the lower band edge (``1 / f_low``) in seconds."""
+    """``None`` -> ``_MARGIN_PERIODS`` periods of the lower band edge, in seconds."""
     if margin_s is None:
-        return 1.0 / f_low
+        return _MARGIN_PERIODS / f_low
     if isinstance(margin_s, bool) or not isinstance(margin_s, numbers.Real) \
             or not np.isfinite(margin_s) or margin_s < 0:
         raise ValueError(f'{name} must be None or a non-negative number of seconds. '
@@ -430,7 +538,7 @@ def _excluded_mask(n, gaps, fs, gap_margin_s, edge_margin_s):
 
 def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
                  filter_order=2, nan_policy='fill', gap_margin_s=None,
-                 edge_margin_s=None, refine_lowpass=4.0, return_signals=False):
+                 edge_margin_s=None, refine_lowpass=0, return_signals=False):
     """
     Detect waves in a single 1-D signal and return their positions and morphology.
 
@@ -460,18 +568,20 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
         ``gap_margin_s``); ``'raise'`` raises ``ValueError``.
     gap_margin_s : float or None
         Seconds added on both sides of each gap; a wave whose span overlaps the widened
-        gap is discarded. ``None`` (default): ``1 / fband[0]``, one period of the lower
-        band edge (the filter's memory: band-passed values that close to a gap still
-        depend on the fill).
+        gap is discarded. ``None`` (default): ``3 / fband[0]``, three periods of the
+        lower band edge (the filters' memory: values that close to a gap still depend
+        on the fill; see module docstring, *Edges and gaps*).
     edge_margin_s : float or None
         A wave whose span starts within ``edge_margin_s`` of the first sample or ends
         within it of the last sample is discarded (the zero-phase filter's edge
-        transient shifts zero crossings there). ``None`` (default): ``1 / fband[0]``.
-        ``0`` keeps every complete wave.
+        transient shifts zero crossings and amplitudes there). ``None`` (default):
+        ``3 / fband[0]``. ``0`` keeps every complete wave.
     refine_lowpass : float or None
-        Position refinement reference = drift-removed ``x`` low-passed at
-        ``refine_lowpass * fband[1]``. ``None``: no low-pass (broadband, the behaviour
-        of v1.0.0); ``0``: refine on the detection signal itself. Default 4.
+        Where the unfiltered trough / peak are read (module docstring, *Refinement*).
+        ``0`` (default): at the filtered signal's trough / peak. ``>= 1``: refined to
+        the extreme of the drift-removed ``x`` low-passed at
+        ``refine_lowpass * fband[1]``. ``None``: refined on the drift-removed ``x``
+        without low-pass (v1.0.0 behaviour). Does not affect the ``_band`` outputs.
     return_signals : bool
         Also return the band-passed signal (``'x_band'``) and the broadband amplitude
         signal (``'x_amp'``), both float arrays of the input length. Gaps are NaN in
@@ -660,10 +770,11 @@ class WaveDetector:
         window. ``'raise'``: raise ``ValueError``.
     gap_margin_s, edge_margin_s : float or None
         Exclusion margins in seconds around gaps / at the two ends of each signal.
-        ``None`` (default): ``1 / fband[0]``. See :func:`detect_waves`.
+        ``None`` (default): ``3 / fband[0]``. See :func:`detect_waves`.
     refine_lowpass : float or None
-        Position refinement reference low-pass, as a multiple of ``fband[1]``. Default 4.
-        See :func:`detect_waves`.
+        Where the unfiltered trough / peak are read. ``0`` (default): at the filtered
+        signal's trough / peak; ``>= 1`` or ``None``: refined (see
+        :func:`detect_waves` and the module docstring, *Refinement*).
 
     Notes
     -----
@@ -701,7 +812,7 @@ class WaveDetector:
                  datarate=False, n_processes=1,
                  cutoff_low=None, cutoff_high=None,
                  filter='butter', filter_order=2, nan_policy='fill',
-                 gap_margin_s=None, edge_margin_s=None, refine_lowpass=4.0,
+                 gap_margin_s=None, edge_margin_s=None, refine_lowpass=0,
                  features_on='broadband'):
         # backward-compatible aliases for the old (cutoff_low, cutoff_high) signature
         if cutoff_low is not None or cutoff_high is not None:
@@ -758,7 +869,7 @@ class WaveDetector:
         self.filter = filter
         self.filter_order = int(filter_order)
         self.nan_policy = nan_policy
-        #: resolved margins in seconds (``None`` at construction -> ``1 / fband[0]``)
+        #: resolved margins in seconds (``None`` at construction -> ``3 / fband[0]``)
         self.gap_margin_s = gap_margin
         self.edge_margin_s = edge_margin
         self.refine_lowpass = refine_lowpass
