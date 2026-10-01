@@ -40,10 +40,13 @@ For each channel (all filters zero-phase, ``sosfiltfilt``, at the **input** rate
 1. Band-pass Butterworth, order ``filter_order`` (3), edges ``band`` (10, 60) Hz.
 2. Band-stop Butterworth, order ``notch_order`` (3), ``powerline +/- notch_width/2``
    (50 +/- 2.5 Hz), optionally also at harmonics (``notch_harmonics``).
-3. If ``target_fs`` is set and ``fs >= 2 * target_fs``: decimate by the **integer** factor
-   ``q = floor(fs / target_fs)`` with :func:`scipy.signal.resample_poly` (its anti-alias
-   FIR runs on the already band-limited signal). The analysis rate is ``fs_a = fs / q``
-   (e.g. 500 Hz -> q=2, 250 Hz; 2048 Hz -> q=10, 204.8 Hz; 256 Hz -> no decimation).
+3. Resample with :func:`scipy.signal.resample_poly` (its anti-alias FIR runs on the
+   already band-limited signal). ``decimation='integer'`` (default, reference): if
+   ``target_fs`` is set and ``fs >= 2 * target_fs``, decimate by the **integer** factor
+   ``q = floor(fs / target_fs)``; the analysis rate ``fs_a = fs / q`` is then generally
+   *not* ``target_fs`` (500 Hz -> 250 Hz; 512 -> 256; 2048 -> 204.8; 256 or 399 Hz -> not
+   decimated). ``decimation='exact'`` (ours): resample to exactly ``target_fs`` whenever
+   ``fs > target_fs``.
 4. Envelope ``e = |hilbert(x)|``.
 5. Sliding statistics of ``L = log(e + eps)`` over a centred window of
    ``W = int(window_s * fs_a)`` samples (made odd), ``mode='reflect'`` at the ends::
@@ -59,7 +62,8 @@ For each channel (all filters zero-phase, ``sosfiltfilt``, at the **input** rate
    threshold ``T = threshold * (mode + median)``.
 7. Detections are the maxima of ``e`` found by :func:`scipy.signal.find_peaks` with
    ``height=T`` and ``distance=int(min_distance_s * fs_a)`` samples; returned as sample
-   indices of the **input** signal (``index_a * q``; resolution ``q`` input samples).
+   indices of the **input** signal (``index_a * q``, resolution ``q`` input samples; with
+   ``decimation='exact'``: ``round(index_a * fs / fs_a)``).
 
 Known differences from the eeg_forge reference (all deliberate fixes)
 --------------------------------------------------------------------
@@ -80,10 +84,12 @@ Known differences from the eeg_forge reference (all deliberate fixes)
 - **NaN gaps** are filled before and detections in/near gaps removed after (``nan_policy``);
   the reference returns zero detections for a channel with a single NaN.
 - ``min_distance_s * fs_a < 1`` is clamped to 1 sample (the reference would raise).
+- **Optional exact resampling** (``decimation='exact'``); the default keeps the reference's
+  integer decimation so that results are identical to it.
 """
 
 import warnings
-from math import gcd
+from fractions import Fraction
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -95,17 +101,19 @@ from brainmaze_eeg.spikes import _filters as flt
 from brainmaze_eeg.spikes._gaps import in_gap_mask, prepare_signal
 
 __all__ = ['detect_spikes_janca', 'design_janca_filters', 'janca_decimation_factor',
+           'janca_resampling',
            'SpikeDetectorHilbert', 'spike_detector_hilbert_v24']
 
 
 # ============================================================================ primary detector
 def janca_decimation_factor(fs, target_fs=200.0):
     """
-    Integer decimation factor used by :func:`detect_spikes_janca`.
+    Integer decimation factor of the reference rule (``decimation='integer'``).
 
     ``floor(fs / target_fs)`` when ``target_fs`` is set and ``fs >= 2 * target_fs``,
-    otherwise 1 (no decimation). With the default ``target_fs=200`` this is the reference's
-    rule (decimate only when ``fs >= 400``).
+    otherwise 1 (no decimation). With the default ``target_fs=200`` this is the eeg_forge rule
+    (decimate only when ``fs >= 400``). The resulting analysis rate ``fs / q`` is generally
+    **not** ``target_fs`` (512 Hz -> 256 Hz, 2048 Hz -> 204.8 Hz, 399 Hz -> 399 Hz).
     """
     if target_fs is None:
         return 1
@@ -114,6 +122,49 @@ def janca_decimation_factor(fs, target_fs=200.0):
     if fs >= 2 * target_fs:
         return int(np.floor(fs / target_fs))
     return 1
+
+
+def _rational(ratio, max_den=10000):
+    """``(up, down)`` integers with ``up / down == ratio`` (to 1e-9 relative)."""
+    fr = Fraction(ratio).limit_denominator(max_den)
+    if abs(fr.numerator / fr.denominator - ratio) > 1e-9 * ratio:
+        raise ValueError(f'cannot express the resampling ratio {ratio!r} as a rational number '
+                         f'with denominator <= {max_den}; use decimation=\'integer\'')
+    return fr.numerator, fr.denominator
+
+
+def janca_resampling(fs, target_fs=200.0, decimation='integer'):
+    """
+    Resampling applied by :func:`detect_spikes_janca` after filtering.
+
+    Parameters
+    ----------
+    fs : float
+        Input sampling rate (Hz).
+    target_fs : float or None
+        Decimation target (Hz); ``None`` keeps the input rate.
+    decimation : {'integer', 'exact'}
+        ``'integer'`` (reference): decimate by ``q = floor(fs / target_fs)`` when
+        ``fs >= 2 * target_fs`` (see :func:`janca_decimation_factor`).
+        ``'exact'``: rational resampling to exactly ``target_fs`` whenever
+        ``fs > target_fs`` (never upsamples).
+
+    Returns
+    -------
+    (up, down, fs_analysis) : (int, int, float)
+        :func:`scipy.signal.resample_poly` factors and the analysis rate ``fs * up / down``.
+    """
+    if decimation not in ('integer', 'exact'):
+        raise ValueError(f"decimation must be 'integer' or 'exact', got {decimation!r}")
+    if decimation == 'integer' or target_fs is None:
+        q = janca_decimation_factor(fs, target_fs)
+        return 1, q, fs / q
+    if not target_fs > 0:
+        raise ValueError(f'target_fs must be > 0 Hz or None, got {target_fs}')
+    if fs <= target_fs:
+        return 1, 1, float(fs)
+    up, down = _rational(target_fs / fs)
+    return up, down, fs * up / down
 
 
 def design_janca_filters(fs, band=(10.0, 60.0), filter_order=3, powerline=50.0,
@@ -177,7 +228,7 @@ def _as_channels_first(x, name='x'):
 
 def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=50.0,
                         notch_width=5.0, notch_order=3, notch_harmonics=1, target_fs=200.0,
-                        window_s=5.0, threshold=3.65, min_distance_s=0.1, eps_rel=1e-6,
+                        decimation='integer', window_s=5.0, threshold=3.65, min_distance_s=0.1, eps_rel=1e-6,
                         nan_policy='fill', gap_margin_s=0.1, fill_kwargs=None,
                         return_details=False):
     """
@@ -210,8 +261,15 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         Number of notches at ``k * powerline``, ``k = 1..notch_harmonics`` (reference: 1).
         Notches not fitting below Nyquist are skipped with a warning.
     target_fs : float or None
-        Decimation target (Hz). Decimate by ``floor(fs / target_fs)`` when
-        ``fs >= 2 * target_fs`` (reference: 200). ``None`` keeps the input rate.
+        Decimation target (Hz) (reference: 200). ``None`` keeps the input rate.
+    decimation : {'integer', 'exact'}
+        ``'integer'`` (default, reference): decimate by the integer factor
+        ``q = floor(fs / target_fs)`` only when ``fs >= 2 * target_fs``; the analysis rate
+        ``fs / q`` is then generally not ``target_fs`` (512 -> 256 Hz, 2048 -> 204.8 Hz,
+        250..399 Hz -> not decimated). ``'exact'`` (ours): rational polyphase resampling
+        to exactly ``target_fs`` whenever ``fs > target_fs``, so the analysis rate (and
+        with it the effective time resolution of the envelope model) is the same for every
+        input rate. Detections are mapped back to input samples by rounding.
     window_s : float
         Length (s) of the sliding window of the log-envelope statistics (reference ``w``: 5).
     threshold : float
@@ -242,8 +300,9 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         Convert to seconds with ``detections / fs``.
     details : dict or list of dict
         Only with ``return_details=True`` (one dict per channel for 2-D input):
-        ``fs_analysis`` (Hz), ``down_factor`` ``q``, ``envelope`` and ``threshold`` (at the
-        analysis rate; sample ``i`` corresponds to input sample ``i * q``), ``filters``
+        ``fs_analysis`` (Hz), ``up``/``down`` resampling factors (``fs_analysis = fs * up /
+        down``), ``envelope`` and ``threshold`` (at the analysis rate; sample ``i``
+        corresponds to input sample ``i * down / up``), ``filters``
         (output of :func:`design_janca_filters`), ``gaps`` (``[start, stop)`` input samples).
 
     Raises
@@ -270,11 +329,10 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
 
     filters = design_janca_filters(fs, band, filter_order, powerline, notch_width,
                                    notch_order, notch_harmonics)
-    q = janca_decimation_factor(fs, target_fs)
-    fs_a = fs / q
+    up, down, fs_a = janca_resampling(fs, target_fs, decimation)
     if band[1] >= fs_a / 2:
         raise ValueError(f'band high edge ({band[1]} Hz) must be < Nyquist of the analysis '
-                         f'rate ({fs_a / 2} Hz; fs={fs} Hz decimated by {q}). Raise '
+                         f'rate ({fs_a / 2} Hz; fs={fs} Hz resampled by {up}/{down}). Raise '
                          'target_fs or set target_fs=None.')
     win = int(window_s * fs_a)
     if win % 2 == 0:
@@ -287,8 +345,8 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
     y = sosfiltfilt(filters['bandpass'], Y, axis=-1)
     for _, sos in filters['notches']:
         y = sosfiltfilt(sos, y, axis=-1)
-    if q > 1:
-        y = resample_poly(y, 1, q, axis=-1)
+    if (up, down) != (1, 1):
+        y = resample_poly(y, up, down, axis=-1)
     env = np.abs(hilbert(y, axis=-1))
 
     results, details = [], []
@@ -305,12 +363,15 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
             sd = np.sqrt(uniform_filter1d((log_e - mu) ** 2, win, mode='reflect'))
             thr_curve = threshold * (np.exp(mu - sd ** 2) + np.exp(mu))
             pk = find_peaks(e, height=thr_curve, distance=dist)[0]
-            idx = pk.astype(np.int64) * q
+            if up == 1:
+                idx = pk.astype(np.int64) * down
+            else:
+                idx = np.minimum(np.round(pk * (down / up)).astype(np.int64), X.shape[1] - 1)
             if len(gaps[c]):
                 idx = idx[~in_gap_mask(idx / fs, gaps[c], fs, gap_margin_s)]
         results.append(idx)
         if return_details:
-            details.append({'fs_analysis': fs_a, 'down_factor': q, 'envelope': e,
+            details.append({'fs_analysis': fs_a, 'up': up, 'down': down, 'envelope': e,
                             'threshold': thr_curve, 'filters': filters, 'gaps': gaps[c]})
 
     if one_d:
@@ -832,8 +893,7 @@ class SpikeDetectorHilbert:
     def _resample(self, d, fs, target):
         if target == fs:
             return d.copy()
-        g = gcd(int(round(target)), int(round(fs)))
-        up, down = int(round(target)) // g, int(round(fs)) // g
+        up, down = _rational(target / fs)
         return resample_poly(d, up, down, axis=0)
 
 
