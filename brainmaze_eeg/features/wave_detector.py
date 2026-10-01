@@ -159,9 +159,9 @@ __all__ = ['WaveDetector', 'detect_waves']
 #: per-wave keys of a detection dict (all arrays of length n_waves)
 _MORPH_KEYS = ('min_pos', 'min_val', 'max_pos', 'max_val', 'pk2pk', 'delta_t',
                'upslope', 'down_dur', 'downslope')
-_WAVE_KEYS = (('zero_pos', 'zero_pos_frac') + _MORPH_KEYS
+_WAVE_KEYS = (('zero_pos', 'zero_pos_frac', 'end_pos') + _MORPH_KEYS
               + tuple(k + '_band' for k in _MORPH_KEYS))
-_INT_KEYS = ('zero_pos', 'min_pos', 'max_pos', 'min_pos_band', 'max_pos_band')
+_INT_KEYS = ('zero_pos', 'end_pos', 'min_pos', 'max_pos', 'min_pos_band', 'max_pos_band')
 
 _FILTERS = ('butter', 'fft')
 #: drift removal for filter='butter': Butterworth high-pass of this order at
@@ -260,47 +260,52 @@ def _forward_fill_sign(x):
     return s
 
 
-def _argext_per_segment(x, seg_ids, n_seg, want):
+def _argext_groups(v, starts, want):
     """
-    Index (into ``x``) of the min (``want='min'``) or max (``want='max'``) of every
-    contiguous segment. Fully vectorised via a single lexsort; ties resolve to the
-    first occurrence, matching ``np.argmin`` / ``np.argmax``.
+    Index (into ``v``) of the min (``want='min'``) or max (``want='max'``) of every
+    group, where the groups are the contiguous runs ``v[starts[k]:starts[k+1]]`` (the
+    last one runs to the end of ``v``). ``starts`` must be strictly increasing, start
+    at 0, and every group must be non-empty. ``v`` must be finite.
+
+    O(len(v)) via ``ufunc.reduceat``. Ties resolve to the first occurrence, matching
+    ``np.argmin`` / ``np.argmax``.
     """
-    out = np.full(n_seg, -1, dtype=np.int64)
-    if x.size == 0:
-        return out
-    key = -x if want == 'max' else x
-    order = np.lexsort((key, seg_ids))           # sort by segment, then by value
-    ss = seg_ids[order]
-    first = np.ones(ss.size, dtype=bool)
-    first[1:] = ss[1:] != ss[:-1]                # first (== smallest key) per segment
-    out[ss[first]] = order[first]
+    starts = np.asarray(starts, dtype=np.int64)
+    if starts.size == 0:
+        return np.empty(0, dtype=np.int64)
+    red = np.minimum if want == 'min' else np.maximum
+    ext = red.reduceat(v, starts)
+    lengths = np.diff(np.append(starts, v.size))
+    hit = np.flatnonzero(v == np.repeat(ext, lengths))
+    gid = np.searchsorted(starts, hit, side='right') - 1
+    first = np.ones(hit.size, dtype=bool)
+    first[1:] = gid[1:] != gid[:-1]
+    out = hit[first]
+    if out.size != starts.size:  # only possible with non-finite input
+        raise RuntimeError('internal error: non-finite values in a wave segment')
     return out
 
 
-def _refine_positions(x_ref, positions, half_win, want, lo_bound=None, hi_bound=None):
+def _refine_positions(x_ref, positions, half_win, want, lo_bound, hi_bound):
     """
     Move each position to the extreme of ``x_ref`` within
     ``[pos - half_win, pos + half_win]`` intersected with ``[lo_bound, hi_bound]``
-    (inclusive, per position; defaults: the signal). The window is **truncated**, never
-    shifted, at the bounds, so it stays centred on the original position.
+    (inclusive, per position). The window is **truncated**, never shifted, at the
+    bounds, so it stays centred on the original position.
+
+    The windows must be disjoint and increasing (true here: each one lies inside its
+    own half-wave). Cost and memory are O(total window length) <= O(n), independent of
+    ``fs`` / ``half_win`` per wave.
     """
     positions = np.asarray(positions, dtype=np.int64)
     if positions.size == 0 or half_win <= 0:
         return positions
-    n = x_ref.shape[0]
-    lo = positions - half_win
-    hi = positions + half_win
-    lo = np.maximum(lo, 0 if lo_bound is None else np.maximum(lo_bound, 0))
-    hi = np.minimum(hi, n - 1 if hi_bound is None else np.minimum(hi_bound, n - 1))
-    offs = np.arange(2 * half_win + 1)
-    idx = lo[:, None] + offs[None, :]
-    valid = idx <= hi[:, None]
-    idx = np.minimum(idx, hi[:, None])
-    vals = x_ref[idx].astype(np.float64, copy=True)
-    vals[~valid] = np.inf if want == 'min' else -np.inf
-    rel = vals.argmin(axis=1) if want == 'min' else vals.argmax(axis=1)
-    return idx[np.arange(idx.shape[0]), rel]
+    lo = np.maximum(positions - half_win, lo_bound)
+    hi = np.minimum(positions + half_win, hi_bound)
+    lengths = hi - lo + 1                                    # >= 1: pos is inside [lo, hi]
+    offsets = np.concatenate(([0], np.cumsum(lengths)[:-1]))
+    idx = np.arange(int(lengths.sum()), dtype=np.int64) + np.repeat(lo - offsets, lengths)
+    return idx[_argext_groups(x_ref[idx], offsets, want)]
 
 
 def _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high):
@@ -308,31 +313,37 @@ def _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high):
     Detect (trough, peak, preceding zero-crossing) triples on the band-passed signal.
 
     See steps 3-5 of the module docstring. Only waves whose negative and positive
-    half-waves are both bounded by real zero crossings are returned.
+    half-waves are both bounded by real zero crossings are returned. Fully vectorised,
+    O(n) time and memory.
 
     Returns
     -------
-    trough_pos, peak_pos, zero_pos : np.ndarray[int]
+    trough_pos, peak_pos : np.ndarray[int]
+        Refined trough / peak positions (on ``x_ref``).
+    zero_pos : np.ndarray[int]
+        First negative sample after the positive->negative crossing.
     zero_frac : np.ndarray[float]
         Linearly interpolated position of the positive->negative crossing.
+    band_trough, band_peak : np.ndarray[int]
+        Trough / peak positions on ``x_narrow`` (before refinement).
+    end_pos : np.ndarray[int]
+        Last sample of the positive half-wave (the sample before the next
+        positive->negative crossing). ``[zero_frac, end_pos]`` is the wave's full span.
     """
     empty = np.empty(0, dtype=np.int64)
     out_empty = (empty, empty.copy(), empty.copy(), np.empty(0, dtype=np.float64),
-                 empty.copy(), empty.copy())
+                 empty.copy(), empty.copy(), empty.copy())
     n = x_narrow.shape[0]
     if n < 3:
         return out_empty
 
     s = _forward_fill_sign(x_narrow)
-    change = np.flatnonzero(np.diff(s) != 0) + 1           # first sample of each segment
+    change = np.flatnonzero(s[1:] != s[:-1]) + 1            # first sample of each segment
     if change.size == 0:
         return out_empty
 
     seg_starts = np.concatenate(([0], change))
     seg_ends = np.concatenate((change, [n])) - 1             # inclusive
-    seg_ids = np.zeros(n, dtype=np.int64)
-    seg_ids[change] = 1
-    np.cumsum(seg_ids, out=seg_ids)
     n_seg = seg_starts.size
     seg_polarity = s[seg_starts]                            # +/-1 per segment
 
@@ -347,11 +358,8 @@ def _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high):
     if neg_idx.size == 0:
         return out_empty
 
-    trough_of_seg = _argext_per_segment(x_narrow, seg_ids, n_seg, 'min')
-    peak_of_seg = _argext_per_segment(x_narrow, seg_ids, n_seg, 'max')
-
-    trough_pos = trough_of_seg[neg_idx]
-    peak_pos = peak_of_seg[neg_idx + 1]
+    trough_pos = _argext_groups(x_narrow, seg_starts, 'min')[neg_idx]
+    peak_pos = _argext_groups(x_narrow, seg_starts, 'max')[neg_idx + 1]
     zero_pos = seg_starts[neg_idx]                          # first negative sample
     a = x_narrow[zero_pos - 1]                              # >= 0
     b = x_narrow[zero_pos]                                  # < 0
@@ -373,7 +381,8 @@ def _find_wave_pairs(x_narrow, x_ref, fs, f_low, f_high):
                                    seg_starts[neg_idx], seg_ends[neg_idx])
     peak_pos = _refine_positions(x_ref, band_peak, half_win, 'max',
                                  seg_starts[neg_idx + 1], seg_ends[neg_idx + 1])
-    return trough_pos, peak_pos, zero_pos, zero_frac, band_trough, band_peak
+    end_pos = seg_ends[neg_idx + 1]
+    return trough_pos, peak_pos, zero_pos, zero_frac, band_trough, band_peak, end_pos
 
 
 def _empty_detection():
@@ -383,54 +392,111 @@ def _empty_detection():
     return d
 
 
+def _resolve_margin(margin_s, f_low, name):
+    """``None`` -> one period of the lower band edge (``1 / f_low``) in seconds."""
+    if margin_s is None:
+        return 1.0 / f_low
+    if isinstance(margin_s, bool) or not isinstance(margin_s, numbers.Real) \
+            or not np.isfinite(margin_s) or margin_s < 0:
+        raise ValueError(f'{name} must be None or a non-negative number of seconds. '
+                         f'Got: {margin_s!r}')
+    return float(margin_s)
+
+
+def _excluded_mask(n, gaps, fs, gap_margin_s, edge_margin_s):
+    """
+    Boolean mask (length ``n``) of samples that are *not analysable*: inside a gap
+    widened by ``gap_margin_s`` on each side, or within ``edge_margin_s`` of either end
+    of the signal.
+
+    Uses exactly the inequalities of the per-wave exclusion in :func:`detect_waves` (a
+    sample at time ``t = i / fs`` is excluded iff ``lo <= t < hi`` for a widened gap
+    ``[lo, hi)``, or ``t < edge_margin_s``, or ``t > (n - 1) / fs - edge_margin_s``), so
+    ``WAVE_RATE`` = waves / analysable time is self-consistent.
+    """
+    t = np.arange(n) / fs
+    bad = (t < edge_margin_s) | (t > (n - 1) / fs - edge_margin_s)
+    g = np.asarray(gaps, dtype=np.float64).reshape(-1, 2)
+    if g.size:
+        lo = np.ceil((g[:, 0] / fs - gap_margin_s) * fs).astype(np.int64)
+        hi = np.ceil((g[:, 1] / fs + gap_margin_s) * fs).astype(np.int64)
+        lo, hi = np.clip(lo, 0, n), np.clip(hi, 0, n)
+        delta = np.zeros(n + 1, dtype=np.int64)
+        np.add.at(delta, lo, 1)
+        np.add.at(delta, hi, -1)
+        bad |= np.cumsum(delta[:-1]) > 0
+    return bad
+
+
 def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
-                 filter_order=2, nan_policy='fill', gap_margin_s=0.1,
-                 refine_lowpass=4.0, return_signals=False):
+                 filter_order=2, nan_policy='fill', gap_margin_s=None,
+                 edge_margin_s=None, refine_lowpass=4.0, return_signals=False):
     """
     Detect waves in a single 1-D signal and return their positions and morphology.
 
     Parameters
     ----------
     x : np.ndarray
-        1-D signal.
+        1-D signal (any amplitude unit; outputs use the same unit, e.g. uV).
     fs : float
-        Sampling frequency (Hz).
+        Sampling frequency (Hz). Python or numpy real scalar.
     fband : (float, float)
         ``(low, high)`` band in Hz, ``0 < low < high < fs/2``.
     measure_on : np.ndarray, optional
-        Signal the amplitudes/slopes are read from (same length as ``x``). Detection and
-        position refinement always run on ``x``; when ``measure_on`` is given, amplitudes
-        are read from it (mean-subtracted, not filtered) at the refined positions, e.g.
-        detect on a narrow band, measure on a 0.5-35 Hz broadband trace. Defaults to the
-        drift-removed ``x``.
+        Signal the *broadband* amplitudes/slopes are read from (same length as ``x``).
+        Detection and position refinement always run on ``x``; when ``measure_on`` is
+        given, the broadband amplitudes are read from it (mean-subtracted, not filtered)
+        at the refined positions, e.g. detect on a narrow band, measure on a 0.5-35 Hz
+        trace. Defaults to the drift-removed ``x``. The ``*_band`` outputs always come
+        from the band-passed ``x``.
     filter : {'butter', 'fft'}
         Band-pass implementation (module docstring, step 2). Default ``'butter'``.
     filter_order : int
-        Butterworth order (ignored for ``'fft'``). Applied forward-backward, so the
-        effective attenuation is doubled. Default 2.
+        Butterworth order (ignored for ``'fft'``). The filter is applied
+        forward-backward, so the magnitude response is squared. Default 2.
     nan_policy : {'fill', 'raise'}
         Non-finite samples in ``x`` or ``measure_on``: ``'fill'`` (default) fills them
-        for filtering and discards every wave overlapping them; ``'raise'`` raises.
-    gap_margin_s : float
-        Seconds added on both sides of each gap before discarding overlapping waves.
+        for filtering and discards every wave that overlaps them (plus
+        ``gap_margin_s``); ``'raise'`` raises ``ValueError``.
+    gap_margin_s : float or None
+        Seconds added on both sides of each gap; a wave whose span overlaps the widened
+        gap is discarded. ``None`` (default): ``1 / fband[0]``, one period of the lower
+        band edge (the filter's memory: band-passed values that close to a gap still
+        depend on the fill).
+    edge_margin_s : float or None
+        A wave whose span starts within ``edge_margin_s`` of the first sample or ends
+        within it of the last sample is discarded (the zero-phase filter's edge
+        transient shifts zero crossings there). ``None`` (default): ``1 / fband[0]``.
+        ``0`` keeps every complete wave.
     refine_lowpass : float or None
         Position refinement reference = drift-removed ``x`` low-passed at
-        ``refine_lowpass * fband[1]``. ``None``: no low-pass (broadband, pre-2.1
-        behaviour); ``0``: refine on the detection signal itself. Default 4.
+        ``refine_lowpass * fband[1]``. ``None``: no low-pass (broadband, the behaviour
+        of v1.0.0); ``0``: refine on the detection signal itself. Default 4.
+    return_signals : bool
+        Also return the band-passed signal (``'x_band'``) and the broadband amplitude
+        signal (``'x_amp'``), both float arrays of the input length. Gaps are NaN in
+        both (the fill is never returned). Default False.
 
     Returns
     -------
     dict
-        Per-wave arrays (see *Outputs* in the module docstring): ``min_pos, min_val,
-        max_pos, max_val, zero_pos, zero_pos_frac, pk2pk, delta_t, upslope, down_dur,
-        downslope``; plus ``gaps`` -- ``(n_gaps, 2)`` ``[start, stop)`` sample indices of
-        the non-finite runs that were filled (union over ``x`` and ``measure_on``).
+        Per-wave arrays (see *Outputs* in the module docstring): ``zero_pos,
+        zero_pos_frac, end_pos`` and, for the broadband signal, ``min_pos, min_val,
+        max_pos, max_val, pk2pk, delta_t, upslope, down_dur, downslope``, and the same
+        nine keys with suffix ``_band`` for the band-passed signal. Plus ``gaps``:
+        ``(n_gaps, 2)`` ``[start, stop)`` sample indices of the non-finite runs (union
+        over ``x`` and ``measure_on``). Waves are ordered by time.
     """
     fs, f_low, f_high = _validate_band(fs, fband)
     if filter not in _FILTERS:
         raise ValueError(f"filter must be one of {_FILTERS}. Got: {filter!r}")
+    if isinstance(filter_order, bool) or not isinstance(filter_order, numbers.Integral) \
+            or filter_order < 1:
+        raise ValueError(f'filter_order must be a positive integer. Got: {filter_order}')
     if nan_policy not in _NAN_POLICIES:
         raise ValueError(f"nan_policy must be one of {_NAN_POLICIES}. Got: {nan_policy!r}")
+    gap_margin_s = _resolve_margin(gap_margin_s, f_low, 'gap_margin_s')
+    edge_margin_s = _resolve_margin(edge_margin_s, f_low, 'edge_margin_s')
 
     x = np.asarray(x, dtype=np.float64)
     if x.ndim != 1:
@@ -439,14 +505,16 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
 
     amp_raw = None
     if measure_on is not None:
-        amp_raw = np.asarray(measure_on, dtype=np.float64).ravel()
-        if amp_raw.shape[0] != x.shape[0]:
+        amp_raw = np.asarray(measure_on, dtype=np.float64)
+        if amp_raw.shape != x.shape:
             raise ValueError(
-                f'measure_on length ({amp_raw.shape[0]}) must match x length ({x.shape[0]}).')
+                f'measure_on shape {amp_raw.shape} must match x shape {x.shape}.')
         invalid = invalid | ~np.isfinite(amp_raw)
 
-    gaps = find_gaps(np.where(invalid, np.nan, 0.0))
-    if gaps.size and nan_policy == 'raise':
+    has_gap = bool(invalid.any())
+    gaps = find_gaps(np.where(invalid, np.nan, 0.0)) if has_gap \
+        else np.empty((0, 2), dtype=np.int64)
+    if has_gap and nan_policy == 'raise':
         raise ValueError(f'Input contains {int(invalid.sum())} non-finite samples in '
                          f'{gaps.shape[0]} gap(s) and nan_policy="raise".')
 
@@ -459,7 +527,7 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
         return out
 
     # gap fill only runs when there is a gap (clean data pays nothing)
-    xf = fill_gaps(np.where(invalid, np.nan, x), fs) if gaps.size else x
+    xf = fill_gaps(np.where(invalid, np.nan, x), fs) if has_gap else x
     x0 = xf - xf[~invalid].mean()
 
     x_narrow, x_hp, x_refine = _filter_signals(x0, fs, f_low, f_high, filter,
@@ -470,22 +538,28 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
     else:
         amp = amp_raw - amp_raw[~invalid].mean()
 
-    trough_pos, peak_pos, zero_pos, zero_frac, b_trough, b_peak = _find_wave_pairs(
-        x_narrow, x_refine, fs, f_low, f_high)
+    (trough_pos, peak_pos, zero_pos, zero_frac, b_trough, b_peak,
+     end_pos) = _find_wave_pairs(x_narrow, x_refine, fs, f_low, f_high)
 
-    if gaps.size and trough_pos.size:
-        bad = mask_in_gaps(zero_frac / fs, gaps, fs=fs, margin_s=gap_margin_s,
-                           end_s=np.maximum(peak_pos, b_peak) / fs)
-        trough_pos, peak_pos, b_trough, b_peak = (trough_pos[~bad], peak_pos[~bad],
-                                                  b_trough[~bad], b_peak[~bad])
-        zero_pos, zero_frac = zero_pos[~bad], zero_frac[~bad]
+    # exclusion: span [zero crossing, end of the positive half-wave] must not touch a
+    # widened gap or the edge zones (same inequalities as _excluded_mask)
+    if trough_pos.size:
+        n = x.shape[0]
+        bad = (zero_frac / fs < edge_margin_s) | (end_pos / fs > (n - 1) / fs - edge_margin_s)
+        if gaps.size:
+            bad |= mask_in_gaps(zero_frac / fs, gaps, fs=fs, margin_s=gap_margin_s,
+                                end_s=end_pos / fs)
+        keep = ~bad
+        trough_pos, peak_pos, b_trough, b_peak = (trough_pos[keep], peak_pos[keep],
+                                                  b_trough[keep], b_peak[keep])
+        zero_pos, zero_frac, end_pos = zero_pos[keep], zero_frac[keep], end_pos[keep]
 
-    out.update({'zero_pos': zero_pos, 'zero_pos_frac': zero_frac})
+    out.update({'zero_pos': zero_pos, 'zero_pos_frac': zero_frac, 'end_pos': end_pos})
     out.update(_morphology(amp, trough_pos, peak_pos, zero_frac, fs, ''))
     out.update(_morphology(x_narrow, b_trough, b_peak, zero_frac, fs, '_band'))
     if return_signals:
-        out['x_band'] = x_narrow
-        out['x_amp'] = amp
+        out['x_band'] = np.where(invalid, np.nan, x_narrow)
+        out['x_amp'] = np.where(invalid, np.nan, amp)
     return out
 
 
@@ -518,7 +592,7 @@ def _validate_band(fs, fband):
         f_low, f_high = float(fband[0]), float(fband[1])
     except (TypeError, ValueError):
         raise ValueError(f'fband must be a (low, high) pair of numbers. Got: {fband!r}')
-    if not (0 < f_low < f_high):
+    if not (np.isfinite(f_low) and np.isfinite(f_high) and 0 < f_low < f_high):
         raise ValueError(f'fband must be (low, high) with 0 < low < high. Got: {fband}')
     if f_high >= fs / 2:
         raise ValueError(f'fband high ({f_high}) must be below Nyquist ({fs / 2}).')
@@ -532,7 +606,12 @@ class WaveDetector:
     """
     Band-limited wave detector and windowed feature extractor.
 
-    See the module docstring for the algorithm and the exact definition of every output.
+    Same calling convention as
+    :class:`brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor`:
+    configure once with ``fs`` and ``segm_size``, then call it on a 1-D signal or an
+    ``(n_channels, n_samples)`` array (e.g. a 30-minute multichannel segment) and get
+    ``(values, names)`` back, one value per feature window. See the module docstring for
+    the algorithm and the exact definition of every output.
 
     Parameters
     ----------
@@ -544,16 +623,25 @@ class WaveDetector:
         ``(0.5, 4.0)`` (delta).
     segm_size : float, optional
         Feature window length in seconds. ``None`` (default) treats the whole signal as
-        one window.
+        one window. Only complete windows are returned (a trailing partial window is
+        dropped, like :func:`brainmaze_utils.signal.buffer` and
+        ``TimeDomainFeatureExtractor``); a signal shorter than one window gives zero
+        windows.
     overlap : float
         Feature window overlap in seconds. Default ``0.0``.
     slope : {'downslope', 'upslope'}
         Which slope ``WAVE_SLOPE_MEAN`` reports (see module docstring). Default
         ``'downslope'``.
     amplitude_threshold : float, optional
-        Keep only waves whose negative trough is at least this deep (``-min_val >=
-        amplitude_threshold``), measured on the amplitude signal. ``None`` (default)
-        keeps all waves. Carvalho et al. use ``5`` (µV).
+        Keep only waves whose broadband negative trough is at least this deep
+        (``-min_val >= amplitude_threshold``, input units). ``None`` (default) keeps all
+        waves. Carvalho et al. use ``5`` (uV). The same set of waves feeds the broadband
+        and the band features.
+    features_on : {'broadband', 'band', 'both'}
+        Which signal the windowed shape features are measured on (module docstring,
+        *Two signals*). ``'broadband'`` (default): ``WAVE_*`` names as in v1.0.0.
+        ``'band'``: the band-passed signal, names suffixed ``_BAND``. ``'both'``: both
+        sets, broadband first. ``DATA_RATE`` and ``WAVE_RATE`` appear once.
     datarate : bool
         If True, prepend a ``DATA_RATE`` feature: fraction of finite samples per window
         (finite in ``x`` and, if given, in ``measure_on``).
@@ -561,17 +649,18 @@ class WaveDetector:
         Parallelise detection across signals for 2-D / list input. Default ``1``.
     filter : {'butter', 'fft'}
         Band-pass implementation. ``'butter'`` (default): zero-phase Butterworth of order
-        ``filter_order``. ``'fft'``: ideal brick-wall FFT mask (pre-2.1 default; rings
-        around transients and can invent waves -- see module docstring).
+        ``filter_order``. ``'fft'``: ideal brick-wall FFT mask (the v1.0.0 filter; rings
+        around transients and invents waves -- see module docstring).
     filter_order : int
         Butterworth order. Default 2.
     nan_policy : {'fill', 'raise'}
         Handling of non-finite samples. ``'fill'`` (default): fill with
         :func:`brainmaze_utils.gaps.fill_gaps`, discard waves overlapping a gap (plus
-        ``gap_margin_s``), and normalise ``WAVE_RATE`` by the valid (finite) time of each
+        ``gap_margin_s``), and normalise ``WAVE_RATE`` by the analysable time of each
         window. ``'raise'``: raise ``ValueError``.
-    gap_margin_s : float
-        Exclusion margin around gaps in seconds. Default 0.1.
+    gap_margin_s, edge_margin_s : float or None
+        Exclusion margins in seconds around gaps / at the two ends of each signal.
+        ``None`` (default): ``1 / fband[0]``. See :func:`detect_waves`.
     refine_lowpass : float or None
         Position refinement reference low-pass, as a multiple of ``fband[1]``. Default 4.
         See :func:`detect_waves`.
@@ -580,42 +669,61 @@ class WaveDetector:
     -----
     Windowed features (``__call__``):
 
-    * a wave belongs to the window containing its trough (``min_pos``);
-    * ``WAVE_RATE`` = number of waves / valid seconds in the window, where valid seconds
-      = finite samples / fs (equals ``DATA_RATE * segm_size``). Waves within
-      ``gap_margin_s`` of a gap are discarded but that time is still counted as valid,
-      so the rate around gaps is slightly underestimated (by roughly
-      ``(2 * gap_margin_s + mean wave span) / valid seconds`` per gap);
-    * a window with no valid sample gives ``WAVE_RATE = NaN``; a window with valid data
-      but no wave gives ``WAVE_RATE = 0``; shape features are NaN when there is no wave;
+    * detection runs once on the **whole** signal (so window borders do not cut waves
+      and do not add filter transients); a wave then belongs to the window containing
+      its trough (``min_pos``);
+    * ``WAVE_RATE`` = number of waves / *analysable* seconds in the window (Hz, i.e.
+      waves per second). Analysable = finite, not within ``gap_margin_s`` of a gap and
+      not within ``edge_margin_s`` of either end of the signal. ``DATA_RATE`` is the
+      plain finite fraction and is unaffected by the margins. Waves whose span crosses
+      into an excluded zone are discarded while their trough may lie in analysable time,
+      so the rate is underestimated by at most about one wave per excluded zone border;
+      exact on clean data away from the signal ends;
+    * a window with no analysable sample gives ``WAVE_RATE = NaN``; a window with
+      analysable data but no wave gives ``WAVE_RATE = 0``; shape features are NaN when
+      there is no wave;
     * shape features (``WAVE_*_MEAN``) are means over the waves in the window, ignoring
-      non-finite per-wave values.
+      non-finite per-wave values (e.g. a NaN downslope).
     """
 
     __version__ = '2.1.0'
 
     _SHAPE_FEATURES = ('WAVE_PK2PK_MEAN', 'WAVE_SLOPE_MEAN', 'WAVE_DELTA_T_MEAN',
                        'WAVE_MIN_MEAN', 'WAVE_MAX_MEAN')
+    #: per-wave detection key behind each shape feature (slope resolved at run time)
+    _SHAPE_KEYS = {'WAVE_PK2PK_MEAN': 'pk2pk', 'WAVE_SLOPE_MEAN': None,
+                   'WAVE_DELTA_T_MEAN': 'delta_t', 'WAVE_MIN_MEAN': 'min_val',
+                   'WAVE_MAX_MEAN': 'max_val'}
+    _FEATURES_ON = ('broadband', 'band', 'both')
 
     def __init__(self, fs, fband=(0.5, 4.0), segm_size=None, overlap=0.0,
                  slope='downslope', amplitude_threshold=None,
                  datarate=False, n_processes=1,
                  cutoff_low=None, cutoff_high=None,
                  filter='butter', filter_order=2, nan_policy='fill',
-                 gap_margin_s=0.1, refine_lowpass=4.0):
+                 gap_margin_s=None, edge_margin_s=None, refine_lowpass=4.0,
+                 features_on='broadband'):
         # backward-compatible aliases for the old (cutoff_low, cutoff_high) signature
         if cutoff_low is not None or cutoff_high is not None:
             fband = (cutoff_low if cutoff_low is not None else fband[0],
                      cutoff_high if cutoff_high is not None else fband[1])
 
         fs, f_low, f_high = _validate_band(fs, fband)
-        if segm_size is not None and (not isinstance(segm_size, numbers.Real)
-                                      or segm_size <= 0 or not np.isfinite(segm_size)):
+        if segm_size is not None and (isinstance(segm_size, bool)
+                                      or not isinstance(segm_size, numbers.Real)
+                                      or not np.isfinite(segm_size) or segm_size <= 0):
             raise ValueError(f'segm_size must be a positive finite number of seconds or None. Got: {segm_size}')
         if segm_size is not None and not (0 <= overlap < segm_size):
             raise ValueError(f'overlap must be in [0, segm_size). Got: {overlap}')
+        if segm_size is not None and int(round(fs * (segm_size - overlap))) < 1:
+            raise ValueError('segm_size - overlap must be at least one sample.')
         if slope not in ('downslope', 'upslope'):
             raise ValueError(f"slope must be 'downslope' or 'upslope'. Got: {slope!r}")
+        if amplitude_threshold is not None and (
+                isinstance(amplitude_threshold, bool)
+                or not isinstance(amplitude_threshold, numbers.Real)
+                or not np.isfinite(amplitude_threshold)):
+            raise ValueError(f'amplitude_threshold must be None or a finite number. Got: {amplitude_threshold!r}')
         if isinstance(n_processes, bool) or not isinstance(n_processes, numbers.Integral) \
                 or n_processes < 1:
             raise ValueError(f'n_processes must be a positive integer. Got: {n_processes}')
@@ -626,14 +734,17 @@ class WaveDetector:
             raise ValueError(f'filter_order must be a positive integer. Got: {filter_order}')
         if nan_policy not in _NAN_POLICIES:
             raise ValueError(f"nan_policy must be one of {_NAN_POLICIES}. Got: {nan_policy!r}")
-        if not isinstance(gap_margin_s, numbers.Real) or gap_margin_s < 0:
-            raise ValueError(f'gap_margin_s must be a non-negative number. Got: {gap_margin_s}')
-        if refine_lowpass is not None and (not isinstance(refine_lowpass, numbers.Real)
+        gap_margin = _resolve_margin(gap_margin_s, f_low, 'gap_margin_s')
+        edge_margin = _resolve_margin(edge_margin_s, f_low, 'edge_margin_s')
+        if refine_lowpass is not None and (isinstance(refine_lowpass, bool)
+                                           or not isinstance(refine_lowpass, numbers.Real)
                                            or refine_lowpass < 0):
             raise ValueError(f'refine_lowpass must be None or a number >= 0. Got: {refine_lowpass}')
         if refine_lowpass is not None and 0 < refine_lowpass < 1:
             raise ValueError('refine_lowpass must be 0 (refine on the detection signal), '
                              f'>= 1, or None. Got: {refine_lowpass}')
+        if features_on not in self._FEATURES_ON:
+            raise ValueError(f'features_on must be one of {self._FEATURES_ON}. Got: {features_on!r}')
 
         self.fs = fs
         self.fband = (f_low, f_high)
@@ -641,12 +752,15 @@ class WaveDetector:
         self.overlap = overlap
         self.slope = slope
         self.amplitude_threshold = amplitude_threshold
+        self.features_on = features_on
         self.datarate = datarate
         self.n_processes = int(n_processes)
         self.filter = filter
         self.filter_order = int(filter_order)
         self.nan_policy = nan_policy
-        self.gap_margin_s = float(gap_margin_s)
+        #: resolved margins in seconds (``None`` at construction -> ``1 / fband[0]``)
+        self.gap_margin_s = gap_margin
+        self.edge_margin_s = edge_margin
         self.refine_lowpass = refine_lowpass
 
     # -- backward-compatible read-only aliases ------------------------------------
@@ -662,10 +776,21 @@ class WaveDetector:
         return dict(fs=self.fs, fband=self.fband, thr=self.amplitude_threshold,
                     filter=self.filter, filter_order=self.filter_order,
                     nan_policy=self.nan_policy, gap_margin_s=self.gap_margin_s,
+                    edge_margin_s=self.edge_margin_s,
                     refine_lowpass=self.refine_lowpass)
 
+    @property
+    def feature_names(self):
+        """Names returned by ``__call__``, in order."""
+        names = (['DATA_RATE'] if self.datarate else []) + ['WAVE_RATE']
+        if self.features_on in ('broadband', 'both'):
+            names += list(self._SHAPE_FEATURES)
+        if self.features_on in ('band', 'both'):
+            names += [k + '_BAND' for k in self._SHAPE_FEATURES]
+        return names
+
     # -- raw detection ------------------------------------------------------------
-    def detect(self, x, measure_on=None):
+    def detect(self, x, measure_on=None, return_signals=False):
         """
         Raw per-signal detections.
 
@@ -674,22 +799,26 @@ class WaveDetector:
         x : np.ndarray or list
             1-D ``(n_samples,)``, 2-D ``(n_signals, n_samples)``, or list of 1-D arrays.
         measure_on : np.ndarray or list, optional
-            Amplitude signal(s), same shape as ``x``.
+            Broadband amplitude signal(s), same shape as ``x``.
+        return_signals : bool
+            Also return the band-passed (``'x_band'``) and broadband amplitude
+            (``'x_amp'``) signals per input signal (NaN in gaps). Default False.
 
         Returns
         -------
         dict or list of dict
             A single detection dict for 1-D input, otherwise one dict per signal (keys:
-            see :func:`detect_waves`). Signals are detected **independently** --
-            positions index into that signal.
+            see :func:`detect_waves`; broadband keys unsuffixed, band-passed keys
+            suffixed ``_band``). Signals are detected **independently** -- positions
+            index into that signal.
         """
         signals, measures, single = self._as_signal_list(x, measure_on)
-        return self._detect_list(signals, measures, single)
+        return self._detect_list(signals, measures, single, return_signals)
 
-    def _detect_list(self, signals, measures, single):
-        worker = partial(_detect_one, **self._detect_kwargs())
+    def _detect_list(self, signals, measures, single, return_signals=False):
+        worker = partial(_detect_one, return_signals=return_signals, **self._detect_kwargs())
         if self.n_processes > 1 and len(signals) > 1:
-            with multiprocessing.Pool(self.n_processes) as pool:
+            with multiprocessing.Pool(min(self.n_processes, len(signals))) as pool:
                 results = pool.starmap(worker, list(zip(signals, measures)))
         else:
             results = [worker(s, m) for s, m in zip(signals, measures)]
@@ -700,21 +829,31 @@ class WaveDetector:
         """
         Windowed wave features, returned as ``(values, names)`` like the other extractors.
 
+        Parameters
+        ----------
+        x : np.ndarray or list
+            1-D ``(n_samples,)``, 2-D ``(n_channels, n_samples)``, or a list of
+            equal-length 1-D arrays.
+        measure_on : np.ndarray or list, optional
+            Broadband amplitude signal(s), same shape as ``x``.
+
         Returns
         -------
         values : list of np.ndarray
-            One array per feature; shape ``(n_windows,)`` for 1-D input,
-            ``(n_signals, n_windows)`` for 2-D / list input.
+            One float array per feature; shape ``(n_windows,)`` for 1-D input,
+            ``(n_channels, n_windows)`` for 2-D / list input.
         names : list of str
-            ``[DATA_RATE?, WAVE_RATE, WAVE_PK2PK_MEAN, WAVE_SLOPE_MEAN, WAVE_DELTA_T_MEAN,
-            WAVE_MIN_MEAN, WAVE_MAX_MEAN]``. ``WAVE_RATE`` is in waves per valid second
-            (see class Notes); ``WAVE_SLOPE_MEAN`` in units/s; ``WAVE_DELTA_T_MEAN`` in s;
-            amplitudes in input units.
+            :attr:`feature_names`: ``[DATA_RATE?, WAVE_RATE, <shape features>]``.
+            Units: ``DATA_RATE`` fraction 0-1; ``WAVE_RATE`` waves per analysable
+            second (Hz); ``WAVE_PK2PK_MEAN``, ``WAVE_MIN_MEAN``, ``WAVE_MAX_MEAN``
+            input units (e.g. uV); ``WAVE_SLOPE_MEAN`` input units per second;
+            ``WAVE_DELTA_T_MEAN`` seconds. ``*_BAND`` features: the same, measured on
+            the band-passed signal.
         """
         signals, measures, single = self._as_signal_list(x, measure_on)
         detections = self._detect_list(signals, measures, False)
 
-        names = (['DATA_RATE'] if self.datarate else []) + ['WAVE_RATE'] + list(self._SHAPE_FEATURES)
+        names = self.feature_names
         per_signal = [self._features_for_signal(sig, m, det)
                       for sig, m, det in zip(signals, measures, detections)]
 
@@ -727,54 +866,58 @@ class WaveDetector:
         return values, names
 
     # -- helpers ------------------------------------------------------------------
-    def _window_starts(self, n):
+    def _window_bounds(self, n):
+        """``(starts, ends)`` sample indices (``ends`` exclusive) of the complete windows."""
         if self.segm_size is None:
-            return np.array([0]), n
+            return np.array([0]), np.array([n])
         n_segm = int(round(self.fs * self.segm_size))
         shift = int(round(self.fs * (self.segm_size - self.overlap)))
         if n < n_segm:
-            return np.empty(0, dtype=int), n_segm
-        return np.arange(0, n - n_segm + 1, shift), n_segm
+            empty = np.empty(0, dtype=np.int64)
+            return empty, empty.copy()
+        starts = np.arange(0, n - n_segm + 1, shift)
+        return starts, starts + n_segm
 
     def _features_for_signal(self, sig, measure, det):
+        """All windows of one signal at once (no loop over windows or waves)."""
         n = sig.shape[0]
-        starts, n_segm = self._window_starts(n)
+        starts, ends = self._window_bounds(n)
 
-        valid = np.isfinite(sig)
+        finite = np.isfinite(sig)
         if measure is not None:
-            valid &= np.isfinite(np.asarray(measure, dtype=np.float64).ravel())
-        valid_cum = np.concatenate(([0], np.cumsum(valid)))
+            finite &= np.isfinite(np.asarray(measure, dtype=np.float64))
+        fin_cum = np.concatenate(([0], np.cumsum(finite)))
+        n_finite = fin_cum[ends] - fin_cum[starts]
+
+        ana = finite & ~_excluded_mask(n, det['gaps'], self.fs, self.gap_margin_s,
+                                       self.edge_margin_s)
+        ana_cum = np.concatenate(([0], np.cumsum(ana)))
+        n_ana = ana_cum[ends] - ana_cum[starts]
 
         trough = det['min_pos']
-        slope = det['downslope'] if self.slope == 'downslope' else det['upslope']
-        row = {}
-        rate, pk2pk, slp, dt, mn, mx, drate = [], [], [], [], [], [], []
-        for s in starts:
-            e = min(s + n_segm, n)
-            n_valid = int(valid_cum[e] - valid_cum[s])
-            in_win = (trough >= s) & (trough < s + n_segm)
-            k = int(in_win.sum())
-            rate.append(k / (n_valid / self.fs) if n_valid else np.nan)
-            if k:
-                pk2pk.append(_nanmean(det['pk2pk'][in_win]))
-                slp.append(_nanmean(slope[in_win]))
-                dt.append(_nanmean(det['delta_t'][in_win]))
-                mn.append(_nanmean(det['min_val'][in_win]))
-                mx.append(_nanmean(det['max_val'][in_win]))
-            else:
-                pk2pk.append(np.nan); slp.append(np.nan); dt.append(np.nan)
-                mn.append(np.nan); mx.append(np.nan)
-            if self.datarate:
-                drate.append(n_valid / (e - s) if e > s else np.nan)
+        order = None
+        if trough.size > 1 and np.any(trough[1:] < trough[:-1]):   # defensive; never expected
+            order = np.argsort(trough, kind='stable')
+            trough = trough[order]
+        lo = np.searchsorted(trough, starts, side='left')
+        hi = np.searchsorted(trough, ends, side='left')
 
-        row['WAVE_RATE'] = np.asarray(rate, dtype=np.float64)
-        row['WAVE_PK2PK_MEAN'] = np.asarray(pk2pk, dtype=np.float64)
-        row['WAVE_SLOPE_MEAN'] = np.asarray(slp, dtype=np.float64)
-        row['WAVE_DELTA_T_MEAN'] = np.asarray(dt, dtype=np.float64)
-        row['WAVE_MIN_MEAN'] = np.asarray(mn, dtype=np.float64)
-        row['WAVE_MAX_MEAN'] = np.asarray(mx, dtype=np.float64)
-        if self.datarate:
-            row['DATA_RATE'] = np.asarray(drate, dtype=np.float64)
+        row = {}
+        with np.errstate(divide='ignore', invalid='ignore'):
+            row['WAVE_RATE'] = np.where(n_ana > 0, (hi - lo) / (n_ana / self.fs), np.nan)
+            if self.datarate:
+                row['DATA_RATE'] = np.where(ends > starts, n_finite / (ends - starts), np.nan)
+
+        suffixes = []
+        if self.features_on in ('broadband', 'both'):
+            suffixes.append(('', ''))
+        if self.features_on in ('band', 'both'):
+            suffixes.append(('_BAND', '_band'))
+        for name_sfx, key_sfx in suffixes:
+            for feat, key in self._SHAPE_KEYS.items():
+                key = (self.slope if key is None else key) + key_sfx
+                a = det[key] if order is None else det[key][order]
+                row[feat + name_sfx] = _window_nanmean(a, lo, hi)
         return row
 
     def _as_signal_list(self, x, measure_on):
@@ -809,11 +952,18 @@ class WaveDetector:
         return signals, measures, single
 
 
-def _nanmean(a):
-    """Mean over finite entries; NaN (no warning) when none are finite."""
+def _window_nanmean(a, lo, hi):
+    """
+    Mean of ``a[lo[k]:hi[k]]`` for every window ``k``, ignoring non-finite entries; NaN
+    for a window without a finite entry. O(len(a) + n_windows) via cumulative sums.
+    """
     a = np.asarray(a, dtype=np.float64)
-    finite = np.isfinite(a)
-    return a[finite].mean() if finite.any() else np.nan
+    f = np.isfinite(a)
+    cs = np.concatenate(([0.0], np.cumsum(np.where(f, a, 0.0))))
+    cn = np.concatenate(([0], np.cumsum(f)))
+    cnt = cn[hi] - cn[lo]
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(cnt > 0, (cs[hi] - cs[lo]) / cnt, np.nan)
 
 
 def _detect_one(sig, measure, fs, fband, thr, **kwargs):
