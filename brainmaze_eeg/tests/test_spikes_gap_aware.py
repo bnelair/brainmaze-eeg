@@ -203,7 +203,7 @@ def test_many_short_gaps_do_not_add_detections_in_valid_time(seed):
     def compare(det, info, margin):
         out = []
         for c in range(2):
-            ref = clean[c][~mask_in_gaps(clean[c], info['gaps'][c], FS, units='samples',
+            ref = clean[c][~mask_in_gaps(clean[c], info['gaps'][c], FS, units='samples', gap_units='samples',
                                          margin_s=margin)]
             out.append(_extra_missing(det[c], ref, 10))
         return out
@@ -234,9 +234,9 @@ def test_near_gap_detections_match_gap_free_run(det):
     out, info = GapAwareSpikeDetector(det).detect(Xg, FS, return_info=True)
     for c in range(2):
         g = info['gaps'][c]
-        near = (mask_in_gaps(clean[c], g, FS, units='samples', margin_s=3.0)
-                & ~mask_in_gaps(clean[c], g, FS, units='samples', margin_s=0.2))
-        near_out = (mask_in_gaps(out[c], g, FS, units='samples', margin_s=3.0))
+        near = (mask_in_gaps(clean[c], g, FS, units='samples', gap_units='samples', margin_s=3.0)
+                & ~mask_in_gaps(clean[c], g, FS, units='samples', gap_units='samples', margin_s=0.2))
+        near_out = (mask_in_gaps(out[c], g, FS, units='samples', gap_units='samples', margin_s=3.0))
         extra, missing = _extra_missing(out[c][near_out], clean[c][near], 10)
         assert extra + missing <= len(g), (c, extra, missing, len(g))
 
@@ -258,7 +258,7 @@ def test_constant_runs_are_gaps_by_default():
     near_raw = sum(np.any((raw / FS >= a - 1) & (raw / FS < b + 1)) for a, b in runs)
     assert near_raw >= 1
     # outside the runs the wrapper agrees with the clean recording
-    far = ~mask_in_gaps(raw_clean, info['gaps'], FS, units='samples', margin_s=3.0)
+    far = ~mask_in_gaps(raw_clean, info['gaps'], FS, units='samples', gap_units='samples', margin_s=3.0)
     extra, missing = _extra_missing(out, raw_clean[far], 10)
     assert missing == 0
     # disabled: the constant runs are not gaps

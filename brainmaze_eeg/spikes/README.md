@@ -251,6 +251,18 @@ fire (verification V2). With `k2 < k1` a channel's result depends on the other c
 `channel_independent` is then False, and `GapAwareSpikeDetector` passes the whole montage
 (tested: wrapper = raw, ambiguous detections included).
 
+**Ambiguous class is not comparable to v24 (verification W2).** The reading of the window
+decides how many ambiguous detections come out, and MATLAB v23/v25 (same help and code as
+v24, which we could not obtain) use the literal single sample. On the real 15-channel
+iEEG (256 Hz, 1 h; `k2` 3.0 / 2.5) the window `[i - 10 ms, i]` gives 1908 / 3142 ambiguous
+detections on record 0 and 288 / 576 on record 1, against 32 / 65 and 75 / 174 for the
+literal single sample (4-60x fewer); a symmetric +-10 ms window gives 2146 / 3674 and
+430 / 873 (12-50 % more than ours). Restricting the confirming detection to other channels
+changes nothing. So with `k2 < k1` the output is **not** comparable to v24/v23/v25 and
+counts are several times larger than the literal reading. Defaults (`k2 == k1`) are
+unaffected and identical to the previous version. The behaviour is unchanged here; a
+symmetric-window or literal-sample switch is a possible follow-up.
+
 On the 6.8 h recording v24 finds 2059 detections; 73 % of the eeg_forge detections lie
 within 100 ms of a v24 detection. The two formulations differ in background estimation
 (windowed MLE + interpolation vs. a sliding mean), filters, and peak selection, so they
@@ -295,7 +307,7 @@ Each step is marked [paper] or [ours] in the module docstring. In brief:
    | case | no rule (default) | paper literal | leave-one-out (round 1) | spatial, sd 10 (round 2) | ratio 3 |
    |---|---|---|---|---|---|
    | (a) 8 equal ch, 300 µV IEDs 1/s on one: kept / 598 | 595 (598) | 595 | **120** (598) | 595 | 595 |
-   | (a) same, 1000 µV at 3/s: kept / 1794 | 1619 (1684) | 1619 | **0** (0) | 1619 | 1619 |
+   | (a) same, 1000 µV at 3/s: kept / 1794 (spatial: setup-specific, see note below) | 1619 (1684) | 1619 | **0** (0) | 1619 (**can drop**, see note) | 1619 |
    | (b) noise, 3–32 ch, false flags | 0 | 0 | **3–12 %** at 3–4 ch | 0 | 0 |
    | (c) 12 ch 1× + 4 ch at 3.5 / 4 / 6×: large ch flagged | 0 | 0 | 0 | **100 %** | 0 |
    | (c) spiking large ch: kept (no rule: 221 / 181 / 145) | = | = | = | **0 / 0 / 0** | = |
@@ -305,6 +317,17 @@ Each step is marked [paper] or [ours] in the module docstring. In brief:
    | (d) slow drift 1500 µV rms / EMG bursts / electrode pops / flat + jumps, 3 of 10 blocks: flagged (FPs with no rule: 0 / 64 / 18 / 39) | 0 | 0 | 33 / 100 / 0 / 100 % | 0 | 0 |
    | strong burst 2000 µV at 3/s in 3 of 10 blocks: kept / 540 | 541 | 541 | **4** | **4** | **4** |
    | real 15-ch iEEG, 2 × 1 h (contact slopes 0.14–4.1× median): flags | 0 | 0 | 0 | 0 | 0 |
+
+   **The 3× limit of the spatial rule depends on the sampling rate (verification W1).** The
+   slope ratio of a given discharge to the background depends on the sampling rate and
+   bandwidth, so "no loss" in row (a) holds only for that setup. In a homogeneous 8-channel
+   montage at 256 Hz, a steady train of 1000 µV IEDs at 3/s on one channel reached a slope
+   ratio of 2.92-3.03 (limit 3): `artifact_sd=10` flagged it in 6 of 10 blocks and kept
+   510 of 1235 detections (`ratio 3` and no rule: 1235). At 512 and 1000 Hz the same
+   discharge gave ratios 1.9 and 1.4 and nothing was lost. The opposite also occurs (the
+   2000 µV 3/s burst is dropped at 256 Hz but kept at 1000 Hz, ratio 5.4 vs 2.0). So
+   frequent large spikes alone can exceed the 3× limit; do not enable `artifact_sd` on
+   data where the spiking channel's IEDs are large and frequent relative to the montage.
 
    The mean slope of a realistic artifact (drift, EMG, pops, flat stretches with jumps)
    is 0.03–1.9× normal, i.e. inside the range of real spiking channels (1.1–2.3×). A

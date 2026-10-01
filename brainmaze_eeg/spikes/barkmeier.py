@@ -324,8 +324,10 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         **Opt-in** spatial robust artifact-channel rule (paper: 10 SD; default ``None`` =
         off), finite and > 0. Flags any channel whose block slope exceeds ``1 + artifact_sd
         * artifact_rel_floor`` (3x) times the median channel's **whatever the cause**, so
-        large normal channels of a heterogeneous montage lose all detections; use only for
-        montages of similar contacts. See the module docstring, step 1.
+        large normal channels of a heterogeneous montage lose all detections, and frequent
+        large spikes alone can exceed the limit (the slope ratio depends on the sampling rate:
+        1000 uV IEDs at 3/s, 256 Hz: 510 of 1235 kept); use only for montages of similar
+        contacts. See the module docstring, step 1.
     artifact_rel_floor : float
         Floor of the spatial rule's spread, relative to the median channel slope (ours:
         0.2). Finite, >= 0.

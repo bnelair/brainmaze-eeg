@@ -86,23 +86,42 @@ def test_mask_in_gaps_explicit_units():
     fs = 500.0
     t = np.array([1.85, 1.95, 2.5, 4.05, 4.15])
     want = [False, True, True, True, False]
-    np.testing.assert_array_equal(mask_in_gaps(t, gaps / fs, fs, units='seconds'), want)
+    sec = dict(units='seconds', gap_units='seconds')
+    np.testing.assert_array_equal(mask_in_gaps(t, gaps / fs, fs, **sec), want)
     np.testing.assert_array_equal(
-        mask_in_gaps(np.round(t * fs).astype(int), gaps, fs, units='samples'), want)
-    np.testing.assert_allclose(drop_in_gaps(t, gaps / fs, fs, units='seconds'), [1.85, 4.15])
+        mask_in_gaps(np.round(t * fs).astype(int), gaps, fs, units='samples',
+                     gap_units='samples'), want)
+    # mixed units: sample-index detections against gaps in seconds, and the reverse
+    np.testing.assert_array_equal(
+        mask_in_gaps(np.round(t * fs).astype(int), gaps / fs, fs, units='samples',
+                     gap_units='seconds'), want)
+    np.testing.assert_array_equal(mask_in_gaps(t, gaps, fs, units='seconds',
+                                               gap_units='samples'), want)
+    # floats within 1e-6 of an integer (t * fs) are accepted as samples
+    np.testing.assert_array_equal(
+        mask_in_gaps(t * fs + 1e-8, gaps, fs, units='samples', gap_units='samples'), want)
+    np.testing.assert_allclose(drop_in_gaps(t, gaps / fs, fs, **sec), [1.85, 4.15])
     # interval detections overlapping the widened gap
     np.testing.assert_array_equal(
-        mask_in_gaps([1.0, 1.0], gaps / fs, fs, units='seconds', end=[1.85, 1.95]),
-        [False, True])
+        mask_in_gaps([1.0, 1.0], gaps / fs, fs, end=[1.85, 1.95], **sec), [False, True])
     # unit mix-ups raise instead of silently masking nothing
     with pytest.raises(ValueError):
-        mask_in_gaps(t, gaps, fs, units='seconds')            # integer gaps as seconds
+        mask_in_gaps(t, gaps, fs, units='seconds', gap_units='seconds')   # integer gaps, seconds
     with pytest.raises(ValueError):
-        mask_in_gaps(t, gaps, fs, units='samples')            # fractional samples
+        mask_in_gaps(np.array([100, 200]), gaps / fs, fs, units='seconds',
+                     gap_units='seconds')                                 # integer det, seconds
+    with pytest.raises(ValueError):
+        mask_in_gaps(t, gaps, fs, units='samples', gap_units='samples')   # fractional samples
+    with pytest.raises(ValueError):
+        mask_in_gaps(t, gaps, fs, units='seconds', gap_units='minutes')
     with pytest.raises(TypeError):
-        mask_in_gaps(t, gaps, fs)                             # units is required
+        mask_in_gaps(t, gaps, fs, units='seconds')                        # gap_units required
+    with pytest.raises(TypeError):
+        mask_in_gaps(t, gaps, fs)                                         # units required
+    with pytest.raises(TypeError):
+        drop_in_gaps(t, gaps, fs, units='seconds')
     with pytest.raises(ValueError):
-        mask_in_gaps(t, gaps / fs, fs, units='seconds', margin_s=-1)
+        mask_in_gaps(t, gaps / fs, fs, margin_s=-1, **sec)
 
 
 def test_generator_seed_gives_independent_per_gap_streams():
@@ -113,8 +132,9 @@ def test_generator_seed_gives_independent_per_gap_streams():
     one[8000:9000] = np.nan
     two = one.copy()
     two[2000:2600] = np.nan
-    a = fill_gaps(one, fs, method='pink', seed=np.random.default_rng(1))
-    b = fill_gaps(two, fs, method='pink', seed=np.random.default_rng(1))
+    # context_s=10: the other gap (10-13 s) lies outside the 10 s context of the one at 40 s
+    a = fill_gaps(one, fs, method='pink', context_s=10.0, seed=np.random.default_rng(1))
+    b = fill_gaps(two, fs, method='pink', context_s=10.0, seed=np.random.default_rng(1))
     np.testing.assert_array_equal(a[8000:9000], b[8000:9000])
     with pytest.raises(TypeError):
         fill_gaps(one, fs, method='pink', seed=np.random.RandomState(0))

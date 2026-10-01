@@ -141,7 +141,9 @@ class GapAwareSpikeDetector:
         construction.
     fill_kwargs : dict, optional
         Further options of :func:`brainmaze_eeg.spikes._gaps.fill_gaps` (``context_s`` > 0,
-        ``taper_s`` >= 0, ``beta``; all finite). Validated at construction.
+        ``taper_s`` >= 0, ``beta``; all finite). Validated at construction. The wrapper's
+        ``context_s`` default is 10 s (passed explicitly; ``_gaps.fill_gaps`` itself defaults
+        to 30 s like ``brainmaze_utils.gaps``).
     """
 
     def __init__(self, detector, detector_kwargs=None, *, short_gap_s=0.02, fill='mirror',
@@ -221,7 +223,7 @@ class GapAwareSpikeDetector:
         # method and max_interp_s are ALWAYS explicit: a different default in the fill
         # module (e.g. brainmaze_utils.gaps' 'spectral') must not change this wrapper.
         return fill_gaps(y, fs, max_interp_s=self.short_gap_s, method=self.fill,
-                         seed=self.seed, **self.fill_kwargs)
+                         seed=self.seed, **{'context_s': 10.0, **self.fill_kwargs})
 
     def detect(self, x, fs, return_info=False, return_mask=False):
         """
@@ -322,7 +324,8 @@ class GapAwareSpikeDetector:
         for c in live:
             item = res[c]
             idx, records = _indices_of(item, records_hint)
-            keep = ~mask_in_gaps(idx, gaps[c], fs, units='samples', margin_s=self.edge_margin_s)
+            keep = ~mask_in_gaps(idx, gaps[c], fs, units='samples', gap_units='samples',
+                                 margin_s=self.edge_margin_s)
             n_removed[c] = int((~keep).sum())
             if records:
                 kept = []

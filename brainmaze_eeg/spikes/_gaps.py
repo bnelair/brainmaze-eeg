@@ -43,7 +43,8 @@ This module is a deliberately thin, self-contained stand-in with the same names,
 and semantics as that module's final API: ``find_gaps``, ``gap_intervals``,
 ``fill_gaps(x, fs, *, max_interp_s, method, context_s, taper_s, beta, seed, axis, all_nan,
 copy)``, ``pink_noise``, and ``mask_in_gaps``/``drop_in_gaps(det, gaps, fs, *, units,
-margin_s=0.1, end=None)`` with explicit units. The one difference: there is **no**
+gap_units, margin_s=0.1, end=None)`` with explicit, separate units for the detections and the
+gaps (both required). The one difference: there is **no**
 ``'spectral'`` fill here (the default there), so this module's default ``method`` is
 ``'mirror'``. :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` always passes
 ``method`` explicitly, so switching to ``from brainmaze_utils.gaps import ...`` is a one-line
@@ -214,7 +215,7 @@ def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, entropy):
     return y
 
 
-def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper_s=0.5,
+def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=30.0, taper_s=0.5,
               beta=1.0, seed=0, axis=-1, all_nan='keep', copy=True):
     """
     Fill the non-finite gaps of a signal (see module docstring).
@@ -234,7 +235,8 @@ def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper
         ``'spectral'``, its default).
     context_s : float
         Seconds of valid data on each side used for amplitude, level and mirroring
-        (default 10).
+        (default 30, as in ``brainmaze_utils.gaps``; the wrapper passes 10 explicitly, its
+        tuned value).
     taper_s : float
         ``'pink'``: raised-cosine cross-fade length (s) into the mirrored signal at each
         edge, capped at half the gap (default 0.5).
@@ -303,33 +305,55 @@ def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper
     return out
 
 
-def _as_positions(v, units, name):
-    a = np.asarray(v)
-    if a.size and not np.isfinite(a.astype(float)).all():
+_INTEGRAL_TOL = 1e-6             # |v - round(v)| accepted as an integer sample index
+
+
+def _to_seconds(name, v, units, fs, units_name):
+    """Positions in ``units`` -> float seconds (same validation as brainmaze_utils.gaps)."""
+    v = np.asarray(v)
+    if not np.issubdtype(v.dtype, np.number) or np.issubdtype(v.dtype, np.complexfloating):
+        raise TypeError(f'{name} must be real numbers, got dtype {v.dtype}')
+    vf = v.astype(np.float64)
+    if not np.isfinite(vf).all():
         raise ValueError(f'{name} contains NaN/inf')
-    if units == 'samples' and a.size and not np.issubdtype(a.dtype, np.integer):
-        if not np.all(np.asarray(a, float) == np.round(np.asarray(a, float))):
-            raise ValueError(f"{name} has non-integer values but units='samples'")
-    return a.astype(float)
+    if units == 'seconds':
+        if vf.size and np.issubdtype(v.dtype, np.integer):
+            raise ValueError(
+                f"{name} is integer-typed (sample indices?) but {units_name}='seconds'. "
+                f"Use {units_name}='samples' for sample indices; if they really are whole "
+                f"seconds, pass them as floats (np.asarray({name}, float)).")
+        return vf
+    if not np.issubdtype(v.dtype, np.integer):
+        r = np.round(vf)
+        if np.any(np.abs(vf - r) > _INTEGRAL_TOL):
+            raise ValueError(
+                f"{name} has non-integer values but {units_name}='samples'. Are they in "
+                f"seconds? Then use {units_name}='seconds'. (Values within {_INTEGRAL_TOL:g} "
+                "of an integer, e.g. t * fs, are accepted as sample indices.)")
+        vf = r
+    return vf / fs
 
 
-def mask_in_gaps(det, gaps, fs, *, units, margin_s=0.1, end=None):
+def mask_in_gaps(det, gaps, fs, *, units, gap_units, margin_s=0.1, end=None):
     """
     Boolean mask of detections overlapping a gap widened by ``margin_s`` on each side.
 
     Parameters
     ----------
     det : array_like
-        Detection positions (or interval starts), in ``units``.
+        Detection positions, or interval starts, in ``units``.
     gaps : array_like, shape (n_gaps, 2)
-        ``[start, stop)`` gaps in ``units`` (sample indices from :func:`find_gaps`, or
-        seconds from :func:`gap_intervals`).
+        ``[start, stop)`` of each gap in ``gap_units``: :func:`find_gaps` gives samples,
+        :func:`gap_intervals` gives seconds.
     fs : float
         Sampling frequency (Hz), required.
-    units : {'samples', 'seconds'}
-        Units of ``det``, ``end`` **and** ``gaps``; required, never inferred. Integer-typed
-        gaps with ``units='seconds'`` and non-integer values with ``units='samples'``
-        raise ``ValueError`` (a units mix-up must not silently mask nothing).
+    units : {'seconds', 'samples'}
+        Units of ``det`` (and ``end``); required, never inferred.
+    gap_units : {'seconds', 'samples'}
+        Units of ``gaps``; required, never inferred. Integer-typed values with
+        ``'seconds'`` raise ``ValueError`` (pass whole seconds as floats); with
+        ``'samples'``, float values must be integral within 1e-6 (``t * fs`` is fine) or
+        ``ValueError`` is raised (a units mix-up must not silently mask nothing).
     margin_s : float
         Exclusion margin in **seconds** (default 0.1).
     end : array_like, optional
@@ -340,9 +364,11 @@ def mask_in_gaps(det, gaps, fs, *, units, margin_s=0.1, end=None):
     np.ndarray of bool
         True where ``[det, end]`` overlaps ``[gap_start - margin, gap_stop + margin)``.
     """
-    if units not in ('samples', 'seconds'):
-        raise ValueError(f"units must be 'samples' or 'seconds', got {units!r}")
+    for nm, u in (('units', units), ('gap_units', gap_units)):
+        if u not in ('samples', 'seconds'):
+            raise ValueError(f"{nm} must be 'seconds' or 'samples', got {u!r}")
     _check_fs(fs)
+    fs = float(fs)
     if not (np.isfinite(margin_s) and margin_s >= 0):
         raise ValueError(f'margin_s must be finite >= 0, got {margin_s}')
     g_raw = np.asarray(gaps)
@@ -350,19 +376,18 @@ def mask_in_gaps(det, gaps, fs, *, units, margin_s=0.1, end=None):
         g_raw = g_raw.reshape(0, 2)
     if g_raw.ndim != 2 or g_raw.shape[1] != 2:
         raise ValueError(f'gaps must have shape (n_gaps, 2), got {g_raw.shape}')
-    if units == 'seconds' and g_raw.size and np.issubdtype(g_raw.dtype, np.integer):
-        raise ValueError("gaps are integer (sample indices?) but units='seconds'")
-    g = _as_positions(g_raw, units, 'gaps')
-    if g.size and np.any(g[:, 1] < g[:, 0]):
-        raise ValueError('gaps with stop < start')
-    t0 = np.atleast_1d(_as_positions(det, units, 'det'))
-    t1 = t0 if end is None else np.atleast_1d(_as_positions(end, units, 'end'))
-    if t1.shape != t0.shape:
-        raise ValueError(f'end shape {t1.shape} != det shape {t0.shape}')
-    if np.any(t1 < t0):
-        raise ValueError('end < det')
-    if units == 'samples':
-        t0, t1, g = t0 / float(fs), t1 / float(fs), g / float(fs)
+    g = _to_seconds('gaps', g_raw, gap_units, fs, 'gap_units')
+    if np.any(g[:, 1] < g[:, 0]):
+        raise ValueError('gaps must have stop >= start')
+    t0 = np.atleast_1d(_to_seconds('det', det, units, fs, 'units'))
+    if end is None:
+        t1 = t0
+    else:
+        t1 = np.atleast_1d(_to_seconds('end', end, units, fs, 'units'))
+        if t1.shape != t0.shape:
+            raise ValueError(f'end has shape {t1.shape}, det has shape {t0.shape}')
+        if np.any(t1 < t0):
+            raise ValueError('end must be >= det for every detection')
     out = np.zeros(t0.shape, dtype=bool)
     if g.size == 0 or t0.size == 0:
         return out
@@ -375,13 +400,14 @@ def mask_in_gaps(det, gaps, fs, *, units, margin_s=0.1, end=None):
     return out
 
 
-def drop_in_gaps(det, gaps, fs, *, units, margin_s=0.1, end=None):
+def drop_in_gaps(det, gaps, fs, *, units, gap_units, margin_s=0.1, end=None):
     """
     ``det`` without the detections flagged by :func:`mask_in_gaps` (original dtype), or
     ``(det, end)`` when ``end`` is given.
     """
     det_a = np.atleast_1d(np.asarray(det))
-    keep = ~mask_in_gaps(det_a, gaps, fs, units=units, margin_s=margin_s, end=end)
+    keep = ~mask_in_gaps(det_a, gaps, fs, units=units, gap_units=gap_units,
+                         margin_s=margin_s, end=end)
     if end is None:
         return det_a[keep]
     return det_a[keep], np.atleast_1d(np.asarray(end))[keep]

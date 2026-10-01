@@ -774,6 +774,10 @@ class SpikeDetectorHilbert:
         :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` passes the whole
         montage. (An earlier version enforced ``k2 >= k1``, which inverted the v24
         constraint; the ambiguous class could then never fire.)
+        **Not comparable to MATLAB v24** when ``k2 < k1``: v23/v25 test the literal single
+        sample, and on real 15-channel iEEG the window used here gives 4-60x more ambiguous
+        detections (a symmetric +-10 ms window 12-50 % more still). See the README
+        ("Ambiguous class is not comparable to v24"). Defaults are unaffected.
     k3 : float
         Threshold tilt term. Default 0.
     main_hum_freq : float or None
