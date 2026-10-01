@@ -182,8 +182,9 @@ Changes from the previous version:
 
 - **Broad band.** It was 1–80 Hz while the docstring claimed "per the paper". On 1/f noise
   that gave 0.15–0.16 false detections/s; the paper's band gives 0.015–0.027/s.
-  Sensitivity is unchanged for spikes ≥ 200 µV (8 channels: 97/98 vs 98/98 at 200 µV,
-  98/98 at ≥ 300 µV).
+  Sensitivity is unchanged for spikes ≥ 200 µV (8 channels, 30 µV 1/f background: 98/98
+  for both). It is lower for small spikes (100 µV: 39 vs 50 of 98; 150 µV: 78 vs 86), where
+  the old band also produced 4–10× more extra detections.
 - **Blocks.** There used to be no one-minute blocks and no artifact rule.
 - **NaN.** One NaN in one channel made the scaling factor NaN for every channel, so all
   thresholds silently applied to unscaled data. It is now confined to the gap.
