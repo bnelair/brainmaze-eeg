@@ -5,13 +5,17 @@ import numpy as np
 import pytest
 from scipy.signal import butter, sosfreqz
 
+import brainmaze_eeg.features.wave_detector as wd
 from brainmaze_eeg.features.wave_detector import (
     WaveDetector,
     detect_waves,
     _argext_groups,
+    _band_signal,
     _bandpass_fft,
-    _excluded_mask,
-    _filter_signals,
+    _default_gap_margins,
+    _drift_removed,
+    _paper_trace,
+    _window_nanmedian,
 )
 
 FS = 200
@@ -59,7 +63,7 @@ def test_butterworth_measured_response_matches_design(fs, band):
         dur = max(20.0, 20.0 / f)
         t = np.arange(int(dur * fs)) / fs
         x = np.sin(2 * np.pi * f * t)
-        xn, _, _ = _filter_signals(x - x.mean(), float(fs), lo, hi, 'butter', 2, 0)
+        xn = _band_signal(x - x.mean(), float(fs), lo, hi, 'butter', 2)
         m = slice(t.size // 4, -t.size // 4)
         measured = np.sqrt(2) * xn[m].std()
         design = abs(sosfreqz(sos, worN=[f], fs=fs)[1][0]) ** 2     # forward-backward
@@ -75,7 +79,7 @@ def test_drift_highpass_preserves_band_and_removes_drift(fs):
     t = np.arange(int(80 * fs)) / fs
     m = slice(t.size // 4, -t.size // 4)
     for f, expect in ((0.5, 0.996), (0.125, 0.004)):
-        _, xhp, _ = _filter_signals(np.sin(2 * np.pi * f * t), float(fs), 0.5, 4.0, 'butter', 2, 0)
+        xhp = _drift_removed(np.sin(2 * np.pi * f * t), float(fs), 0.5, 'butter')
         assert np.sqrt(2) * xhp[m].std() == pytest.approx(expect, abs=2e-3)
 
 
@@ -151,14 +155,27 @@ def test_edge_margin_excludes_edge_waves_and_rate_stays_unbiased():
     assert d['zero_pos_frac'].min() / FS >= 6.0
     assert d['end_pos'].max() / FS <= (x.size - 1) / FS - 6.0
     rate = WaveDetector(fs=FS, fband=(0.5, 4))(x)[0][0]      # one window
-    assert rate[0] == pytest.approx(2.0, abs=2 / 48)        # +/- one wave per border, 48 s
+    # the denominator is shortened like the inclusion rule (R5): no border bias left
+    assert rate[0] == pytest.approx(2.0, abs=1 / 48)    # periodic train: +/- 1 wave
 
 
 def test_upper_band_edge_frequency_is_detected():
     # v1.0.0's strict duration gate lost ~1/3 of 3.9 Hz waves in band (1, 3.9)
     # (+/- one wave lost at each of the two excluded-zone borders)
     rate = WaveDetector(fs=FS, fband=(1, 3.9))(_sine(3.9, dur=60))[0][0][0]
-    assert rate == pytest.approx(3.9, abs=2 / 54)
+    assert rate == pytest.approx(3.9, abs=1 / 54)       # periodic train: +/- 1 wave
+
+
+@pytest.mark.parametrize('trough', ['refine', 'band'])
+def test_duration_gate_does_not_depend_on_fs(trough):
+    # R8: sub-sample durations + a relative tolerance -> the same effective band at every
+    # fs (the old one-sample tolerance kept 4.05 Hz waves in (1, 3.9) at 128-200 Hz only)
+    for fs in (128, 200, 500, 5000):
+        dur = 40
+        kept_edge = detect_waves(_sine(3.9, dur=dur, fs=fs, phase=0.3), fs, (1, 3.9), trough=trough)
+        kept_out = detect_waves(_sine(3.9 * 1.03, dur=dur, fs=fs, phase=0.3), fs, (1, 3.9), trough=trough)
+        assert kept_edge['min_pos'].size >= int((dur - 6) * 3.9) - 2, fs
+        assert kept_out['min_pos'].size == 0, fs
 
 
 # ----------------------------------------------------------------------------------
@@ -187,11 +204,17 @@ def test_delta_t_matches_half_period():
                                         (2.0, 50.0, 200), (1.0, 50.0, 200)])
 def test_downslope_matches_analytic(f, amp, fs):
     # A*sin(2 pi f t): trough a quarter period after the down crossing -> 4*A*f.
-    # The interpolated zero crossing keeps this within 1 % at fs=200 (v1.0.0: +2-4 %).
+    # trough='band' uses the interpolated crossing: within 1 % at fs=200. The default
+    # 'refine' keeps v1.0.0's crossing (first negative sample), which shortens down_dur by
+    # up to one sample: up to +4 % at fs=200 (the same for every wave of a pure sine).
     band = (0.5, 0.9) if f < 1 else (0.5, 4) if f == 1.0 else (1.0, 3.9)
-    d = detect_waves(_sine(f, amp=amp, dur=60, fs=fs, phase=0.3), fs, fband=band)
+    x = _sine(f, amp=amp, dur=60, fs=fs, phase=0.3)
+    d = detect_waves(x, fs, fband=band, trough='band')
     assert np.mean(d['downslope']) == pytest.approx(4 * amp * f, rel=0.01)
     assert np.mean(d['downslope_band']) > 0
+    r = detect_waves(x, fs, fband=band)
+    ratio = np.mean(r['downslope']) / (4 * amp * f)
+    assert 0.995 <= ratio <= 1 / (1 - 4 * f / fs) + 0.005    # at most one sample shorter
 
 
 def test_upslope_matches_analytic():
@@ -199,36 +222,86 @@ def test_upslope_matches_analytic():
     assert np.mean(d['upslope']) == pytest.approx(4 * 1.0 * 2.0, rel=0.02)
 
 
-@pytest.mark.parametrize('refine', [0, 2.0, 4.0, None])
 @pytest.mark.parametrize('band', [(0.5, 4), (0.5, 0.9), (4, 8)])
-def test_positions_are_ordered_and_inside_their_half_waves(refine, band):
+def test_positions_are_ordered_and_inside_their_half_waves(band):
     x = _pink(120 * FS, FS, seed=3)
-    d = detect_waves(x, FS, band, refine_lowpass=refine)
-    assert d['min_pos'].size > 10
-    for sfx in ('', '_band'):
-        assert np.all(d['zero_pos_frac'] < d['min_pos' + sfx])
-        assert np.all(d['min_pos' + sfx] < d['max_pos' + sfx])
-        assert np.all(d['max_pos' + sfx] <= d['end_pos'])
-        assert np.all(d['down_dur' + sfx] > 0)
-        assert np.all(np.isfinite(d['downslope' + sfx]))
-    # troughs are on the negative half-wave of the filtered signal, peaks on the positive one
-    assert np.all(d['min_val_band'] < 0) and np.all(d['max_val_band'] > 0)
-    assert np.all(np.diff(d['min_pos']) > 0)
-    if refine == 0:
+    for trough in ('band', 'paper'):
+        d = detect_waves(x, FS, band, trough=trough)
+        assert d['min_pos'].size > (5 if trough == 'band' else 0), trough
+        for sfx in ('', '_band'):
+            assert np.all(d['zero_pos_frac'] < d['min_pos' + sfx])
+            assert np.all(d['min_pos' + sfx] < d['max_pos' + sfx])
+            assert np.all(d['max_pos' + sfx] <= d['end_pos'])
+            assert np.all(d['down_dur' + sfx] > 0)
+            assert np.all(np.isfinite(d['downslope' + sfx]))
+        assert np.all(np.diff(d['min_pos']) > 0)
         np.testing.assert_array_equal(d['min_pos'], d['min_pos_band'])
+    d = detect_waves(x, FS, band, trough='band')
+    assert np.all(d['min_val_band'] < 0) and np.all(d['max_val_band'] > 0)
 
 
-def test_noise_bias_of_amplitudes_by_refinement():
-    # 100 uV pk2pk 1 Hz sine + white noise SD 10 uV: the default (positions from the
-    # filtered signal) is unbiased; refining on the broadband signal picks noise extremes
+def test_refine_is_the_v1_placement():
+    # trough='refine' (default): broadband extreme within +/- half a period of fband[1]
+    # around the band extreme, NOT clamped to the half-wave; the downslope runs from the
+    # first negative sample (zero_pos), as in v1.0.0. A broadband trough at or before it
+    # gives a NaN downslope (left out of the slope features).
+    x = _pink(120 * FS, FS, seed=3) + 3 * np.random.default_rng(1).standard_normal(120 * FS)
+    band = (0.5, 4)
+    d = detect_waves(x, FS, band)
+    half = int(round(0.5 * FS / band[1]))
+    assert np.all(np.abs(d['min_pos'] - d['min_pos_band']) <= half)
+    assert np.all(np.abs(d['max_pos'] - d['max_pos_band']) <= half)
+    hp = _drift_removed(x - x.mean(), FS, band[0], 'butter')
+    for p, pb in zip(d['min_pos'], d['min_pos_band']):
+        assert p == pb - half + np.argmin(hp[pb - half:pb + half + 1])
+    dd = (d['min_pos'] - d['zero_pos']) / FS
+    np.testing.assert_allclose(d['down_dur'], dd)
+    np.testing.assert_array_equal(np.isnan(d['downslope']), dd <= 0)
+    # the band outputs always use the interpolated crossing
+    np.testing.assert_allclose(d['down_dur_band'], (d['min_pos_band'] - d['zero_pos_frac']) / FS)
+    # the gate uses the refined positions: every refined trough->peak lies in the band
+    dt = d['delta_t']
+    assert np.all((dt >= 0.99 / (2 * band[1]) - 1 / FS) & (dt <= 1.01 / (2 * band[0]) + 1 / FS))
+
+
+def test_refine_trough_before_crossing_gives_nan_downslope():
+    # a sharp broadband dip just BEFORE the band zero crossing, within half a period of
+    # fband[1]: v1.0.0 placed the trough there (not clamped), so its downslope is NaN
+    fs, f = 500, 3.5                                       # quarter period 71 ms < window 124 ms
+    x = _sine(f, amp=50, dur=30, fs=fs, phase=0.0)
+    t0, _ = _sine_wave_spans(f, 0.0, 30, fs)
+    for t in t0[(t0 > 8) & (t0 < 22)]:
+        i = int(round(t * fs)) - 10                        # 20 ms before the crossing
+        x[i - 2:i + 3] -= 200
+    d = detect_waves(x, fs, (0.5, 4))
+    assert d['min_pos'].size > 5
+    early = d['min_pos'] < d['zero_pos']
+    assert early.sum() >= 10
+    assert np.all(np.isnan(d['downslope'][early]))
+    got = _feats(WaveDetector(fs=fs, fband=(0.5, 4))(x, measure_on=x))
+    assert np.isfinite(got['WAVE_SLOPE_MEAN'][0])        # NaN slopes are ignored
+
+
+def test_band_mode_uses_interpolated_crossing():
+    # sin(2 pi f t + phase): the down crossing sits between samples; the interpolated
+    # position is exact to << 1 sample (kills a floor() regression)
+    f, fs, phase = 2.0, 200, 0.37
+    d = detect_waves(_sine(f, dur=30, fs=fs, phase=phase), fs, (0.5, 4), trough='band')
+    t0, _ = _sine_wave_spans(f, phase, 30, fs)
+    t0 = t0[np.searchsorted(t0, d['zero_pos_frac'] / fs - 0.1)]
+    np.testing.assert_allclose(d['zero_pos_frac'] / fs, t0, atol=0.02 / fs)
+    np.testing.assert_allclose(d['down_dur'], (d['min_pos'] - d['zero_pos_frac']) / fs)
+
+
+def test_noise_bias_of_amplitudes_by_trough_mode():
+    # 100 uV pk2pk 1 Hz sine + white noise SD 10 uV: 'band' (positions from the filtered
+    # signal) is unbiased; 'refine' (v1.0.0) picks broadband noise extremes
     rng = np.random.default_rng(0)
     x = _sine(1.0, amp=50, dur=120) + 10 * rng.standard_normal(120 * FS)
-    p0 = np.mean(detect_waves(x, FS, (0.5, 4))['pk2pk'])
-    p4 = np.mean(detect_waves(x, FS, (0.5, 4), refine_lowpass=4)['pk2pk'])
-    pn = np.mean(detect_waves(x, FS, (0.5, 4), refine_lowpass=None)['pk2pk'])
-    assert p0 == pytest.approx(100, rel=0.03)
-    assert p0 < p4 < pn
-    assert pn > 125
+    pb = np.mean(detect_waves(x, FS, (0.5, 4), trough='band')['pk2pk'])
+    pr = np.mean(detect_waves(x, FS, (0.5, 4))['pk2pk'])
+    assert pb == pytest.approx(100, rel=0.03)
+    assert pr > 125
 
 
 def test_measure_on_reads_amplitude_from_the_supplied_trace():
@@ -237,6 +310,7 @@ def test_measure_on_reads_amplitude_from_the_supplied_trace():
     broad = narrow + 8 * np.sin(2 * np.pi * 20 * t)
     base = detect_waves(narrow, 500, fband=(0.5, 0.9))
     on = detect_waves(narrow, 500, fband=(0.5, 0.9), measure_on=broad)
+    # trough='refine' searches on the drift-removed x (v1.0.0), also with measure_on
     np.testing.assert_array_equal(base['min_pos'], on['min_pos'])
     np.testing.assert_allclose(on['min_val'], broad[on['min_pos']] - broad.mean())
     np.testing.assert_allclose(base['min_val_band'], on['min_val_band'])
@@ -246,20 +320,49 @@ def test_measure_on_reads_amplitude_from_the_supplied_trace():
 # gaps
 # ----------------------------------------------------------------------------------
 def test_single_nan_does_not_kill_the_record():
-    # v1.0.0: one NaN -> WAVE_RATE 0 everywhere while DATA_RATE ~1
+    # v1.0.0: one NaN -> WAVE_RATE 0 everywhere while DATA_RATE ~1. A 1-sample gap is
+    # interpolated and needs no margin (gaps <= 25 ms, module docstring).
     x = _sine(2.0, amp=20, dur=120)
     x[50 * FS] = np.nan
     det = WaveDetector(fs=FS, fband=(0.5, 4), segm_size=30, datarate=True)
-    values, names = det(x)
-    got = dict(zip(names, values))
+    got = _feats(det(x))
     np.testing.assert_allclose(got['DATA_RATE'], [1, 1 - 1 / (30 * FS), 1, 1])
-    # every window's rate is the true 2 Hz up to one wave per analysable time
-    ana = 30 - np.array([6, 2 * 6 + 1 / FS, 0, 6])
-    assert np.all(np.abs(got['WAVE_RATE'] - 2.0) <= 1 / ana + 1e-9)
+    np.testing.assert_allclose(got['WAVE_RATE'], 2.0, atol=0.03)
     d = det.detect(x)
     assert d['gaps'].tolist() == [[50 * FS, 50 * FS + 1]]
-    # no wave span touches the NaN +/- margin
-    assert not np.any((d['zero_pos_frac'] / FS < 50 + 6 + 1 / FS) & (d['end_pos'] / FS >= 50 - 6))
+    # exactly the one wave whose span contains the NaN is gone
+    clean = det.detect(_sine(2.0, amp=20, dur=120))
+    assert clean['min_pos'].size - d['min_pos'].size == 1
+    assert not np.any((d['zero_pos_frac'] <= 50 * FS) & (d['end_pos'] >= 50 * FS))
+
+
+def test_default_gap_margin_depends_on_gap_length():
+    m = _default_gap_margins(np.array([0.004, 0.025, 0.1, 0.5, 2.0, 10.0]), 0.5, 250.0, 'refine')
+    np.testing.assert_allclose(m, [0, 0, 2 * 3 * np.sqrt(0.05), 2 * 3 * np.sqrt(0.25), 6, 6])
+    # paper mode: never beyond the support of its trace filters
+    mp = _default_gap_margins(np.array([10.0]), 0.5, 500.0, 'paper')
+    assert mp[0] == pytest.approx((999 + 12) / 500)
+
+
+@pytest.mark.parametrize('every_s, L, min_kept', [(10, 0.02, 0.85), (30, 0.05, 0.85), (30, 1.0, 0.6)])
+def test_dropouts_do_not_bias_wave_rate(every_s, L, min_kept):
+    # R4/R5: 1 Hz sine (true rate 1.000) with regular dropouts. Short dropouts keep most
+    # waves, and WAVE_RATE does not depend on the dropout density.
+    fs, T = 250, 1800
+    x = _sine(1.0, amp=50, dur=T, fs=fs, phase=0.4)
+    rng = np.random.default_rng(3)
+    for c in np.arange(every_s / 2, T, every_s):
+        i = int((c + rng.uniform(-every_s / 4, every_s / 4)) * fs)
+        x[i:i + max(1, int(L * fs))] = np.nan
+    det = WaveDetector(fs=fs, fband=(0.5, 4), segm_size=30, datarate=True)
+    got = _feats(det(x))
+    kept = det.detect(x)['min_pos'].size / (T - 2)
+    assert kept >= min_kept
+    assert np.all(np.isfinite(got['WAVE_RATE']))
+    # pooled rate (waves / analysable time) is unbiased
+    pooled = np.nansum(got['WAVE_RATE'] * got['ANALYSABLE_RATE']) / np.nansum(got['ANALYSABLE_RATE'])
+    assert pooled == pytest.approx(1.0, abs=0.01)
+    assert np.all(got['ANALYSABLE_RATE'] <= got['DATA_RATE'] + 1e-12)
 
 
 def test_gaps_rate_is_normalised_by_analysable_time():
@@ -272,15 +375,45 @@ def test_gaps_rate_is_normalised_by_analysable_time():
     det = WaveDetector(fs=FS, fband=(0.5, 4), segm_size=60, datarate=True)
     got = _feats(det(x))
     d = det.detect(x)
-    excl = _excluded_mask(x.size, d['gaps'], FS, det.gap_margin_s, det.edge_margin_s)
-    ana = (~excl & np.isfinite(x)).reshape(10, -1).sum(axis=1) / FS
+    ana = det._rate_mask(x.size, d).reshape(10, -1).sum(axis=1) / FS
+    np.testing.assert_allclose(got['ANALYSABLE_RATE'], ana / 60)
     ok = ana > 10
-    # rate == 1.5 Hz up to a few waves lost at excluded-zone borders
-    assert np.all(np.abs(got['WAVE_RATE'][ok] - 1.5) <= 3 / ana[ok])
+    assert np.all(np.abs(got['WAVE_RATE'][ok] - 1.5) <= 1.5 / ana[ok])
     np.testing.assert_allclose(got['DATA_RATE'], np.isfinite(x).reshape(10, -1).mean(axis=1))
     # the wave count used per window equals the detections whose trough is in it
     n_in = np.histogram(d['min_pos'], bins=np.arange(11) * 60 * FS)[0]
     np.testing.assert_allclose(got['WAVE_RATE'][ok], (n_in / ana)[ok])
+
+
+def test_gap_fill_is_the_spectral_fill(monkeypatch):
+    # the gap fill is brainmaze_utils' fill_gaps with an explicit method (R1)
+    calls = []
+    real = wd.fill_gaps
+
+    def spy(x, fs, **kw):
+        calls.append(kw)
+        return real(x, fs, **kw)
+
+    monkeypatch.setattr(wd, 'fill_gaps', spy)
+    x = _pink(120 * FS, FS, seed=2)
+    x[40 * FS:42 * FS] = np.nan
+    detect_waves(x, FS, (0.5, 4))
+    assert calls == [{'method': 'spectral', 'max_interp_s': 0.1}]
+
+
+def test_zero_filled_gap_would_change_waves_outside_the_margin():
+    # a constant (e.g. zero) fill on an offset signal makes a step whose filter response
+    # reaches beyond the margin; the spectral fill does not (waves outside the margin
+    # match the gap-free run)
+    x = _pink(240 * FS, FS, seed=2) + 200.0
+    ref = detect_waves(x, FS, (0.5, 4))
+    y = x.copy()
+    y[100 * FS:104 * FS] = np.nan
+    d = detect_waves(y, FS, (0.5, 4))
+    j = np.isin(ref['min_pos'], d['min_pos'])
+    k = np.isin(d['min_pos'], ref['min_pos'])
+    assert k.mean() > 0.95
+    np.testing.assert_allclose(d['min_val'][k], ref['min_val'][j], atol=1.0)
 
 
 def test_gap_at_start_and_end_and_all_nan():
@@ -357,7 +490,7 @@ def test_features_on_band_and_both():
     vn, nn = band(x)
     vo, no = both(x)
     assert nb == ['WAVE_RATE', 'WAVE_PK2PK_MEAN', 'WAVE_SLOPE_MEAN', 'WAVE_DELTA_T_MEAN',
-                  'WAVE_MIN_MEAN', 'WAVE_MAX_MEAN']
+                  'WAVE_MIN_MEAN', 'WAVE_MAX_MEAN', 'WAVE_SLOPE_MEDIAN']
     assert nn == ['WAVE_RATE'] + [k + '_BAND' for k in nb[1:]]
     assert no == nb + nn[1:]
     got = dict(zip(no, vo))
@@ -383,6 +516,8 @@ def test_windows_match_bruteforce_means():
         if sel.any():
             assert got['WAVE_PK2PK_MEAN'][i] == pytest.approx(d['pk2pk'][sel].mean())
             assert got['WAVE_SLOPE_MEAN_BAND'][i] == pytest.approx(d['upslope_band'][sel].mean())
+            assert got['WAVE_SLOPE_MEDIAN'][i] == pytest.approx(np.nanmedian(d['upslope'][sel]))
+            assert got['WAVE_SLOPE_MEDIAN_BAND'][i] == pytest.approx(np.median(d['upslope_band'][sel]))
         else:
             assert np.isnan(got['WAVE_PK2PK_MEAN'][i])
 
@@ -487,7 +622,12 @@ def test_amplitude_threshold_drops_shallow_waves():
     {'fs': FS, 'filter_order': 0},
     {'fs': FS, 'gap_margin_s': -1},
     {'fs': FS, 'edge_margin_s': np.inf},
-    {'fs': FS, 'refine_lowpass': 0.5},
+    {'fs': FS, 'trough': 'v1'},
+    {'fs': FS, 'trough': True},
+    {'fs': FS, 'trough': 0},
+    {'fs': FS, 'trough': None},
+    {'fs': FS, 'trough': 'paper', 'features_on': 'both'},
+    {'fs': 60, 'fband': (0.5, 4), 'trough': 'paper'},
     {'fs': FS, 'features_on': 'filtered'},
     {'fs': FS, 'amplitude_threshold': np.nan},
 ])
@@ -502,10 +642,31 @@ def test_backward_compatible_cutoff_aliases():
     assert det.cutoff_low == 0.5 and det.cutoff_high == 4.0
 
 
-def test_default_margins_resolved():
+def test_defaults_are_pinned():
+    # changing any of these changes published numbers: they must be deliberate
     det = WaveDetector(fs=FS, fband=(0.5, 4))
-    assert det.gap_margin_s == det.edge_margin_s == 6.0
+    assert det.trough == 'refine'
+    assert det.edge_margin_s == 6.0 and det.gap_margin_s is None
+    assert (det.filter, det.filter_order, det.slope, det.nan_policy, det.features_on) == \
+        ('butter', 2, 'downslope', 'fill', 'broadband')
     assert WaveDetector(fs=FS, fband=(4, 8), gap_margin_s=0.1).gap_margin_s == 0.1
+    assert WaveDetector(fs=500, fband=(0.5, 4), trough='paper').edge_margin_s == pytest.approx(1011 / 500)
+    import inspect
+    p = inspect.signature(detect_waves).parameters
+    assert p['trough'].default == 'refine' and p['filter'].default == 'butter'
+    assert (wd._REFINE_HALF_WIN, wd._GATE_RTOL, wd._EDGE_MARGIN_PERIODS) == (0.5, 0.01, 3.0)
+
+
+@pytest.mark.parametrize('trough', [0, 0.5, True, None, float('nan'), 'Band'])
+def test_detect_waves_validates_trough(trough):
+    with pytest.raises(ValueError, match='trough'):
+        detect_waves(_sine(2.0, dur=10), FS, (0.5, 4), trough=trough)
+
+
+def test_paper_mode_rejects_measure_on():
+    x = _sine(1.0, dur=20, fs=500)
+    with pytest.raises(ValueError, match='measure_on'):
+        detect_waves(x, 500, (0.5, 4), trough='paper', measure_on=x)
 
 
 # ----------------------------------------------------------------------------------
@@ -558,3 +719,148 @@ def test_speed_30min_channel():
     values, _ = det(x)
     assert time.perf_counter() - t0 < 5.0
     assert values[0].shape == (60,)
+
+
+# ----------------------------------------------------------------------------------
+# trough='paper' (Carvalho et al. 2024, Methods)
+# ----------------------------------------------------------------------------------
+def test_paper_trace_is_fir_then_moving_average():
+    from scipy.ndimage import uniform_filter1d
+    from scipy.signal import firwin
+    fs = 500
+    x = _pink(60 * fs, fs, seed=4)
+    taps = firwin(1999, [0.5, 35], pass_zero='bandpass', window='hamming', fs=fs)
+    taps -= np.hamming(1999) * taps.sum() / np.hamming(1999).sum()   # DC gain -0.004 -> 0
+    assert abs(taps.sum()) < 1e-12
+    ref = uniform_filter1d(np.convolve(x, taps, mode='same'), 25, mode='nearest')
+    np.testing.assert_allclose(_paper_trace(x, fs), ref, atol=1e-9)
+    # zero phase: a 2 Hz sine comes out un-shifted (FIR gain ~1, 50 ms MA gain 0.97)
+    t = np.arange(60 * fs) / fs
+    y = _paper_trace(np.sin(2 * np.pi * 2 * t), fs)[10 * fs:-10 * fs]
+    s = np.sin(2 * np.pi * 2 * t)[10 * fs:-10 * fs]
+    g = np.sinc(2 * 0.05)                                    # MA gain at 2 Hz
+    np.testing.assert_allclose(y, g * s, atol=0.01)
+
+
+def _paper_loop(z, fs, band, thr=5.0):
+    """Independent loop implementation of the paper's rule on the trace ``z``."""
+    s = np.sign(z)
+    s[s == 0] = 1
+    down = np.flatnonzero((s[:-1] > 0) & (s[1:] < 0)) + 1
+    up = np.flatnonzero((s[:-1] < 0) & (s[1:] > 0)) + 1
+    out = []
+    for dn in down:
+        k = np.searchsorted(up, dn)
+        if k >= up.size:
+            continue
+        u = up[k]
+        zc = (dn - 1) + z[dn - 1] / (z[dn - 1] - z[dn])
+        uc = (u - 1) - z[u - 1] / (z[u] - z[u - 1])
+        if not (0.99 / (2 * band[1]) <= (uc - zc) / fs <= 1.01 / (2 * band[0])):
+            continue
+        tr = dn + int(np.argmin(z[dn:u]))
+        if -z[tr] >= thr:
+            out.append((tr, -z[tr] / ((tr - zc) / fs)))
+    return np.array(out).reshape(-1, 2)
+
+
+@pytest.mark.parametrize('band', [(0.5, 0.9), (1.0, 3.9)])
+def test_paper_mode_matches_loop_reference(band):
+    fs = 250
+    x = _pink(600 * fs, fs, seed=11, rms=40) + _sine(0.7, amp=30, dur=600, fs=fs)
+    det = WaveDetector(fs=fs, fband=band, trough='paper', amplitude_threshold=5,
+                       edge_margin_s=0).detect(x)
+    ref = _paper_loop(_paper_trace(x - x.mean(), fs), fs, band)
+    # the detector drops only the very last half-wave (no following positive half-wave)
+    assert ref.shape[0] - det['min_pos'].size in (0, 1)
+    n = det['min_pos'].size
+    assert n > 20
+    np.testing.assert_array_equal(det['min_pos'], ref[:n, 0].astype(int))
+    np.testing.assert_allclose(det['downslope'], ref[:n, 1], rtol=1e-9)
+
+
+# ----------------------------------------------------------------------------------
+# windows, median, threshold, context, memory
+# ----------------------------------------------------------------------------------
+def test_window_assignment_by_trough_end_exclusive():
+    # a wave whose trough sits exactly on a window's first sample belongs to that window
+    det = WaveDetector(fs=10, fband=(0.5, 4), segm_size=10, edge_margin_s=0, gap_margin_s=0)
+    d = {k: np.array([], dtype=np.int64) for k in ('zero_pos', 'end_pos')}
+    d.update({'min_pos': np.array([99, 100]), 'zero_pos_frac': np.array([97.0, 98.0]),
+              'end_pos': np.array([102, 103]), 'gaps': np.empty((0, 2), dtype=np.int64)})
+    for k in ('pk2pk', 'delta_t', 'min_val', 'max_val', 'downslope'):
+        d[k] = np.array([1.0, 2.0])
+    row = det._features_for_signal(np.zeros(300), None, d)
+    np.testing.assert_array_equal(row['WAVE_PK2PK_MEAN'][:2], [1.0, 2.0])
+
+
+def test_window_nanmedian_matches_numpy():
+    rng = np.random.default_rng(0)
+    a = rng.standard_normal(500)
+    a[rng.integers(0, 500, 40)] = np.nan
+    lo = np.sort(rng.integers(0, 500, 30))
+    hi = np.minimum(lo + rng.integers(0, 60, 30), 500)
+    got = _window_nanmedian(a, lo, hi)
+    for g, l, h in zip(got, lo, hi):
+        v = a[l:h][np.isfinite(a[l:h])]
+        assert (np.isnan(g) and v.size == 0) or g == pytest.approx(np.median(v))
+
+
+def test_amplitude_threshold_uses_the_broadband_trough():
+    # band and broadband troughs differ: measure_on is the same wave at 1/20 amplitude, so
+    # the band troughs (-50) pass a 5 uV threshold but the broadband ones (-2.5) do not
+    x = _sine(0.75, amp=50, dur=60, fs=500)
+    det = WaveDetector(fs=500, fband=(0.5, 0.9), amplitude_threshold=5)
+    assert det.detect(x)['min_pos'].size > 10
+    assert det.detect(x, measure_on=x / 20)['min_pos'].size == 0
+
+
+@pytest.mark.parametrize('trough', ['refine', 'paper'])
+def test_context_makes_consecutive_segments_match_the_whole_recording(trough):
+    fs = 250
+    x = _pink(900 * fs, fs, seed=21, rms=40)
+    whole = WaveDetector(fs=fs, fband=(0.5, 4), trough=trough).detect(x)
+    seg, ctx = 300 * fs, 20 * fs
+    det = WaveDetector(fs=fs, fband=(0.5, 4), trough=trough)
+    parts = []
+    for k in range(3):
+        a, b = max(0, k * seg - ctx), min(x.size, (k + 1) * seg + ctx)
+        nb, na = k * seg - a, b - (k + 1) * seg
+        d = det.detect(x[a:b], context=(nb, na))
+        assert np.all((d['min_pos'] >= 0) & (d['min_pos'] < seg))
+        parts.append(d['min_pos'] + k * seg)
+    got = np.concatenate(parts)
+    # inside the recording (away from its two real ends) every wave is found exactly once
+    m = 30 * fs
+    inner = lambda p: p[(p > m) & (p < x.size - m)]
+    np.testing.assert_array_equal(inner(got), inner(whole['min_pos']))
+    # __call__ with context: windows tile the core only
+    v, names = WaveDetector(fs=fs, fband=(0.5, 4), segm_size=30)(x[:400 * fs], context=(50 * fs, 50 * fs))
+    assert v[0].shape == (10,)
+    with pytest.raises(ValueError, match='context'):
+        det.detect(x[:100], context=(60, 50))
+    with pytest.raises(ValueError, match='context'):
+        det.detect(x[:100], context=(-1, 0))
+
+
+def test_float32_2d_input_is_not_copied_up_front():
+    # R7: rows are passed on as views; each is converted to float64 on its own
+    X = np.zeros((4, 1000), dtype=np.float32)
+    signals, _, _ = WaveDetector(fs=FS)._as_signal_list(X, None)
+    assert all(np.shares_memory(s, X) and s.dtype == np.float32 for s in signals)
+    X = _pink(4 * 60 * FS, FS, seed=1).reshape(4, -1).astype(np.float32)
+    v32, _ = WaveDetector(fs=FS, segm_size=30)(X)
+    v64, _ = WaveDetector(fs=FS, segm_size=30)(X.astype(np.float64))
+    for a, b in zip(v32, v64):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_datarate_adds_analysable_rate_last_and_keeps_v1_positions():
+    det = WaveDetector(fs=FS, fband=(0.5, 4), segm_size=30, datarate=True)
+    assert det.feature_names == ['DATA_RATE', 'WAVE_RATE', 'WAVE_PK2PK_MEAN', 'WAVE_SLOPE_MEAN',
+                                 'WAVE_DELTA_T_MEAN', 'WAVE_MIN_MEAN', 'WAVE_MAX_MEAN',
+                                 'WAVE_SLOPE_MEDIAN', 'ANALYSABLE_RATE']
+    got = _feats(det(_sine(2.0, dur=120)))
+    # first / last windows lose the 6 s edge margin (+ the mean zc->trough / trough->end)
+    assert got['ANALYSABLE_RATE'][1] == pytest.approx(1.0)
+    assert got['ANALYSABLE_RATE'][0] == pytest.approx((24 - 0.125) / 30, abs=2 / (30 * FS))
