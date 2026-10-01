@@ -299,8 +299,8 @@ def _bandpass_fft(x, fs, f_low, f_high):
 
 def _sosfiltfilt(sos, x, fs, f_low):
     """
-    Zero-phase SOS filtering with an odd-extension pad of ~3 periods of ``f_low``
-    (capped by the signal length) so the edge transient of slow filters stays short.
+    Zero-phase SOS filtering (``sosfiltfilt``) with an odd-extension pad of 3 periods
+    of ``f_low`` (the filter's lowest cutoff), capped by the signal length.
     """
     n = x.shape[0]
     padlen = min(n - 1, int(round(3.0 * fs / f_low)))
@@ -312,8 +312,9 @@ def _filter_signals(x0, fs, f_low, f_high, filter, order, refine_lowpass):
     Return ``(x_narrow, x_hp, x_refine)``:
 
     * ``x_narrow`` -- detection signal, band-passed to ``(f_low, f_high)``;
-    * ``x_hp``     -- drift-removed signal (high-pass at ``f_low``), the default
-      amplitude signal;
+    * ``x_hp``     -- drift-removed signal, the default unfiltered amplitude signal
+      (``'butter'``: 4th-order Butterworth high-pass at ``0.5 * f_low``; ``'fft'``:
+      brick-wall high-pass at ``f_low``);
     * ``x_refine`` -- reference the positions are refined on: ``x_hp`` low-passed at
       ``refine_lowpass * f_high`` (``x_hp`` itself if ``refine_lowpass`` is None,
       ``x_narrow`` if it is 0, and ``x_hp`` if the cutoff reaches Nyquist).

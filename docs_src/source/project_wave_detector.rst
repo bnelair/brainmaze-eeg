@@ -14,7 +14,22 @@ Here we conveniently provide a standalone fully functional code example for anal
 This enables trialing this code without installing the whole Best Toolbox library.
 The codes were also embedded into the brainmaze_eeg Toolbox so they can be freely available upon installing the whole `Brainmaze EEG Library <https://github.com/bnelair/brainmaze_eeg/>`_. The documentation to the toolbox is available at `Brainmaze EEG Documentation <https://bnelair.github.io/brainmaze_eeg>`_.
 
-TBD TBD !!!! For more information on this specific project, see the page describing `Wave Detection <https://best-toolbox.readthedocs.io/en/latest/feature_extraction.WaveDetector.html>`_.
+In this package the slow-wave features are computed by
+:class:`brainmaze_eeg.features.wave_detector.WaveDetector` (see :doc:`features.wave_detector`
+for the algorithm, filters, gap handling, and the definition and unit of every output).
+The study's feature corresponds to::
+
+    from brainmaze_eeg.features.wave_detector import WaveDetector
+
+    # x: Fz-(A1+A2)/2 in uV; broadband: the same signal band-passed 0.5-35 Hz
+    so    = WaveDetector(fs=fs, fband=(0.5, 0.9), segm_size=30, slope='downslope', amplitude_threshold=5)
+    delta = WaveDetector(fs=fs, fband=(1.0, 3.9), segm_size=30, slope='downslope', amplitude_threshold=5)
+    values, names = so(x, measure_on=broadband)    # WAVE_SLOPE_MEAN = mean downslope, uV/s
+
+The runnable version is ``demo/eeg_wave_detection/example_one_file.py``. The original
+``SlowWaveDetect`` routine (code listing below) is not part of this repository, so numerical
+identity with the published values cannot be verified; the ``WaveDetector`` documentation
+lists how the trough placement (``refine_lowpass``) changes the downslope.
 
 
 Acknowledgement
