@@ -437,6 +437,32 @@ def test_nan_in_measure_on_is_a_gap_and_inf_too():
     x2[10 * FS] = np.inf
     assert detect_waves(x, FS, (0.5, 4), measure_on=m)['gaps'].tolist() == [[30 * FS, 31 * FS]]
     assert detect_waves(x2, FS, (0.5, 4))['gaps'].tolist() == [[10 * FS, 10 * FS + 1]]
+    # DATA_RATE counts non-finite samples of measure_on as missing too (W6)
+    got = _feats(WaveDetector(fs=FS, fband=(0.5, 4), segm_size=30, datarate=True)(x, measure_on=m))
+    np.testing.assert_allclose(got['DATA_RATE'], [1.0, 29 / 30])
+
+
+def test_window_without_analysable_time_has_no_shape_features():
+    # W5: a short clean island between two gaps keeps one wave whose trough is shrunk
+    # out of the analysable time (mean-based run shrink) -> ANALYSABLE_RATE 0, WAVE_RATE
+    # NaN, and the shape features must be NaN as well, not describe that wave.
+    fs = 250
+    t = np.arange(40 * fs) / fs
+    x = 50 * np.sin(2 * np.pi * 1.0 * t)
+    x[20 * fs:24 * fs] = np.nan
+    ti = np.arange(int(0.6 * fs)) / fs
+    x[22 * fs:22 * fs + ti.size] = 50 * np.sin(2 * np.pi * 3.0 * ti - 0.3)
+    det = WaveDetector(fs=fs, fband=(0.5, 4), segm_size=4, datarate=True,
+                       gap_margin_s=0, edge_margin_s=0, features_on='both')
+    d = det.detect(x)
+    assert np.any((d['min_pos'] >= 20 * fs) & (d['min_pos'] < 24 * fs))   # a kept wave
+    got = _feats(det(x))
+    assert got['ANALYSABLE_RATE'][5] == 0
+    for k, v in got.items():
+        if k not in ('DATA_RATE', 'ANALYSABLE_RATE'):
+            assert np.isnan(v[5]), k
+            assert np.all(np.isfinite(np.delete(v, 5))), k
+    assert got['DATA_RATE'][5] == pytest.approx(0.6 / 4)
 
 
 def test_nan_policy_raise():
@@ -954,6 +980,29 @@ def test_golden_values(key):
     got = _feats(WaveDetector(fs=fs, fband=band, segm_size=120, **kw)(x, measure_on=m))
     for k, exp in GOLDEN[key].items():
         np.testing.assert_allclose(got[k], exp, rtol=1e-6, atol=1e-6, err_msg=f'{key} {k}')
+
+
+@pytest.mark.parametrize('band, tag', [((0.5, 0.9), 'so'), ((1.0, 3.9), 'delta')])
+def test_default_refine_reproduces_v100(band, tag):
+    # W6: anchors "the default trough placement is v1.0.0's" to v1.0.0 itself, not to
+    # numbers this code generated. data/wave_detector_v100_golden.npz holds v1.0.0's
+    # per-wave min_pos and downslope on _golden_signal() (WaveDetector(fs, band).detect
+    # of the v1.0.0 tag; brainmaze-work/scratch/eeg-wave/r3/gen_v100_anchor.py; numpy
+    # 1.26 and 2.x agree to 1e-11 uV/s). With v1.0.0's filter and no margins, every
+    # v1.0.0 wave is found again with the same trough and the same downslope (NaN where
+    # v1.0.0 gave NaN); the extra waves are the ones v1.0.0's sample-exact gate dropped.
+    import os
+    ref = np.load(os.path.join(os.path.dirname(__file__), 'data', 'wave_detector_v100_golden.npz'))
+    v1_pos, v1_slope = ref[f'{tag}_min_pos'], ref[f'{tag}_downslope']
+    x, fs = _golden_signal()
+    d = WaveDetector(fs=fs, fband=band, trough='refine', filter='fft',
+                     edge_margin_s=0, gap_margin_s=0).detect(x)
+    assert v1_pos.size > 150
+    assert np.isin(v1_pos, d['min_pos']).all()
+    assert d['min_pos'].size - v1_pos.size <= 0.03 * v1_pos.size
+    slope = d['downslope'][np.searchsorted(d['min_pos'], v1_pos)]
+    np.testing.assert_array_equal(np.isnan(slope), np.isnan(v1_slope))
+    np.testing.assert_allclose(slope, v1_slope, rtol=1e-9, equal_nan=True)
 
 
 @pytest.mark.parametrize('trough', ['refine', 'band'])

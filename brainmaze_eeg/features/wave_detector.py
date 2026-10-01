@@ -153,8 +153,22 @@ Trough placement (``trough``)
     must be None and ``features_on`` must be ``'broadband'``. The ``_band`` outputs are
     the band-passed ``x`` read at the same positions. Default ``edge_margin_s`` and the
     gap-margin cap are the support of the two filters (2.02 s at 500 Hz): beyond it the
-    fill or the signal end has exactly no effect. Wave for wave identical to an
-    independent loop implementation of the Methods text on the demo recording. Demo:
+    fill or the signal end has exactly no effect.
+    *Interpretation.* The Methods text says "zero phase shift" but not how it was
+    achieved. This mode reads it as a **single pass** of the FIR with its group delay
+    removed (magnitude ``|H|``), not as forward-backward ``filtfilt`` (``|H|^2``); the
+    DC-gain nulling is this module's own addition (it moves the demo trace by up to
+    11 uV and the SO mean slope by +1 %), and the duration gate uses the interpolated
+    crossings (step 5). With this reading the mode is wave for wave identical to an
+    independent loop implementation (demo: 2088 / 2088 SO and 27817 / 27817 delta
+    waves, slopes within 1e-9). Sensitivity: the 4 s Hamming FIR's transition band
+    lies on the SO band (``|H|`` 0.50 / 0.87 at 0.5 / 0.7 Hz single pass, 0.25 / 0.75
+    with ``filtfilt``), so the ``filtfilt`` reading finds 0.76 instead of 1.29 SO waves
+    per NREM epoch on the demo, with median SO slope 95.3 instead of 104.2 uV/s (mean
+    of epoch means about the same, 172.9 vs 173.1; that reading as literally written
+    uses an integer-sample gate, with the interpolated gate 0.84 waves and 96.7 uV/s);
+    delta is unaffected (195.1-195.5,
+    about 40 waves per epoch). Demo:
     SO 173.1 / delta 195.3 uV/s (mean of epoch means), median wave 104.2 / 152.0;
     only 1.3 SO waves per NREM epoch (half-waves of 0.55-1 s are rare on a 0.5-35 Hz
     trace). The paper reports 95.1 +/- 28.9 (SO) and 130.8 +/- 34.8 (delta) across
@@ -188,12 +202,22 @@ near-equal extremes).
   margin at 0.5 Hz (s)   0         3.2    3.8    5.7    6.7    8.0
   =====================  ========  =====  =====  =====  =====  ======
 
-  With this rule (brainmaze-utils' spectral fill, utils#26 round 3), among the waves
-  within 6 periods of gaps of 4 ms to 5 s, at most 0.8 % had a value error (0.5-0.9 Hz
-  band; 0 % in the others), 0.1 % were lost or gained and 0.5 % switched; the same at
-  1 kHz. Gaps up to 20 ms changed nothing even with no margin (a 1-sample dropout costs
-  only the wave it falls in). Without margins long gaps gave up to 18 % value errors;
-  the previous fixed ``3 / fband[0]`` up to 1.1 %. With
+  With this rule (spectral fill of brainmaze-utils >= 3.0.0, utils#26 round 3) and
+  the default ``trough='refine'``, among the waves within 6 periods of gaps of 4 ms
+  to 5 s, at most 0.8 % had a value error (0.5-0.9 Hz band; 0 % in the others), 0.1 %
+  were lost or gained and 0.5 % switched; the same at 1 kHz (an independent re-check with another
+  generator found 0.00 % value errors at 250 Hz and 1 kHz, <= 0.22 % lost). Gaps up to
+  20 ms changed nothing even with no margin (a 1-sample dropout costs only the wave it
+  falls in). Without margins long gaps gave up to 18 % value errors; the previous fixed
+  ``3 / fband[0]`` up to 1.1 %. ``trough='band'`` is more sensitive to the fill: it
+  reads the broadband value at the exact band-pass argmin, which on a flat 0.5-0.9 Hz
+  band trace can move by a sample, so 0.1-1.8 % (250 Hz) and **0.9-5.9 % (1 kHz)** of
+  its SO waves had a value error *beyond* the margin; use a fixed, larger
+  ``gap_margin_s`` if that matters. The step from 0 to about 3 periods at 25 ms is
+  conservative: with no margin at all, 30-100 ms gaps gave 0-0.3 % (``'refine'``,
+  0.5-0.9 Hz; up to 0.9 % for 1-3.9 Hz) and 1.4-4.9 % (``'band'``) affected waves, so
+  data with frequent short dropouts loses more time than strictly necessary; set
+  ``gap_margin_s`` explicitly to trade that off. With
   ``'paper'`` the margin is capped at the trace's filter support. A fixed
   ``gap_margin_s`` (seconds, all gaps) overrides the rule.
 
@@ -203,7 +227,13 @@ start and the mean trough -> span-end time at its end -- the same rule that deci
 whether a wave is kept. So the rate does not depend on how many gaps there are (1 Hz
 sine with 20 ms dropouts every 10 s or 50 ms every 30 s: pooled rate 1.000 within 1 %;
 before this, -6 to -11 %). ``ANALYSABLE_RATE`` (with ``datarate=True``) is that time as a
-fraction of the window: gate ``WAVE_RATE`` on it, not on ``DATA_RATE``.
+fraction of the window: gate ``WAVE_RATE`` on it, not on ``DATA_RATE``. The shrink uses
+mean durations, which no longer represent the few short runs left when gaps are dense:
+with ``ANALYSABLE_RATE`` below about 5 % ``WAVE_RATE`` is unreliable and biased low
+(30 ms dropouts every 5 s, ``ANALYSABLE_RATE`` 0.6-1.3 %: 0.82-0.83 of the gap-free
+rate; 0.976-1.028 whenever ``ANALYSABLE_RATE >= 5 %``). A window with no analysable
+time (``ANALYSABLE_RATE == 0``, ``WAVE_RATE`` NaN) reports NaN shape features too,
+even if a kept wave's trough lies in it.
 
 Two signals: filtered and unfiltered
 ------------------------------------
@@ -303,8 +333,8 @@ synthetic 1/f EEG with delta bursts, on a loaded 12-core workstation): 0.054 s a
 ``trough='paper'`` adds 10-45 % (its FIR). v1.0.0 needed 0.40 / 1.56 / 8.7 / 48.4 s
 (7.5-9x slower) and returned ``WAVE_RATE = 0`` for any input with a gap.
 
-Changes from v1.0.0 (class version 2.0.0 -> 2.1.0)
---------------------------------------------------
+Changes from v1.0.0 (brainmaze-eeg 2.0.0; class version 2.0.0 -> 2.1.0)
+-----------------------------------------------------------------------
 
 Same default trough placement as v1.0.0 (``trough='refine'``). Butterworth instead of
 brick-wall FFT filter (demo SO / delta downslope 186.0 / 250.2 -> 173.9 / 239.3 uV/s);
@@ -870,8 +900,10 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
         Signal the *broadband* amplitudes/slopes are read from (same length as ``x``),
         e.g. a 0.5-35 Hz trace of ``x``. Mean-subtracted, otherwise used as-is.
         Detection (zero crossings, half-waves) always runs on ``x``; with
-        ``trough='refine'`` the broadband trough / peak are searched on ``measure_on``,
-        the trace whose values are reported. Defaults to the drift-removed ``x``. The
+        ``trough='refine'`` the broadband trough / peak are still searched on the
+        drift-removed ``x`` (as in v1.0.0) and only their values are read from
+        ``measure_on``; with ``trough='band'`` the values are read at the band-pass
+        extremes. Defaults to the drift-removed ``x``. The
         ``*_band`` outputs always come from the band-passed ``x``. Not allowed with
         ``trough='paper'`` (which builds its own trace).
     filter : {'butter', 'fft'}
@@ -896,8 +928,10 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
     trough : {'refine', 'band', 'paper'}
         Where the broadband (unsuffixed) trough / peak are placed (module docstring,
         *Trough placement*). ``'refine'`` (default, v1.0.0 placement): the extreme of
-        the broadband trace within half a period of ``fband[1]`` around the band-pass
-        extreme, inside the wave's own half-wave. ``'band'``: the band-pass extreme.
+        the drift-removed ``x`` within half a period of ``fband[1]`` around the
+        band-pass extreme; the window is not clamped to the wave's half-wave, so a
+        trough at or before ``zero_pos`` gives ``downslope = NaN``. ``'band'``: the
+        band-pass extreme.
         ``'paper'``: Carvalho et al. 2024 -- zero crossings, half-waves and the
         negative peak all on a 0.5-35 Hz FIR + 50 ms moving-average trace of ``x``.
     return_signals : bool
@@ -1137,7 +1171,8 @@ class WaveDetector:
     datarate : bool
         If True, add ``DATA_RATE`` (first; fraction of finite samples per window) and
         ``ANALYSABLE_RATE`` (last; fraction of the window that ``WAVE_RATE`` is
-        computed on).
+        computed on; ``WAVE_RATE`` is unreliable below about 5 %, and windows with 0
+        report NaN for every wave feature).
     n_processes : int
         Parallelise detection across signals for 2-D / list input. Default ``1``.
     filter : {'butter', 'fft'}
@@ -1457,6 +1492,15 @@ class WaveDetector:
                 a = det[key] if order is None else det[key][order]
                 agg = _window_nanmedian if feat.endswith('_MEDIAN') else _window_nanmean
                 row[feat + name_sfx] = agg(a, lo, hi)
+        # A window without analysable time has no WAVE_RATE, so it reports no shape
+        # features either, although a kept wave's trough can lie in it (the run-end
+        # shrink uses mean durations). Keeps every window's features describing the
+        # same waves that WAVE_RATE counts.
+        no_ana = n_ana == 0
+        if np.any(no_ana):
+            for k in row:
+                if k not in ('WAVE_RATE', 'DATA_RATE', 'ANALYSABLE_RATE'):
+                    row[k] = np.where(no_ana, np.nan, row[k])
         return row
 
     def _as_signal_list(self, x, measure_on):
