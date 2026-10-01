@@ -15,6 +15,7 @@ from tqdm import tqdm
 from copy import deepcopy, copy
 
 from scipy.stats import gaussian_kde
+from scipy.special import logsumexp
 from scipy.signal import filtfilt
 from scipy.signal.windows import gaussian
 from scipy.optimize import differential_evolution
@@ -41,7 +42,7 @@ from brainmaze_eeg.features.feature_extraction import SleepSpectralFeatureExtrac
 from brainmaze_eeg.features.spectral_features import mean_bands, mean_frequency, relative_bands
 from brainmaze_eeg.features.utils import augment_features, balance_classes
 from brainmaze_eeg.scikit_modules import PCAModule, ZScoreModule
-from brainmaze_utils.signal import unify_sampling_frequency, get_datarate, buffer
+from brainmaze_utils.signal import unify_sampling_frequency, get_datarate
 from brainmaze_utils.annotations import merge_annotations
 from brainmaze_utils.stat import kl_divergence_nonparametric
 from brainmaze_utils.vector import scale, translate
@@ -65,6 +66,8 @@ def _scores_to_annotations(scores, start_time, segm_size):
     pd.DataFrame with columns ``['annotation', 'start', 'end', 'duration']``
         Consecutive epochs with the same label and touching bounds are merged.
         ``start`` / ``end`` / ``duration`` are in seconds relative to the signal start.
+        Rows whose scores are all NaN (out-of-distribution epochs, see
+        ``log_lik_floor``) are labelled ``UNKNOWN_LABEL`` (``'UNKNOWN'``).
 
     Notes
     -----
@@ -77,7 +80,7 @@ def _scores_to_annotations(scores, start_time, segm_size):
     """
     start_time = np.asarray(start_time, dtype=float)
     df = pd.DataFrame({
-        'annotation': np.asarray(scores.idxmax(axis=1)),
+        'annotation': _labels_from_scores(scores),
         'start': start_time,
         'end': start_time + segm_size,
         'duration': float(segm_size),
@@ -175,6 +178,475 @@ def _normalise_log_likelihood(log_lik):
         return lik / tot
 
 
+#: Label given to epochs that cannot be classified: out-of-distribution epochs (best
+#: state log-likelihood below the model's floor, see ``log_lik_floor``). Same string the
+#: rest of the package uses for unscored epochs (e.g. ``SleepClassifierWrapper.train``
+#: drops ``'UNKNOWN'`` training labels).
+UNKNOWN_LABEL = 'UNKNOWN'
+
+# default floor = 0.1 % quantile of the training epochs' (leave-one-out) best-state
+# log-likelihood minus 30 nats; see ``_EpochClassifierMixin`` and the PR #69 notes.
+_DEFAULT_LOG_LIK_QUANTILE = 0.001
+_DEFAULT_LOG_LIK_MARGIN = 30.0
+
+# maximum relative RMS error of the resampling self-test (see ``_resample_epochs``)
+_RESAMPLE_SELF_TEST_TOL = 1e-3
+
+
+def _labels_from_scores(scores):
+    """
+    Arg-max label per row of a score frame; rows that are entirely NaN get
+    ``UNKNOWN_LABEL``. Returns np.ndarray of object, shape (n_rows,).
+    """
+    cols = np.asarray(list(scores.columns), dtype=object)
+    arr = np.asarray(scores.to_numpy(dtype=float)).reshape(scores.shape[0], len(cols))
+    out = np.full(arr.shape[0], UNKNOWN_LABEL, dtype=object)
+    valid = ~np.all(np.isnan(arr), axis=1) if arr.shape[1] else np.zeros(arr.shape[0], bool)
+    if valid.any():
+        out[valid] = cols[np.nanargmax(arr[valid], axis=1)]
+    return out
+
+
+def _consecutive_runs(n, flagged, start_time=None, segm_size=None):
+    """
+    Split rows ``0..n-1`` into runs of consecutive, usable epochs.
+
+    A run ends at a flagged row (excluded from every run) and, if ``start_time`` is given,
+    wherever two neighbouring rows are not adjacent in time
+    (``start_time[k] - start_time[k-1] != segm_size``, i.e. epochs were skipped between
+    them). Returns a list of np.ndarray of row indices.
+    """
+    flagged = np.asarray(flagged, dtype=bool)
+    if start_time is not None:
+        st = np.asarray(start_time, dtype=float)
+        if st.shape[0] != n:
+            raise ValueError(f'start_time has {st.shape[0]} entries for {n} epochs')
+        tol = 1e-6 * max(float(segm_size), 1.0)
+        contiguous = np.r_[False, np.abs(np.diff(st) - float(segm_size)) <= tol]
+    else:
+        contiguous = np.r_[False, np.ones(max(n - 1, 0), dtype=bool)]
+    runs, cur = [], []
+    for k in range(n):
+        if flagged[k]:
+            if cur:
+                runs.append(np.array(cur))
+            cur = []
+            continue
+        if cur and not contiguous[k]:
+            runs.append(np.array(cur))
+            cur = []
+        cur.append(k)
+    if cur:
+        runs.append(np.array(cur))
+    return runs
+
+
+def _utils_version():
+    try:
+        from importlib.metadata import version
+        return version('brainmaze-utils')
+    except Exception:  # pragma: no cover - metadata missing (e.g. source checkout)
+        return 'unknown'
+
+
+def _resampling_probe(t, f_ref):
+    return (np.sin(2 * np.pi * 0.02 * f_ref * t)
+            + 0.5 * np.sin(2 * np.pi * 0.07 * f_ref * t + 1.0)
+            + 0.25 * np.sin(2 * np.pi * 0.15 * f_ref * t + 2.0))
+
+
+def _resampling_self_test(fs, fs_new, n):
+    """
+    Resample a known 3-sine probe (0.02, 0.07 and 0.15 x ``min(fs, fs_new)``, i.e. well
+    inside every anti-alias passband) of ``n`` samples from ``fs`` to ``fs_new`` with
+    ``brainmaze_utils.signal.unify_sampling_frequency`` and raise ``ValueError`` unless
+    the output is finite and its RMS error, excluding up to 1 s at each edge, is
+    <= ``_RESAMPLE_SELF_TEST_TOL`` (1e-3) of the probe's RMS.
+
+    Why: brainmaze_utils 2.0.0 designs a 16th-order Butterworth in transfer-function form,
+    which is numerically unstable near the input Nyquist or at very low normalised
+    cutoffs. Resampling to 200 Hz it raises below ~134 Hz, returns all-NaN at 134-138 Hz,
+    returns values of 1e72-1e230 at 139-141 Hz and distorts the signal at 142-145 Hz
+    (rel. error 0.29 at 142 Hz) and at >= ~1600 Hz (0.36 at 2048 Hz, all-NaN >= 3000 Hz).
+    brainmaze_utils 2.1.0 (PR #28) fixes this (error <= 1e-6 at every rate tested).
+    """
+    f_ref = min(float(fs), float(fs_new))
+    t = np.arange(int(n)) / float(fs)
+    what = (f'resampling {float(fs):g} Hz -> {float(fs_new):g} Hz with brainmaze_utils '
+            f'{_utils_version()}')
+    hint = ('brainmaze_utils >= 2.1.0 resamples correctly at every rate; with older versions '
+            'resample the data to the model rate yourself before calling this method.')
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            y, _ = unify_sampling_frequency([_resampling_probe(t, f_ref)], [float(fs)], fs_new=fs_new)
+    except Exception as e:
+        raise ValueError(f'{what} fails ({type(e).__name__}: {e}). {hint}') from e
+    y = np.asarray(y[0], dtype=float)
+    if y.size == 0 or not np.all(np.isfinite(y)):
+        raise ValueError(f'{what} returns non-finite values for a finite test signal. {hint}')
+    expected = _resampling_probe(np.arange(y.size) / float(fs_new), f_ref)
+    edge = int(min(float(fs_new), y.size // 4))
+    core = slice(edge, y.size - edge)
+    err = np.sqrt(np.mean((y[core] - expected[core]) ** 2)) / np.sqrt(np.mean(expected[core] ** 2))
+    if not err <= _RESAMPLE_SELF_TEST_TOL:
+        raise ValueError(f'{what} distorts a test signal (relative RMS error {err:.2g} > '
+                         f'{_RESAMPLE_SELF_TEST_TOL:g}). {hint}')
+
+
+def _resample_epochs(list_of_signals, fsamp_list, fs_new, owner='classifier'):
+    """
+    ``unify_sampling_frequency`` to ``fs_new`` with sanity checks (review R1 of PR #69).
+
+    For every distinct (input rate, epoch length) that needs resampling the path is first
+    checked with :func:`_resampling_self_test`. After resampling, every resampled epoch
+    must (a) contain no +-inf, (b) keep at least half of its input's finite fraction
+    (brainmaze_utils >= 2.1.0 re-applies NaN gaps, slightly widened; 2.0.0 fills them)
+    and (c) not grow in RMS (about its mean) by more than 10x. Any violation raises
+    ``ValueError``: a resampler failure must never turn into confident sleep labels.
+
+    Returns ``(list of np.ndarray, fs_new)``.
+    """
+    data = [np.array(s, dtype=float, copy=True) for s in list_of_signals]
+    fsamp = np.asarray(fsamp_list, dtype=float).reshape(-1)
+    if fsamp.shape[0] != len(data):
+        raise ValueError(f'{owner}: {len(data)} signals but {fsamp.shape[0]} sampling rates')
+    need = np.flatnonzero(fsamp != float(fs_new))
+    if need.size == 0:
+        return data, fs_new
+    for fs_k, n_k in sorted({(float(fsamp[k]), int(data[k].shape[-1])) for k in need}):
+        _resampling_self_test(fs_k, fs_new, n_k)
+    out, fs = unify_sampling_frequency([d.copy() for d in data], sampling_frequency=list(fsamp), fs_new=fs_new)
+    out = [np.asarray(o, dtype=float) for o in out]
+    for k in need:
+        xin, xout = data[k], out[k]
+        bad = None
+        fin_in, fin_out = np.isfinite(xin), np.isfinite(xout)
+        if np.any(np.isinf(xout)):
+            bad = 'contains +-inf'
+        elif fin_in.any() and fin_out.mean() < 0.5 * fin_in.mean():
+            bad = (f'finite fraction dropped from {fin_in.mean():.3f} to {fin_out.mean():.3f}')
+        elif fin_in.any() and fin_out.any():
+            rms_in = np.sqrt(np.mean((xin[fin_in] - xin[fin_in].mean()) ** 2))
+            rms_out = np.sqrt(np.mean((xout[fin_out] - xout[fin_out].mean()) ** 2))
+            tiny = 1e-9 * max(np.max(np.abs(xin[fin_in])), 1e-300)
+            if rms_out > 10.0 * rms_in + tiny:
+                bad = f'RMS grew from {rms_in:.3g} to {rms_out:.3g}'
+        if bad is not None:
+            raise ValueError(f'{owner}: resampling epoch {k} from {fsamp[k]:g} Hz to {float(fs_new):g} Hz '
+                             f'with brainmaze_utils {_utils_version()}: output {bad}. '
+                             'brainmaze_utils >= 2.1.0 fixes the known resampling failures.')
+    return out, fs
+
+
+def _loo_logpdf_kde(kde, X):
+    """
+    Exact leave-one-out log density of each of a ``gaussian_kde``'s own (unweighted)
+    training points. ``X`` is (n, d), the points the KDE was fitted on, in order.
+    ``log p_{-i}(x_i) = logsumexp_{j != i}(-0.5 * maha(x_i, x_j)) - 0.5 log det(2 pi S) - log(n - 1)``
+    with ``S = kde.covariance`` (the kernel covariance). Chunked, O(n^2 d).
+    """
+    X = np.asarray(X, dtype=float)
+    n, d = X.shape
+    if n < 2:
+        return np.full(n, -np.inf)
+    L = np.linalg.cholesky(np.atleast_2d(kde.covariance))
+    Z = np.linalg.solve(L, X.T).T
+    c = -0.5 * (d * np.log(2 * np.pi)) - np.log(np.diag(L)).sum() - np.log(n - 1)
+    sq = np.sum(Z ** 2, axis=1)
+    out = np.empty(n)
+    step = max(1, int(2e7 // max(n, 1)))
+    for a in range(0, n, step):
+        b = min(n, a + step)
+        D = sq[a:b, None] + sq[None, :] - 2.0 * Z[a:b] @ Z.T
+        np.maximum(D, 0.0, out=D)
+        D[np.arange(b - a), np.arange(a, b)] = np.inf
+        out[a:b] = logsumexp(-0.5 * D, axis=1) + c
+    return out
+
+
+def _resolve_log_lik_floor(spec, train_max_log_lik, quantile, margin):
+    """``'auto'`` -> ``quantile(train_max_log_lik, quantile) - margin``; float -> itself;
+    ``None`` -> ``-inf`` (disabled)."""
+    if spec is None:
+        return -np.inf
+    if isinstance(spec, str):
+        if spec != 'auto':
+            raise ValueError(f"log_lik_floor must be 'auto', None or a float, got {spec!r}")
+        finite = np.asarray(train_max_log_lik, dtype=float)
+        finite = finite[np.isfinite(finite)]
+        if finite.size == 0:
+            return -np.inf
+        return float(np.quantile(finite, quantile) - margin)
+    return float(spec)
+
+
+class _EpochClassifierMixin:
+    """
+    Shared signal-level API of the epoch classifiers: epoching, skipping of low-datarate
+    epochs, out-of-distribution flagging, labels and annotation tables.
+
+    Out-of-distribution (OOD) epochs
+    --------------------------------
+    The class probabilities are a softmax over the states' log-likelihoods, so an epoch
+    far from *every* trained state still gets probability ~1 for whichever state's density
+    decays slowest. Such epochs (saturation, disconnection, heavy artefacts) are flagged
+    instead: if an epoch's best-state log-likelihood ``max_s log p(x | s)`` is below
+    ``self.log_lik_floor_``, its probabilities are NaN and its label is
+    ``UNKNOWN_LABEL`` (``'UNKNOWN'``). Constructor parameters:
+
+    ``log_lik_floor`` : ``'auto'`` (default), float or ``None``
+        ``'auto'``: set in ``fit`` to ``quantile(train, log_lik_quantile) - log_lik_margin``
+        where ``train`` is the best-state log-likelihood of every training epoch
+        (leave-one-out for KDE densities, so it is not inflated by the epoch's own kernel).
+        A float is used as is; ``None`` disables flagging.
+    ``log_lik_quantile`` : float, default 0.001
+    ``log_lik_margin`` : float, nats, default 30
+        30 nats = a density about 1e13 times lower than the 0.1 %-quantile training epoch.
+        Evidence (PR #69): held-out in-distribution epochs flagged 0 of 20 000 for
+        Gaussian features with >= 100 training epochs per state, <= 7e-4 for Student-t5
+        features and <= 2e-3 for Student-t3 features (polynomial tails: some held-out
+        epochs are farther from the training data than any training epoch).
+
+    After ``fit``: ``log_lik_floor_`` (float, ``-inf`` if disabled) and
+    ``train_max_log_lik_`` (np.ndarray, (n_train,)). After every ``scores`` call:
+    ``max_log_lik_`` (np.ndarray, (n_epochs,)), the best-state log-likelihood of each
+    scored row, in the same order. :meth:`max_log_likelihood` computes it directly.
+    """
+
+    def _log_lik_params(self):
+        # getattr: models pickled before these parameters existed keep working (no floor)
+        return (getattr(self, 'log_lik_floor', None),
+                getattr(self, 'log_lik_quantile', _DEFAULT_LOG_LIK_QUANTILE),
+                getattr(self, 'log_lik_margin', _DEFAULT_LOG_LIK_MARGIN))
+
+    def _fit_log_lik_floor(self, train_max_log_lik):
+        spec, q, m = self._log_lik_params()
+        self.train_max_log_lik_ = np.asarray(train_max_log_lik, dtype=float)
+        self.log_lik_floor_ = _resolve_log_lik_floor(spec, self.train_max_log_lik_, q, m)
+
+    def _ood_mask(self, max_log_lik):
+        """True where an epoch is out of distribution (below the floor) or non-finite."""
+        floor = getattr(self, 'log_lik_floor_', -np.inf)
+        max_log_lik = np.asarray(max_log_lik, dtype=float)
+        return ~np.isfinite(max_log_lik) | (max_log_lik < floor)
+
+    def predict(self, X, start_time=None):
+        """
+        Arg-max state per epoch, np.ndarray of str, shape (n_epochs,).
+        Out-of-distribution epochs (all-NaN score rows) get ``UNKNOWN_LABEL``.
+        ``start_time`` as in ``scores``.
+        """
+        return _labels_from_scores(self.scores(X, start_time=start_time))
+
+    def fit_transform(self, X, y):
+        self.fit(X, y)
+        return self.transform(X)
+
+    def preprocess_signal(self, signal, fs, datarate_threshold=0.85):
+        """
+        Cut ``signal`` into ``self.segm_size``-s epochs (an incomplete last epoch is
+        dropped) and keep those whose fraction of non-NaN samples is
+        ``>= datarate_threshold``.
+
+        Returns ``(list of epochs, start_time, end_time)``; times in seconds from the first
+        sample. All three are empty if the signal is shorter than one epoch or every epoch
+        is below the threshold.
+        """
+        n_segm = int(round(fs * self.segm_size))
+        signal = np.asarray(signal, dtype=float).reshape(-1)
+        n_ep = signal.shape[0] // n_segm if n_segm > 0 else 0
+        data = signal[:n_ep * n_segm].reshape(n_ep, n_segm)
+        start_time = np.arange(n_ep, dtype=float) * self.segm_size
+        end_time = start_time + self.segm_size
+        if n_ep == 0:
+            return [], start_time, end_time
+        datarate = np.asarray(get_datarate(data))
+        keep = datarate >= datarate_threshold
+        return list(data[keep]), start_time[keep], end_time[keep]
+
+    def _signal_scores(self, signal, fs, datarate_threshold):
+        data, start_time, _ = self.preprocess_signal(signal, fs, datarate_threshold)
+        if len(data) == 0:
+            self.max_log_lik_ = np.zeros(0)
+            return pd.DataFrame(np.zeros((0, len(self.STATES))), columns=list(self.STATES)), start_time
+        x, _ = self.extract_features_bulk(data, [fs] * len(data))
+        return self.scores(x, start_time=start_time), start_time
+
+    def predict_signal(self, signal, fs, datarate_threshold=0.85):
+        """
+        Classify a continuous single-channel signal epoch by epoch.
+
+        Parameters
+        ----------
+        signal : np.ndarray, shape (n_samples,)
+            Raw signal; NaN marks missing data.
+        fs : float, Hz
+            Sampling rate of ``signal``. Epochs are resampled to ``self.fs`` (KDE family;
+            checked, see ``_resample_epochs``) exactly as in ``extract_features_bulk``.
+        datarate_threshold : float, 0-1
+            Epochs with a smaller fraction of non-NaN samples are skipped.
+
+        Returns
+        -------
+        pd.DataFrame with columns ``['annotation', 'start', 'end', 'duration']``
+            Times in seconds relative to the first sample; epochs of ``self.segm_size``
+            seconds, consecutive equal labels merged (see ``_scores_to_annotations``).
+            Skipped (low-datarate) epochs leave a gap in the table. Out-of-distribution
+            epochs are annotated ``'UNKNOWN'``. Smoothing (and the Markov filter of the
+            causal models) runs separately on each run of consecutive scored epochs: it
+            never crosses a skipped or out-of-distribution epoch. Empty table (same
+            columns) if no epoch is usable.
+        """
+        scores, start_time = self._signal_scores(signal, fs, datarate_threshold)
+        return _scores_to_annotations(scores, start_time, self.segm_size)
+
+    def predict_signal_scores(self, signal, fs, datarate_threshold=0.85):
+        """
+        As :meth:`predict_signal` but returns the per-epoch score frame (one row per kept
+        epoch, columns ``self.STATES``; NaN rows = out-of-distribution). The row's epoch
+        start times are ``self.preprocess_signal(signal, fs, datarate_threshold)[1]``, and
+        ``self.max_log_lik_`` holds each row's best-state log-likelihood.
+        """
+        return self._signal_scores(signal, fs, datarate_threshold)[0]
+
+
+class _KDEFamilyMixin(_EpochClassifierMixin):
+    """
+    Density / scoring part shared by :class:`KDEBayesianModel` (and its subclasses) and
+    :class:`KDEBayesianModelNC`. Requires ``transform``, ``segm_size``, ``fs``, ``WINDOW``
+    and ``CAT_BIAS`` on the instance.
+    """
+
+    def extract_features_bulk(self, list_of_signals, fsamp_list, return_names=False):
+        """
+        Features of a list of epochs, after resampling each to ``self.fs`` with
+        ``unify_sampling_frequency`` (checked by ``_resample_epochs``: raises
+        ``ValueError`` instead of returning features of a corrupted resampled signal).
+
+        Returns ``(features (n_epochs, n_features), fs)``, or ``(features,
+        feature_names)`` if ``return_names``.
+        """
+        data, fs = _resample_epochs(list_of_signals, fsamp_list, self.fs, owner=type(self).__name__)
+        x = []
+        for k in tqdm(range(data.__len__())):
+            x += [self.extract_features(data[k])]
+        if return_names:
+            _, feature_names = self.extract_features(data[k], return_names=True)
+            return np.array(x), feature_names
+        return np.array(x), fs
+
+    def _make_density(self, X_state):
+        """Density of one state, fitted on (n_state, d) transformed features."""
+        return gaussian_kde(X_state.T)
+
+    def _fit_kde(self, X, y):
+        self.STATES = np.unique(y)
+        self.KDE = []
+        for state in self.STATES:
+            X_ = X[y==state, :]
+            self.KDE.append(self._make_density(X_))
+        # training best-state log-likelihood; an epoch's own state uses the leave-one-out
+        # density for KDEs (its own kernel would inflate it)
+        ll = np.asarray(self._log_likelihood(X), dtype=float).reshape(X.shape[0], len(self.STATES))
+        for idx, state in enumerate(self.STATES):
+            if isinstance(self.KDE[idx], gaussian_kde):
+                sel = np.asarray(y) == state
+                ll[sel, idx] = _loo_logpdf_kde(self.KDE[idx], X[sel, :])
+        self._fit_log_lik_floor(ll.max(axis=1))
+
+    def _likelihood(self, X):
+        """
+        Class-conditional densities in the transformed feature space.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_selected_features)
+            Already transformed features (output of ``transform``).
+
+        Returns
+        -------
+        pd.DataFrame, shape (n_samples, n_states)
+            ``p(x | state)`` per column (raw pdf values, not normalised; may underflow to 0).
+        """
+        scores = {}
+        for idx, kde in enumerate(self.KDE):
+            scores[self.STATES[idx]] = np.atleast_1d(kde.pdf(X.T))
+        scores = pd.DataFrame(scores)
+        return scores
+
+    def _log_likelihood(self, X):
+        """Same as ``_likelihood`` but ``log p(x | state)`` (no underflow)."""
+        # atleast_1d: scipy's multivariate normal returns a scalar for a single sample
+        return pd.DataFrame({self.STATES[idx]: np.atleast_1d(kde.logpdf(X.T)) for idx, kde in enumerate(self.KDE)})
+
+    def max_log_likelihood(self, X):
+        """
+        Best-state log-likelihood ``max_s log p(x | s)`` of each row of the raw feature
+        matrix ``X`` (n_epochs, n_features); np.ndarray, shape (n_epochs,). Compare with
+        ``self.log_lik_floor_`` / ``self.train_max_log_lik_``.
+        """
+        Xt = self.transform(X)
+        ll = np.asarray(self._log_likelihood(Xt), dtype=float).reshape(Xt.shape[0], len(self.STATES))
+        return ll.max(axis=1) if ll.shape[1] else np.full(Xt.shape[0], -np.inf)
+
+    def _filter_run(self, scores, first_run):
+        """Post-processing of one run of consecutive epochs (identity; the causal models
+        apply the Markov filter here)."""
+        return scores
+
+    def scores(self, X, start_time=None):
+        """
+        Per-epoch posterior-like class probabilities.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_epochs, n_features)
+            Raw feature matrix (same columns as used in ``fit``), rows in time order.
+        start_time : array-like, shape (n_epochs,), seconds, optional
+            Start time of each row's epoch. If given, rows that are not exactly
+            ``segm_size`` apart start a new run (e.g. low-datarate epochs were skipped
+            between them). If omitted, all rows are treated as consecutive epochs.
+
+        Returns
+        -------
+        pd.DataFrame, shape (n_epochs, n_states)
+            Columns are ``self.STATES``. Steps: per-state log-likelihoods; rows whose best
+            log-likelihood is below ``self.log_lik_floor_`` (out of distribution) or
+            non-finite become all-NaN; the others are normalised across states (equal
+            priors, log space); then, separately on each run of consecutive non-NaN
+            epochs, zero-phase smoothing with ``self.WINDOW`` (``window_smooth_n=1``
+            disables it), multiplication by ``cat_bias``, renormalisation (rows sum to 1)
+            and, for the causal models, the Markov filter. ``self.max_log_lik_`` is set to
+            each row's best-state log-likelihood.
+        """
+        return self._scores_impl(X, start_time=start_time, apply_floor=True, apply_filter=True)
+
+    def _scores_impl(self, X, start_time=None, apply_floor=True, apply_filter=True):
+        X = self.transform(X)
+        n = X.shape[0]
+        states = list(self.STATES)
+        log_lik = np.asarray(self._log_likelihood(X), dtype=float).reshape(n, len(states))
+        max_ll = log_lik.max(axis=1) if len(states) else np.full(n, -np.inf)
+        self.max_log_lik_ = max_ll
+        if apply_floor:
+            flagged = self._ood_mask(max_ll)
+        else:
+            flagged = ~np.isfinite(max_ll)
+        prob = _normalise_log_likelihood(log_lik)
+        out = np.full((n, len(states)), np.nan)
+        for i_run, run in enumerate(_consecutive_runs(n, flagged, start_time, self.segm_size)):
+            sc = pd.DataFrame(prob[run], columns=states)
+            sc = _smooth_scores(sc, self.WINDOW)
+            for cat in self.CAT_BIAS.keys():
+                if cat in sc.keys(): sc[cat] = sc[cat]*self.CAT_BIAS[cat]
+            sc = sc.div(sc.sum(axis=1), axis=0)
+            if apply_filter:
+                sc = self._filter_run(sc, first_run=(i_run == 0))
+            out[run] = sc[states].to_numpy(dtype=float)
+        return pd.DataFrame(out, columns=states)
+
+
 class multivariate_normal_(multivariate_normal_frozen):
     """
     Frozen multivariate normal fitted to data (sample mean and covariance).
@@ -204,10 +676,11 @@ class multivariate_normal_(multivariate_normal_frozen):
         return np.exp(self.logpdf(X))
 
 
-class KDEBayesianModel:
+class KDEBayesianModel(_KDEFamilyMixin):
     """
-    Single-channel sleep classifier: spectral features -> feature selection -> PCA ->
-    z-score -> per-state density model -> equal-prior posterior, smoothed over epochs.
+    Single-channel sleep classifier: spectral features -> standardisation -> feature
+    selection -> PCA -> z-score -> per-state density model -> equal-prior posterior,
+    smoothed over epochs, with out-of-distribution epochs flagged ``'UNKNOWN'``.
 
     Pipeline fitted by ``fit(X, y)`` (``X``: raw feature matrix, e.g. from
     ``extract_features_bulk``):
@@ -215,14 +688,26 @@ class KDEBayesianModel:
     1. classes are balanced by duplicating minority-class rows (``balance_classes``);
        the balanced copy is used to fit every *transform* below, the unbalanced data
        to fit the densities;
-    2. ``RFECV`` with a linear ``SVR`` regressing the label-encoded class index
+    2. if ``standardize`` (default): ``StandardScaler`` (mean/std of the balanced
+       training data, frozen). The raw features mix units (Hz, [0, 1] ratios, log10
+       ratios) and steps 3-4 are not scale-invariant: without this step a feature's
+       influence depends on its unit (PR #69 review R4: discriminative features x 0.1
+       -> chance-level accuracy without any error). With it the whole model is
+       invariant to per-feature affine rescaling of the input;
+    3. ``RFECV`` with a linear ``SVR`` regressing the label-encoded class index
        (alphabetical order) selects features (``step=5``, ``>= 4`` features);
-    3. ``PCAModule`` keeps the components explaining ``>= 98 %`` of variance;
-    4. ``ZScoreModule`` (trainable): mean/std of the balanced training data, stored and
+    4. ``PCAModule`` keeps the components explaining ``>= 98 %`` of variance;
+    5. ``ZScoreModule`` (trainable): mean/std of the balanced training data, stored and
        re-used unchanged at prediction time (no test-set statistics);
-    5. optional ``SelectFromModel`` (L1 ``LinearSVC``, ``max_features=4``) if
-       ``Selector2``;
-    6. one ``gaussian_kde`` per state on the transformed unbalanced training data.
+    6. optional ``SelectFromModel`` (L1 ``LinearSVC``, ``max_features=4``) if
+       ``Selector2`` (``ValueError`` if it keeps no feature);
+    7. one ``gaussian_kde`` per state on the transformed unbalanced training data, and
+       the out-of-distribution floor (see ``log_lik_floor``).
+
+    Validation status (PR #69): every class is exercised end to end on synthetic data
+    with known structure (feature-level Gaussian classes and synthetic sine + noise
+    "EEG"), against a QDA / Gaussian naive Bayes reference. This checks the wiring and
+    the numerics; it is not a validation of sleep-staging accuracy on real recordings.
 
     Parameters
     ----------
@@ -245,9 +730,14 @@ class KDEBayesianModel:
     cat_bias : dict state -> float
         Multiplicative per-state bias applied to the smoothed scores.
     Selector2 : bool
-        Enable step 5.
+        Enable step 6.
     n_jobs : int
         Parallel jobs for ``RFECV`` (default 10, as hard-coded up to v1.0.0).
+    standardize : bool
+        Enable step 2 (default True). ``False`` reproduces the v1.0.0 pipeline.
+    log_lik_floor, log_lik_quantile, log_lik_margin :
+        Out-of-distribution floor, see :class:`_EpochClassifierMixin` (default
+        ``'auto'``, 0.001, 30 nats). ``log_lik_floor=None`` disables flagging.
     """
     __name__ = "KDEBayesianModel"
     def __init__(self, fbands=[[0.5, 5], # delta
@@ -257,10 +747,15 @@ class KDEBayesianModel:
                                [14, 20],
                                [20, 30]], segm_size=30, fs=200, bands_to_erase=[], filter_bands = True, nfft=12000,
                  window_smooth_n=3, window_std=1, cat_bias={'AWAKE': 1, 'N2': 1, 'N3': 1, 'REM': 1}, Selector2=True,
-                 n_jobs=10):
+                 n_jobs=10, standardize=True, log_lik_floor='auto',
+                 log_lik_quantile=_DEFAULT_LOG_LIK_QUANTILE, log_lik_margin=_DEFAULT_LOG_LIK_MARGIN):
 
         self.fbands = fbands
         self.n_jobs = n_jobs
+        self.standardize = standardize
+        self.log_lik_floor = log_lik_floor
+        self.log_lik_quantile = log_lik_quantile
+        self.log_lik_margin = log_lik_margin
         self.segm_size = segm_size
         self.fs = fs
         self.bands_to_erase = bands_to_erase
@@ -366,17 +861,6 @@ class KDEBayesianModel:
             return features, feature_names
         return features
 
-    def extract_features_bulk(self, list_of_signals, fsamp_list, return_names=False):
-        data = list_of_signals
-        data, fs = unify_sampling_frequency(data, sampling_frequency=fsamp_list, fs_new=self.fs)
-        x = []
-        for k in tqdm(range(data.__len__())):
-            x += [self.extract_features(data[k])]
-        if return_names:
-            _, feature_names = self.extract_features(data[k], return_names=True)
-            return np.array(x), feature_names
-        return np.array(x), fs
-
     def fit(self, X, y):
         """
         Fit the transform pipeline and the per-state densities.
@@ -397,6 +881,13 @@ class KDEBayesianModel:
         X = deepcopy(X)
         y = deepcopy(y)
         X_, y_ = balance_classes(X, y, std_factor=0.0)
+
+        # step 2: standardise the raw features before the scale-dependent RFECV / PCA
+        # (balanced training statistics, frozen; review R4 of PR #69)
+        self.Scaler = preprocessing.StandardScaler() if getattr(self, 'standardize', False) else None
+        if self.Scaler is not None:
+            X_ = self.Scaler.fit_transform(X_)
+            X = self.Scaler.transform(X)
 
         estimator = SVR(kernel="linear")
         self.SELECTOR = RFECV(estimator, step=5, verbose=True, min_features_to_select=4, n_jobs=self.n_jobs)
@@ -429,77 +920,22 @@ class KDEBayesianModel:
         if self.SELECTOR2:
             self.SELECTOR2 = SelectFromModel(lsvc, prefit=True, max_features=4)
             #X_ = self.SELECTOR2.transform(X_)
-            X = self.SELECTOR2.transform(X)
+            with warnings.catch_warnings():
+                # sklearn warns "No features were selected"; we raise below instead
+                warnings.simplefilter('ignore', UserWarning)
+                X = self.SELECTOR2.transform(X)
+            if X.shape[1] == 0:
+                raise ValueError(f'{type(self).__name__}.fit: the L1 LinearSVC of Selector2 kept no '
+                                 'feature (all coefficients are 0), so no density can be fitted. '
+                                 'Use Selector2=False or more / more separable training data.')
 
         #X = self.UMAP.fit_transform(X)
         return X, y
 
 
-    def _fit_kde(self, X, y):
-        self.STATES = np.unique(y)
-        self.KDE = []
-        for state in self.STATES:
-            X_ = X[y==state, :]
-            kernel = gaussian_kde(X_.T)
-            self.KDE.append(kernel)
-
-    def _likelihood(self, X):
-        """
-        Class-conditional densities in the transformed feature space.
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_samples, n_selected_features)
-            Already transformed features (output of ``transform``).
-
-        Returns
-        -------
-        pd.DataFrame, shape (n_samples, n_states)
-            ``p(x | state)`` per column (raw pdf values, not normalised; may underflow to 0).
-        """
-        scores = {}
-        for idx, kde in enumerate(self.KDE):
-            scores[self.STATES[idx]] = np.atleast_1d(kde.pdf(X.T))
-        scores = pd.DataFrame(scores)
-        return scores
-
-    def _log_likelihood(self, X):
-        """Same as ``_likelihood`` but ``log p(x | state)`` (no underflow)."""
-        # atleast_1d: scipy's multivariate normal returns a scalar for a single sample
-        return pd.DataFrame({self.STATES[idx]: np.atleast_1d(kde.logpdf(X.T)) for idx, kde in enumerate(self.KDE)})
-
-    def scores(self, X):
-        """
-        Per-epoch posterior-like class probabilities.
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_epochs, n_features)
-            Raw feature matrix (same columns as used in ``fit``). Rows **must be
-            consecutive epochs in time order**: scores are smoothed across rows with
-            ``self.WINDOW`` (gaussian, ``window_smooth_n`` taps). Use
-            ``window_smooth_n=1`` to score rows independently.
-
-        Returns
-        -------
-        pd.DataFrame, shape (n_epochs, n_states)
-            Columns are ``self.STATES``; rows sum to 1. Steps: likelihoods normalised
-            across states (equal priors, computed in log space), zero-phase smoothing
-            across epochs, multiplication by ``cat_bias``, renormalisation.
-        """
-        X = self.transform(X)
-        log_lik = np.asarray(self._log_likelihood(X), dtype=float).reshape(X.shape[0], len(self.STATES))
-        scores = pd.DataFrame(_normalise_log_likelihood(log_lik), columns=list(self.STATES))
-
-        scores = _smooth_scores(scores, self.WINDOW)
-
-        for cat in self.CAT_BIAS.keys():
-            if cat in scores.keys(): scores[cat] = scores[cat]*self.CAT_BIAS[cat]
-
-        scores = scores.div(scores.sum(axis=1), axis=0)
-        return scores
-
     def transform(self, X):
+        if getattr(self, 'Scaler', None) is not None:
+            X = self.Scaler.transform(X)
         X = self.SELECTOR.transform(X)
         X = self.PCA.transform(X)
         X = self.ZScore.transform(X)
@@ -507,55 +943,6 @@ class KDEBayesianModel:
             X = self.SELECTOR2.transform(X)
         #X = self.UMAP.transform(X)
         return X
-
-    def fit_transform(self, X, y):
-        self.fit(X, y)
-        return self.transform(X)
-
-    def predict(self, X):
-        return np.array(self.scores(X).idxmax(axis=1))
-
-    def preprocess_signal(self, signal, fs, datarate_threshold=0.85):
-        data = buffer(signal, fs, self.segm_size)
-        start_time = np.array([k*self.segm_size for k in range(data.__len__())])
-        end_time = start_time + self.segm_size
-        datarate = np.array(get_datarate(data))
-
-        data = data[datarate >= datarate_threshold]
-        start_time = start_time[datarate >= datarate_threshold]
-        end_time = end_time[datarate >= datarate_threshold]
-        return list(data), start_time, end_time
-
-    def predict_signal(self, signal, fs, datarate_threshold=0.85):
-        """
-        Classify a continuous single-channel signal epoch by epoch.
-
-        Parameters
-        ----------
-        signal : np.ndarray, shape (n_samples,)
-            Raw signal; NaN marks missing data.
-        fs : float, Hz
-            Sampling rate of ``signal``.
-        datarate_threshold : float, 0-1
-            Epochs with a smaller fraction of non-NaN samples are skipped.
-
-        Returns
-        -------
-        pd.DataFrame with columns ``['annotation', 'start', 'end', 'duration']``
-            Times in seconds relative to the first sample; epochs of ``self.segm_size``
-            seconds, consecutive equal labels merged (see ``_scores_to_annotations``).
-        """
-        data, start_time, end_time = self.preprocess_signal(signal, fs, datarate_threshold)
-        x, fs = self.extract_features_bulk(data, [fs]*data.__len__())
-        scores = self.scores(x)
-        return _scores_to_annotations(scores, start_time, self.segm_size)
-
-    def predict_signal_scores(self, signal, fs, datarate_threshold=0.85):
-        data, start_time, end_time = self.preprocess_signal(signal, fs, datarate_threshold)
-        x, fs = self.extract_features_bulk(data, [fs]*data.__len__())
-        scores = self.scores(x)
-        return scores
-
 
 class KDEBayesianCausalModel(KDEBayesianModel):
     __name__ = "KDEBayesianCausalModel"
@@ -565,48 +952,32 @@ class KDEBayesianCausalModel(KDEBayesianModel):
 
     def fit(self, X, y):
         super().fit(X, y)
-
-        scores = super().scores(X)
+        # training scores for the filter: no OOD flagging, no filter, rows consecutive
+        scores = self._scores_impl(X, apply_floor=False, apply_filter=False)
         self.MarkovFilter = SleepStageProbabilityMarkovChainFilter()
         self.MarkovFilter.fit(scores, y)
 
-
-    def scores(self, X):
+    def _filter_run(self, scores, first_run):
         """
-        :meth:`KDEBayesianModel.scores` followed by the Markov-chain filter (causal,
-        forward pass over the rows, which must be consecutive epochs in time order).
-        The chain starts in ``'AWAKE'`` if that state was trained, otherwise in the first
-        trained state (up to v1.0.0 it always started in ``'AWAKE'`` and raised
-        ``IndexError`` if the training labels had no ``'AWAKE'``).
-        """
-        scores = self._scores(X)
-        state = 'AWAKE' if 'AWAKE' in self.MarkovFilter.STATES else self.MarkovFilter.STATES[0]
-        scores = self.MarkovFilter.predict(scores, state)
-        """
-        ch_posts = []
-        for k in range(scores.__len__()):
-            p_likelihood_change = scores.iloc[k][self.MarkovFilter.STATES[self.MarkovFilter.STATES != state]].sum()
-            p_prior_change = self.MarkovFilter.get_state_change_prior(state)
-            p_post_change = (p_likelihood_change * p_prior_change) / ((p_likelihood_change * p_prior_change) + ((1-p_likelihood_change) * (1-p_prior_change)))
-            ch_posts += [[p_post_change, state]]
+        Markov-chain filter (causal forward pass) over one run of consecutive epochs.
 
-            p_likelihood = scores.iloc[k][self.MarkovFilter.STATES[self.MarkovFilter.STATES != state]]
-            p_prior = self.MarkovFilter.get_changing_state_priors(state)[self.MarkovFilter.STATES != state]
-            p_post = p_likelihood*p_prior / sum(p_likelihood*p_prior)
-
-            if p_post_change > 0.5:
-                state = p_post.idxmax()
-                scores.loc[k, state] = p_post_change
-                scores.loc[k, self.MarkovFilter.STATES[self.MarkovFilter.STATES!=state]] = p_post*(1-p_post_change)
-            else:
-                scores.loc[k, state] = 1-p_post_change
-                scores.loc[k, self.MarkovFilter.STATES[self.MarkovFilter.STATES!=state]] = p_post*p_post_change
-            #yy[k] = state
+        The first run starts in ``'AWAKE'`` if that state was trained, otherwise in the
+        first trained state (up to v1.0.0 it always started in ``'AWAKE'`` and raised
+        ``IndexError`` if the training labels had no ``'AWAKE'``). A later run (after
+        skipped or out-of-distribution epochs) starts in the arg-max state of its first
+        epoch: the one-epoch transition prior is not applied across a gap of unknown
+        length.
         """
-        return scores
+        scores = scores.reset_index(drop=True)
+        if first_run:
+            state = 'AWAKE' if 'AWAKE' in self.MarkovFilter.STATES else self.MarkovFilter.STATES[0]
+        else:
+            state = scores.iloc[0].idxmax()
+        return self.MarkovFilter.predict(scores, state)
 
-    def _scores(self, X):
-        return super().scores(X)
+    def _scores(self, X, start_time=None):
+        """Scores without the Markov filter."""
+        return self._scores_impl(X, start_time=start_time, apply_floor=True, apply_filter=False)
 
 
 class MVGaussBayesianModel(KDEBayesianModel):
@@ -614,13 +985,8 @@ class MVGaussBayesianModel(KDEBayesianModel):
     covariance) per state instead of a KDE."""
     __name__ = "MVGaussBayesianModel"
 
-    def _fit_kde(self, X, y):
-        self.STATES = np.unique(y)
-        self.KDE = []
-        for state in self.STATES:
-            X_ = X[y==state, :]
-            kernel = multivariate_normal_(X_.T)
-            self.KDE.append(kernel)
+    def _make_density(self, X_state):
+        return multivariate_normal_(X_state.T)
 
 
 class MVGaussBayesianCausalModel(MVGaussBayesianModel, KDEBayesianCausalModel):
@@ -631,17 +997,20 @@ class MVGaussBayesianCausalModel(MVGaussBayesianModel, KDEBayesianCausalModel):
 
 
 class SleepStageProbabilityMarkovChainFilter:
+    # canonical states and transition matrix; ``fit`` always starts from these, so a
+    # refit is not limited to the states of a previous fit (Copilot, PR #69)
+    _ALL_STATES = ('AWAKE', 'N1', 'N2', 'N3', 'REM')
+    _ALL_TMAT = ((0.961, 0.038, 0.001, 0.000, 0.000),
+                 (0.097, 0.215, 0.634, 0.000, 0.054),
+                 (0.020, 0.001, 0.846, 0.060, 0.073),
+                 (0.005, 0.001, 0.105, 0.880, 0.009),
+                 (0.017, 0.003, 0.061, 0.000, 0.918))
+
     def __init__(self):
-        self.STATES = np.array(['AWAKE', 'N1', 'N2', 'N3', 'REM'])
+        self.STATES = np.array(self._ALL_STATES)
         self.removed_classes = []
         self.stability = np.ones(self.STATES.__len__())
-        self._tmat_orig = np.array(
-            [[0.961, 0.038, 0.001, 0.000, 0.000],
-             [0.097, 0.215, 0.634, 0.000, 0.054],
-             [0.020, 0.001, 0.846, 0.060, 0.073],
-             [0.005, 0.001, 0.105, 0.880, 0.009],
-             [0.017, 0.003, 0.061, 0.000, 0.918]]
-        )
+        self._tmat_orig = np.array(self._ALL_TMAT, dtype=float)
 
         #self._tmat_orig = np.array(
         #    [
@@ -677,9 +1046,10 @@ class SleepStageProbabilityMarkovChainFilter:
         scores : pd.DataFrame, shape (n_epochs, n_states)
             Training-set class probabilities (columns = state names).
         y : array-like of str, shape (n_epochs,)
-            Training labels. Must be a subset of ``self.STATES``
-            (``AWAKE, N1, N2, N3, REM``); other labels raise ``ValueError`` (up to
-            v1.0.0 they were silently ignored by the filter).
+            Training labels. Must be a subset of ``AWAKE, N1, N2, N3, REM``; other
+            labels raise ``ValueError`` (up to v1.0.0 they were silently ignored by the
+            filter). Every ``fit`` starts again from all five states and the canonical
+            transition matrix, then removes the states absent from ``y``.
 
         Notes
         -----
@@ -689,11 +1059,13 @@ class SleepStageProbabilityMarkovChainFilter:
         stability became ``-inf`` and the whole transition matrix NaN. Only finite
         thresholds are now considered and the stability is clipped to [0, 1].
         """
-        unknown = sorted(set(np.unique(np.asarray(y)).tolist()) - set(self.STATES.tolist()))
+        unknown = sorted(set(np.unique(np.asarray(y)).tolist()) - set(self._ALL_STATES))
         if unknown:
             raise ValueError(f'SleepStageProbabilityMarkovChainFilter: labels {unknown} are not '
-                             f'in the supported states {self.STATES.tolist()}')
-        self.reset_probabilities()
+                             f'in the supported states {list(self._ALL_STATES)}')
+        self.STATES = np.array(self._ALL_STATES)
+        self.removed_classes = []
+        self._tmat_orig = np.array(self._ALL_TMAT, dtype=float)
         self.tmat = self._tmat_orig.copy()
         classes = np.unique(y)
         #class_certainty = dict([[state, X[state][y==state].median()] for state in classes])
@@ -913,11 +1285,13 @@ class SleepStageProbabilityMarkovChainFilter:
         return result
 
 
-class KDEBayesianModelNC:
+class KDEBayesianModelNC(_KDEFamilyMixin):
     """
-    Same as :class:`KDEBayesianModel` but **without** the z-score step (NC = no
-    centering/normalisation): features -> RFECV -> PCA -> [SelectFromModel] -> KDE.
-    Parameters as for :class:`KDEBayesianModel`.
+    Same as :class:`KDEBayesianModel` but **without** the z-score step after PCA (NC = no
+    centering/normalisation): features -> [StandardScaler] -> RFECV -> PCA ->
+    [SelectFromModel] -> KDE. Parameters as for :class:`KDEBayesianModel`; the input
+    standardisation (``standardize=True``, default) is the scale fix of review R4, not
+    the omitted z-score (``standardize=False`` reproduces v1.0.0).
 
     ``__name__`` was ``"KDEBayesianModel"`` up to v1.0.0 (copy-paste); it is now
     ``"KDEBayesianModelNC"``.
@@ -932,10 +1306,15 @@ class KDEBayesianModelNC:
         [20, 30]
     ], segm_size=30, fs=200, bands_to_erase=[], filter_bands = True, filter_order=5001, nfft=12000,
                  window_smooth_n=3, window_std=1, cat_bias={'AWAKE': 1, 'N2': 1, 'N3': 1, 'REM': 1}, Selector2=True,
-                 n_jobs=10):
+                 n_jobs=10, standardize=True, log_lik_floor='auto',
+                 log_lik_quantile=_DEFAULT_LOG_LIK_QUANTILE, log_lik_margin=_DEFAULT_LOG_LIK_MARGIN):
 
         self.fbands = fbands
         self.n_jobs = n_jobs
+        self.standardize = standardize
+        self.log_lik_floor = log_lik_floor
+        self.log_lik_quantile = log_lik_quantile
+        self.log_lik_margin = log_lik_margin
         self.segm_size = segm_size
         self.fs = fs
         self.bands_to_erase = bands_to_erase
@@ -1039,17 +1418,6 @@ class KDEBayesianModelNC:
             return features, feature_names
         return features
 
-    def extract_features_bulk(self, list_of_signals, fsamp_list, return_names=False):
-        data = list_of_signals
-        data, fs = unify_sampling_frequency(data, sampling_frequency=fsamp_list, fs_new=self.fs)
-        x = []
-        for k in tqdm(range(data.__len__())):
-            x += [self.extract_features(data[k])]
-        if return_names:
-            _, feature_names = self.extract_features(data[k], return_names=True)
-            return np.array(x), feature_names
-        return np.array(x), fs
-
     def fit(self, X, y):
         """
         Fit the transform pipeline and the per-state densities.
@@ -1070,6 +1438,13 @@ class KDEBayesianModelNC:
         X = deepcopy(X)
         y = deepcopy(y)
         X_, y_ = balance_classes(X, y, std_factor=0.0)
+
+        # step 2: standardise the raw features before the scale-dependent RFECV / PCA
+        # (balanced training statistics, frozen; review R4 of PR #69)
+        self.Scaler = preprocessing.StandardScaler() if getattr(self, 'standardize', False) else None
+        if self.Scaler is not None:
+            X_ = self.Scaler.fit_transform(X_)
+            X = self.Scaler.transform(X)
 
         estimator = SVR(kernel="linear")
         self.SELECTOR = RFECV(estimator, step=5, verbose=True, min_features_to_select=4, n_jobs=self.n_jobs)
@@ -1096,77 +1471,22 @@ class KDEBayesianModelNC:
         if self.SELECTOR2:
             self.SELECTOR2 = SelectFromModel(lsvc, prefit=True, max_features=4)
             #X_ = self.SELECTOR2.transform(X_)
-            X = self.SELECTOR2.transform(X)
+            with warnings.catch_warnings():
+                # sklearn warns "No features were selected"; we raise below instead
+                warnings.simplefilter('ignore', UserWarning)
+                X = self.SELECTOR2.transform(X)
+            if X.shape[1] == 0:
+                raise ValueError(f'{type(self).__name__}.fit: the L1 LinearSVC of Selector2 kept no '
+                                 'feature (all coefficients are 0), so no density can be fitted. '
+                                 'Use Selector2=False or more / more separable training data.')
 
         #X = self.UMAP.fit_transform(X)
         return X, y
 
 
-    def _fit_kde(self, X, y):
-        self.STATES = np.unique(y)
-        self.KDE = []
-        for state in self.STATES:
-            X_ = X[y==state, :]
-            kernel = gaussian_kde(X_.T)
-            self.KDE.append(kernel)
-
-    def _likelihood(self, X):
-        """
-        Class-conditional densities in the transformed feature space.
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_samples, n_selected_features)
-            Already transformed features (output of ``transform``).
-
-        Returns
-        -------
-        pd.DataFrame, shape (n_samples, n_states)
-            ``p(x | state)`` per column (raw pdf values, not normalised; may underflow to 0).
-        """
-        scores = {}
-        for idx, kde in enumerate(self.KDE):
-            scores[self.STATES[idx]] = np.atleast_1d(kde.pdf(X.T))
-        scores = pd.DataFrame(scores)
-        return scores
-
-    def _log_likelihood(self, X):
-        """Same as ``_likelihood`` but ``log p(x | state)`` (no underflow)."""
-        # atleast_1d: scipy's multivariate normal returns a scalar for a single sample
-        return pd.DataFrame({self.STATES[idx]: np.atleast_1d(kde.logpdf(X.T)) for idx, kde in enumerate(self.KDE)})
-
-    def scores(self, X):
-        """
-        Per-epoch posterior-like class probabilities.
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_epochs, n_features)
-            Raw feature matrix (same columns as used in ``fit``). Rows **must be
-            consecutive epochs in time order**: scores are smoothed across rows with
-            ``self.WINDOW`` (gaussian, ``window_smooth_n`` taps). Use
-            ``window_smooth_n=1`` to score rows independently.
-
-        Returns
-        -------
-        pd.DataFrame, shape (n_epochs, n_states)
-            Columns are ``self.STATES``; rows sum to 1. Steps: likelihoods normalised
-            across states (equal priors, computed in log space), zero-phase smoothing
-            across epochs, multiplication by ``cat_bias``, renormalisation.
-        """
-        X = self.transform(X)
-        log_lik = np.asarray(self._log_likelihood(X), dtype=float).reshape(X.shape[0], len(self.STATES))
-        scores = pd.DataFrame(_normalise_log_likelihood(log_lik), columns=list(self.STATES))
-
-        scores = _smooth_scores(scores, self.WINDOW)
-
-        for cat in self.CAT_BIAS.keys():
-            if cat in scores.keys(): scores[cat] = scores[cat]*self.CAT_BIAS[cat]
-
-        scores = scores.div(scores.sum(axis=1), axis=0)
-        return scores
-
     def transform(self, X):
+        if getattr(self, 'Scaler', None) is not None:
+            X = self.Scaler.transform(X)
         X = self.SELECTOR.transform(X)
         X = self.PCA.transform(X)
         #X = self.ZScore.transform(X)
@@ -1174,56 +1494,6 @@ class KDEBayesianModelNC:
             X = self.SELECTOR2.transform(X)
         #X = self.UMAP.transform(X)
         return X
-
-    def fit_transform(self, X, y):
-        self.fit(X, y)
-        return self.transform(X)
-
-    def predict(self, X):
-
-        return np.array(self.scores(X).idxmax(axis=1))
-
-    def preprocess_signal(self, signal, fs, datarate_threshold=0.85):
-        data = buffer(signal, fs, self.segm_size)
-        start_time = np.array([k*self.segm_size for k in range(data.__len__())])
-        end_time = start_time + self.segm_size
-        datarate = np.array(get_datarate(data))
-
-        data = data[datarate >= datarate_threshold]
-        start_time = start_time[datarate >= datarate_threshold]
-        end_time = end_time[datarate >= datarate_threshold]
-        return list(data), start_time, end_time
-
-    def predict_signal(self, signal, fs, datarate_threshold=0.85):
-        """
-        Classify a continuous single-channel signal epoch by epoch.
-
-        Parameters
-        ----------
-        signal : np.ndarray, shape (n_samples,)
-            Raw signal; NaN marks missing data.
-        fs : float, Hz
-            Sampling rate of ``signal``.
-        datarate_threshold : float, 0-1
-            Epochs with a smaller fraction of non-NaN samples are skipped.
-
-        Returns
-        -------
-        pd.DataFrame with columns ``['annotation', 'start', 'end', 'duration']``
-            Times in seconds relative to the first sample; epochs of ``self.segm_size``
-            seconds, consecutive equal labels merged (see ``_scores_to_annotations``).
-        """
-        data, start_time, end_time = self.preprocess_signal(signal, fs, datarate_threshold)
-        x, fs = self.extract_features_bulk(data, [fs]*data.__len__())
-        scores = self.scores(x)
-        return _scores_to_annotations(scores, start_time, self.segm_size)
-
-    def predict_signal_scores(self, signal, fs, datarate_threshold=0.85):
-        data, start_time, end_time = self.preprocess_signal(signal, fs, datarate_threshold)
-        x, fs = self.extract_features_bulk(data, [fs]*data.__len__())
-        scores = self.scores(x)
-        return scores
-
 
 class Mapper:
     """
