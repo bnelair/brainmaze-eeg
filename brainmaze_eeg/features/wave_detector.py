@@ -71,8 +71,9 @@ never cut a wave):
    v1.0.0 (its drift removal is a brick-wall high-pass at ``fband[0]``). The
    brick-wall filter has a sinc impulse response that rings for many
    seconds around any transient and invents waves there (one isolated 50 uV, 1 Hz
-   cycle in 30 s of silence: 14 detections with ``'fft'``, 1 with ``'butter'``), and
-   it is 10-15x slower on long signals, so it is no longer the default.
+   cycle in 30 s of silence: 14 detections in v1.0.0, 5 with ``'fft'`` here, 1 with
+   ``'butter'``), and it is 10-15x slower on long signals, so it is no longer the
+   default.
 3. **Half-waves.** The filtered signal is split at its zero crossings into negative
    and positive half-waves. A *wave* is a negative half-wave immediately followed by a
    positive one. Both half-waves must be bounded by **real** zero crossings: the

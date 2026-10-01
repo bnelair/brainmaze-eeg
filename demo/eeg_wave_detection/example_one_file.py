@@ -10,15 +10,19 @@ Slow-wave feature extraction demo
 Reproduces the slow-wave morphology pipeline of Carvalho et al. 2024 using
 :class:`brainmaze_eeg.features.wave_detector.WaveDetector`.
 
-For each 30 s epoch of a single Fz-(A1+A2)/2 channel it extracts, in two bands:
+For each 30 s epoch of a single EEG channel (stored as ``fzcz`` in the demo file;
+the study used Fz-(A1+A2)/2) it extracts, in two bands:
 
 * slow oscillation (SO) : 0.5-0.9 Hz
 * delta                 : 1.0-3.9 Hz
 
 the mean **downslope** (zero-crossing -> negative trough, in uV/s) of slow waves whose
 negative peak is at least 5 uV deep. Detection runs on the band-limited signal; the
-downslope amplitude is measured on a 0.5-35 Hz broadband trace (``measure_on=``), exactly
-as in the study.
+downslope amplitude is measured on a 0.5-35 Hz broadband trace (``measure_on=``), as in
+the study's design. The original ``SlowWaveDetect`` source is not available, so numerical
+identity with the published values is not verified (see the ``wave_detector`` module
+docstring, *Refinement and amplitude bias*, for how the trough placement changes the
+downslope).
 
 Reference
 ---------
@@ -36,7 +40,15 @@ Run
     python example_one_file.py
 
 Requires ``patient_one_data.mat`` (an ~6.8 h Fz recording at 500 Hz with a hypnogram)
-in this directory.
+in this directory. Output with brainmaze-eeg's WaveDetector 2.1.0 defaults (~20 s)::
+
+    811 epochs, 325 NREM
+
+      band    mean downslope (uV/s)   mean wave rate (1/s)
+        SO                     51.8                  0.307
+     delta                    155.0                  1.334
+
+(WaveDetector 2.0.0 / brainmaze-eeg 1.0.0 gave SO 186.0 / 0.253 and delta 250.2 / 1.354.)
 """
 
 import os
