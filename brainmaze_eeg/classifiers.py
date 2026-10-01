@@ -1796,14 +1796,15 @@ class SleepStructureClassifier:
     Parameters
     ----------
     states : list of str
-        States the model may use (default ``['WAKE', 'N1', 'N2', 'N3', 'REM']``; note
-        that the other classifiers in this module use ``'AWAKE'``). Every ``fit`` starts
+        States the model may use (default ``['AWAKE', 'N1', 'N2', 'N3', 'REM']``, the same
+        wake label as the other classifiers in this module; up to v1.0.0 the default was
+        ``'WAKE'``, so pass ``states=[...]`` explicitly to keep that label). Every ``fit`` starts
         again from this list: states without training epochs are dropped for that fit
         with a warning (``self.STATES`` = the states actually fitted), and training labels
         that are not in the list raise ``ValueError``. Each fitted state pair needs enough
         pairs for a non-singular ``(d + 1)``-dimensional KDE (see ``fit``).
     """
-    def __init__(self, states=['WAKE', 'N1', 'N2', 'N3', 'REM']):
+    def __init__(self, states=('AWAKE', 'N1', 'N2', 'N3', 'REM')):
         self._states_init = tuple(states)
         self.STATES = list(states)
         self.norml2 = None

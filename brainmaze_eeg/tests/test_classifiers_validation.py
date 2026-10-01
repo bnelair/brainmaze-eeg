@@ -287,17 +287,18 @@ def test_sleep_structure_classifier_valid():
 def test_sleep_structure_classifier_drops_untrained_states():
     y = np.repeat(['N2', 'N3'], 6)
     X = features(y, d=3, seed=0)
-    with pytest.warns(UserWarning, match='WAKE'):
-        m = C.SleepStructureClassifier().fit(X, y)    # default states include WAKE/N1/REM
+    with pytest.warns(UserWarning, match='AWAKE'):
+        m = C.SleepStructureClassifier().fit(X, y)    # default states include AWAKE/N1/REM
     assert m.STATES == ['N2', 'N3']
     assert set(m.predict(X)) <= {'N2', 'N3'}
 
 
 def test_sleep_structure_classifier_rejects_unknown_labels():
-    # review R3: AWAKE with the default states (WAKE, ...) was silently dropped
-    y = np.repeat(['AWAKE', 'N2', 'N3'], 6)
+    # review R3: a label outside the state list (e.g. AWAKE when the default was WAKE)
+    # was silently dropped
+    y = np.repeat(['ARTIFACT', 'N2', 'N3'], 6)
     X = features(y, d=3, seed=0)
-    with pytest.raises(ValueError, match='AWAKE'):
+    with pytest.raises(ValueError, match='ARTIFACT'):
         C.SleepStructureClassifier().fit(X, y)
 
 
@@ -653,3 +654,11 @@ def test_resample_epochs_identity_at_model_rate():
     sig = np.random.default_rng(0).normal(size=6000)
     out, fs = C._resample_epochs([sig], [200], 200)
     assert fs == 200 and np.array_equal(out[0], sig)
+
+
+def test_sleep_structure_classifier_default_wake_label_is_awake():
+    m = C.SleepStructureClassifier()
+    assert m.STATES == ['AWAKE', 'N1', 'N2', 'N3', 'REM']
+    y = np.repeat(['WAKE', 'N2'], 6)
+    with pytest.raises(ValueError, match='WAKE'):
+        m.fit(features(y, d=3, seed=0), y)    # the old label is not silently accepted
