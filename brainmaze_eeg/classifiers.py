@@ -98,7 +98,14 @@ def _smooth_scores(scores, window):
     now capped at ``n_epochs - 1`` (identical output for longer inputs).
     """
     n = scores.shape[0]
+    window = np.asarray(window, dtype=float)
     if n == 0:
+        return scores
+    if window.size == 1:
+        # single-tap window (``window_smooth_n=1``) = no smoothing; scipy < 1.15
+        # ``filtfilt`` rejects filters of length 1
+        for key in scores.keys():
+            scores[key] = np.asarray(scores[key], dtype=float) * (window[0] ** 2)
         return scores
     padlen = min(3 * len(window), n - 1)
     for key in scores.keys():
@@ -452,13 +459,14 @@ class KDEBayesianModel:
         """
         scores = {}
         for idx, kde in enumerate(self.KDE):
-            scores[self.STATES[idx]] = kde.pdf(X.T)
+            scores[self.STATES[idx]] = np.atleast_1d(kde.pdf(X.T))
         scores = pd.DataFrame(scores)
         return scores
 
     def _log_likelihood(self, X):
         """Same as ``_likelihood`` but ``log p(x | state)`` (no underflow)."""
-        return pd.DataFrame({self.STATES[idx]: kde.logpdf(X.T) for idx, kde in enumerate(self.KDE)})
+        # atleast_1d: scipy's multivariate normal returns a scalar for a single sample
+        return pd.DataFrame({self.STATES[idx]: np.atleast_1d(kde.logpdf(X.T)) for idx, kde in enumerate(self.KDE)})
 
     def scores(self, X):
         """
@@ -1118,13 +1126,14 @@ class KDEBayesianModelNC:
         """
         scores = {}
         for idx, kde in enumerate(self.KDE):
-            scores[self.STATES[idx]] = kde.pdf(X.T)
+            scores[self.STATES[idx]] = np.atleast_1d(kde.pdf(X.T))
         scores = pd.DataFrame(scores)
         return scores
 
     def _log_likelihood(self, X):
         """Same as ``_likelihood`` but ``log p(x | state)`` (no underflow)."""
-        return pd.DataFrame({self.STATES[idx]: kde.logpdf(X.T) for idx, kde in enumerate(self.KDE)})
+        # atleast_1d: scipy's multivariate normal returns a scalar for a single sample
+        return pd.DataFrame({self.STATES[idx]: np.atleast_1d(kde.logpdf(X.T)) for idx, kde in enumerate(self.KDE)})
 
     def scores(self, X):
         """
