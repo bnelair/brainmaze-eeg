@@ -1,8 +1,9 @@
 name: Prepare release
 
 # Opens a "Release vX.Y.Z" pull request that bumps [project].version in pyproject.toml.
-# A code owner reviews and merges it; merging to main triggers Release (release.yml).
-# This never pushes to a protected branch. See the shared workflow for details.
+# A maintainer reviews and squash-merges it; merging to main triggers Release (release.yml).
+# This never pushes to a protected branch. See the shared workflow and the family guide
+# (https://github.com/bnelair/brainmaze-sphinx/blob/main/RELEASING.md) for details.
 
 on:
   workflow_dispatch:

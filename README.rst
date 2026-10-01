@@ -26,16 +26,16 @@ How to contribute
 The project has 2 main protected branches *main* that contains official software releases and *dev* that contains the latest feature implementations shared with developers.
 To implement a new feature a new branch should be created from the *dev* branch with name pattern of *developer_identifier/feature_name*.
 
-After the feature is implemented, a pull request can be created to merge the feature branch into the *dev* branch with. Pull requests need to be reviewed by the code owners.
+After the feature is implemented, a pull request can be created to merge the feature branch into the *dev* branch with. Pull requests need to be reviewed by a maintainer.
 
 Releasing
 '''''''''''''''''''''''''''''''
 
-Releases are automated and never bypass branch protection. To cut a release, a code owner runs the **Prepare release** GitHub Action (*Actions* tab, ``workflow_dispatch``) and selects the bump (*patch* / *minor* / *major*). This opens a small ``Release vX.Y.Z`` pull request that bumps ``[project].version`` in ``pyproject.toml`` on a ``release/bump-*`` branch off *main*. Once a code owner approves and merges that pull request into *main*, the **Release** workflow tags the version, builds the distributions, publishes to PyPI, and drafts the GitHub release automatically. The build reads the version from ``pyproject.toml``, which remains the single source of truth.
+Releases are automated and go through a reviewed pull request. To cut a release, a maintainer runs the **Prepare release** GitHub Action (*Actions* tab, ``workflow_dispatch``) and selects the bump (*patch* / *minor* / *major*). This opens a small ``Release vX.Y.Z`` pull request that bumps ``[project].version`` in ``pyproject.toml`` on a ``release/bump-*`` branch off *main*. A reviewer checks that it changes only that line and squash-merges it into *main*; the merge triggers the **Release** workflow, which tests, builds, publishes to PyPI (Trusted Publishing), and then tags the version and creates the GitHub release. The build reads the version from ``pyproject.toml``, which remains the single source of truth.
 
-Promotion of features from *dev* to *main* is independent of releases and **must not change** ``[project].version`` -- a *Version guard* CI check fails any pull request outside the release flow that edits it. The version line is owned solely by the release automation on *main*; this is what keeps ``dev`` -> ``main`` merges free of version conflicts under the squash-merge policy (a version edited on both branches would otherwise conflict every release cycle).
+Promotion of features from *dev* to *main* is independent of releases and **must not change** ``[project].version`` -- a *Version guard* CI check flags any pull request outside the release flow that edits it (the check is advisory, so reviewers must not merge a flagged pull request). The version line is owned solely by the release automation on *main*; this is what keeps ``dev`` -> ``main`` merges free of version conflicts under the squash-merge policy (a version edited on both branches would otherwise conflict every release cycle).
 
-The **Prepare release** action requires the repository/organization setting *Allow GitHub Actions to create and approve pull requests* to be enabled, so it can open the bump pull request.
+The **Prepare release** action requires the repository/organization setting *Allow GitHub Actions to create and approve pull requests* to be enabled, so it can open the bump pull request. See ``RELEASING.md`` and the family guide https://github.com/bnelair/brainmaze-sphinx/blob/main/RELEASING.md (including what to do if a release fails part-way).
 
 New functions need to be implemented with Sphinx compatible docstrings. The documentation is automatically generated from the docstrings using Sphinx.
 
