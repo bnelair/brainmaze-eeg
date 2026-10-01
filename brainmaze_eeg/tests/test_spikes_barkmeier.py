@@ -178,35 +178,49 @@ def test_sensitivity_and_noise_rate_on_synthetic_ieeg(fs):
     assert len(detect_spikes_barkmeier(noise, fs)) / 120.0 < 0.08
 
 
-def test_one_nan_in_one_channel_does_not_disable_scaling_for_the_others():
-    # regression: a NaN made the median scaling factor NaN -> no channel was scaled
+def test_valid_mask_excludes_samples_from_block_statistics():
     fs = 500
     rng = np.random.default_rng(0)
-    X = np.vstack([pink_background(60 * fs, fs, 40.0, rng) for _ in range(6)])
-    for t in (10, 25, 40):
-        _biphasic(X[0], int(t * fs), amp=600.0)
-    clean, ic = detect_spikes_barkmeier(X, fs, return_info=True)
-    Xn = X.copy()
-    Xn[3, 1234] = np.nan
-    gappy, ig = detect_spikes_barkmeier(Xn, fs, return_info=True)
-    assert np.isfinite(ig['scale_factor']).all() and (ig['scale_factor'] > 0).all()
-    np.testing.assert_allclose(ig['scale_factor'], ic['scale_factor'], rtol=0.02)
-    np.testing.assert_array_equal(_peaks(gappy, 0), _peaks(clean, 0))
-    assert len(_peaks(gappy, 0)) >= 3
+    X = np.vstack([pink_background(60 * fs, fs, 40.0, rng) for _ in range(4)])
+    _, ref = detect_spikes_barkmeier(X, fs, return_info=True)
+    Y = X.copy()
+    Y[1, 10 * fs:20 * fs] += rng.normal(0, 400.0, 10 * fs)   # garbage flagged invalid
+    valid = np.ones(X.shape, bool)
+    valid[1, 10 * fs:20 * fs] = False
+    _, inf_v = detect_spikes_barkmeier(Y, fs, valid=valid, return_info=True)
+    with pytest.warns(UserWarning, match='artifact'):
+        _, inf_n = detect_spikes_barkmeier(Y, fs, return_info=True)
+    # with the mask, channel 1's statistics come from its real samples only; without it
+    # the garbage dominates its slope and the artifact rule drops the channel
+    assert not inf_v['artifact'].any()
+    assert inf_v['candidate_threshold'][0, 1] == pytest.approx(
+        ref['candidate_threshold'][0, 1], rel=0.3)
+    assert inf_n['artifact'][0, 1]
+    with pytest.raises(ValueError):
+        detect_spikes_barkmeier(X, fs, valid=valid[:, :100])
 
 
-def test_nan_gap_detections_dropped_and_all_nan_channel():
-    fs = 500
-    x, truth = synth_ieeg(fs, dur=60.0, seed=4, amp_range=(300, 500), mains_hz=None)
-    x[20 * fs:23 * fs] = np.nan
-    det = _peaks(detect_spikes_barkmeier(x, fs))
-    assert not np.any((det >= 20 * fs - 0.1 * fs) & (det < 23 * fs + 0.1 * fs))
-    X = np.vstack([x, np.full_like(x, np.nan)])
-    with pytest.warns(RuntimeWarning, match='entirely NaN'):
-        out = detect_spikes_barkmeier(X, fs)
-    assert all(d['channel'] == 0 for d in out)
-    with pytest.raises(ValueError, match='NaN'):
-        detect_spikes_barkmeier(x, fs, nan_policy='raise')
+@pytest.mark.parametrize('bad', [np.nan, np.inf])
+def test_raw_detector_raises_on_non_finite(bad):
+    # regression: one NaN used to silently disable block scaling for every channel
+    x = _noise(4 * FS)
+    x[100] = bad
+    with pytest.raises(ValueError, match='GapAwareSpikeDetector'):
+        detect_spikes_barkmeier(x, FS)
+
+
+def test_barkmeier_detector_object():
+    from brainmaze_eeg.spikes import BarkmeierDetector
+    rng = np.random.default_rng(1)
+    X = np.vstack([pink_background(30 * FS, FS, 40.0, rng) for _ in range(3)])
+    _biphasic(X[2], 10 * FS, 800.0)
+    per_ch = BarkmeierDetector(refractory=0.1).detect(X, FS)
+    flat = detect_spikes_barkmeier(X, FS, refractory=0.1)
+    assert len(per_ch) == 3
+    assert [d for ch in per_ch for d in ch] == flat
+    assert all(d['channel'] == c for c, ch in enumerate(per_ch) for d in ch)
+    with pytest.raises(TypeError):
+        BarkmeierDetector(valid=None)
 
 
 def test_inf_raises():
@@ -298,7 +312,7 @@ def test_merge_happens_before_refractory():
 
 @pytest.mark.parametrize('kw', [dict(broad_band=(1, 300)), dict(narrow_band=(50, 20)),
                                 dict(narrow_order=0), dict(block_s=0), dict(block_s=-60),
-                                dict(gap_margin_s=-1), dict(nan_policy='omit')])
+                                ])
 def test_invalid_parameters_raise(kw):
     with pytest.raises(ValueError):
         detect_spikes_barkmeier(_noise(4 * FS), FS, **kw)

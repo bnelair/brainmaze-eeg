@@ -212,7 +212,7 @@ def test_janca_transposed_input_raises():
 @pytest.mark.parametrize('kw', [dict(band=(10, 150)), dict(band=(60, 10)), dict(band=(0, 60)),
                                 dict(filter_order=0), dict(window_s=0), dict(threshold=-1),
                                 dict(min_distance_s=-0.1), dict(target_fs=-5),
-                                dict(decimation='bogus'), dict(nan_policy='omit'),
+                                dict(decimation='bogus'),
                                 dict(powerline=-50), dict(notch_width=0),
                                 dict(notch_harmonics=0)])
 def test_janca_invalid_parameters_raise(kw):
@@ -256,57 +256,13 @@ def test_janca_exact_resampling_reaches_target(fs):
     assert _hits(det, truth, 0.05 * fs) >= 0.9 * truth.size
 
 
-def test_janca_nan_policy_raise():
+@pytest.mark.parametrize('bad', [np.nan, np.inf, -np.inf])
+def test_janca_raw_detector_raises_on_non_finite(bad):
+    # the raw detector never silently returns zero detections (the reference's behaviour)
     x, _ = synth_ieeg(500, dur=10.0, seed=0)
-    x[1000] = np.nan
-    with pytest.raises(ValueError, match='NaN'):
-        detect_spikes_janca(x, 500, nan_policy='raise')
-
-
-def test_janca_inf_always_raises():
-    x, _ = synth_ieeg(500, dur=10.0, seed=0)
-    x[1000] = np.inf
-    with pytest.raises(ValueError, match='inf'):
+    x[1000] = bad
+    with pytest.raises(ValueError, match='GapAwareSpikeDetector'):
         detect_spikes_janca(x, 500)
-
-
-def test_janca_single_nan_no_longer_silences_the_channel():
-    # regression: one NaN used to propagate through filtfilt/hilbert -> zero detections
-    x, truth = synth_ieeg(500, dur=60.0, seed=3, amp_range=(250, 400))
-    clean = detect_spikes_janca(x, 500)
-    x[10000] = np.nan
-    det = detect_spikes_janca(x, 500)
-    assert det.size >= clean.size - 1
-    assert not np.any(np.abs(det - 10000) <= 0.1 * 500)
-
-
-@pytest.mark.parametrize('gap_s', [0.05, 2.0, 10.0])
-def test_janca_gaps_are_filled_and_detections_near_them_dropped(gap_s):
-    fs = 500
-    x, truth = synth_ieeg(fs, dur=120.0, seed=5, amp_range=(250, 400))
-    clean = detect_spikes_janca(x, fs)
-    g0, g1 = int(60 * fs), int((60 + gap_s) * fs)
-    xg = x.copy()
-    xg[g0:g1] = np.nan
-    det, info = detect_spikes_janca(xg, fs, return_details=True)
-    np.testing.assert_array_equal(info['gaps'], [[g0, g1]])
-    margin = int(0.1 * fs)
-    assert not np.any((det >= g0 - margin) & (det < g1 + margin))
-    # far from the gap (> 5 s: outside the 5 s background window) nothing changes
-    far = lambda d: d[(d < g0 - 5 * fs) | (d >= g1 + 5 * fs)]
-    np.testing.assert_array_equal(far(det), far(clean))
-    # near the gap: no burst of false detections, real spikes kept
-    near = lambda d: d[((d >= g0 - 5 * fs) & (d < g0 - margin)) | ((d >= g1 + margin) & (d < g1 + 5 * fs))]
-    assert abs(near(det).size - near(clean).size) <= 1
-
-
-def test_janca_all_nan_channel_warns_and_returns_nothing():
-    a, _ = synth_ieeg(500, dur=20.0, seed=0)
-    X = np.vstack([a, np.full_like(a, np.nan)])
-    with pytest.warns(RuntimeWarning, match='entirely NaN'):
-        out = detect_spikes_janca(X, 500)
-    assert out[1].size == 0
-    np.testing.assert_array_equal(out[0], detect_spikes_janca(a, 500))
 
 
 def test_janca_return_details():
@@ -315,19 +271,33 @@ def test_janca_return_details():
     assert info['fs_analysis'] == 256.0 and (info['up'], info['down']) == (1, 2)
     assert info['envelope'].shape == info['threshold'].shape == (x.size // 2,)
     assert np.all(info['envelope'][det // 2] > info['threshold'][det // 2])
+    assert set(info) == {'fs_analysis', 'up', 'down', 'envelope', 'threshold', 'filters'}
 
 
-def test_v24_nan_gap_handling():
+def test_v24_raw_raises_on_nan_and_detect_protocol():
     fs = 512
     x, truth = synth_ieeg(fs, dur=60.0, seed=3, amp_range=(250, 400))
-    out_clean, *_ = SpikeDetectorHilbert().run(x, fs)
+    out, *_ = SpikeDetectorHilbert().run(x, fs)
+    det = SpikeDetectorHilbert().detect(x[None, :], fs)
+    assert len(det) == 1
+    np.testing.assert_array_equal(det[0], np.unique(np.round(out['pos'] * fs).astype(int)))
     xg = x.copy()
-    xg[30 * fs:32 * fs] = np.nan
-    out, *_ = SpikeDetectorHilbert().run(xg, fs)
-    assert len(out['pos']) >= len(out_clean['pos']) - 3
-    assert not np.any((out['pos'] >= 29.9) & (out['pos'] < 32.1))
+    xg[30 * fs] = np.nan
     with pytest.raises(ValueError, match='NaN'):
-        SpikeDetectorHilbert(nan_policy='raise').run(xg, fs)
+        SpikeDetectorHilbert().run(xg, fs)
+
+
+def test_janca_detector_object():
+    from brainmaze_eeg.spikes import JancaDetector
+    x, _ = synth_ieeg(512, dur=30.0, seed=0)
+    X = np.vstack([x, x[::-1]])
+    a = JancaDetector(threshold=4.0).detect(X, 512)
+    b = detect_spikes_janca(X, 512, threshold=4.0)
+    assert all(np.array_equal(p, q) for p, q in zip(a, b))
+    with pytest.raises(TypeError):
+        JancaDetector(nonsense=1)
+    with pytest.raises(ValueError):
+        JancaDetector().detect(x, 512)          # protocol is 2-D
 
 
 @pytest.mark.parametrize('fs', [204.8, 1000.5])

@@ -83,8 +83,10 @@ Known differences from the eeg_forge reference (all deliberate fixes)
   (``ValueError``); a power-line notch that does not fit below Nyquist is skipped with a
   ``UserWarning`` (``powerline=None`` disables it silently).
 - **Multichannel input** ``(n_channels, n_samples)`` (the reference is 1-D only).
-- **NaN gaps** are filled before and detections in/near gaps removed after (``nan_policy``);
-  the reference returns zero detections for a channel with a single NaN.
+- **Non-finite input raises** ``ValueError`` (the reference silently returns zero detections
+  for a channel with a single NaN). For signals with gaps use
+  :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` around
+  :class:`JancaDetector`.
 - ``min_distance_s * fs_a < 1`` is clamped to 1 sample (the reference would raise).
 - **Optional exact resampling** (``decimation='exact'``); the default keeps the reference's
   integer decimation so that results are identical to it.
@@ -100,10 +102,9 @@ from scipy.signal import find_peaks, firwin, hilbert, resample_poly, sosfiltfilt
 from scipy.special import erf
 
 from brainmaze_eeg.spikes import _filters as flt
-from brainmaze_eeg.spikes._gaps import in_gap_mask, prepare_signal
 
-__all__ = ['detect_spikes_janca', 'design_janca_filters', 'janca_decimation_factor',
-           'janca_resampling',
+__all__ = ['detect_spikes_janca', 'JancaDetector', 'design_janca_filters',
+           'janca_decimation_factor', 'janca_resampling',
            'SpikeDetectorHilbert', 'spike_detector_hilbert_v24']
 
 
@@ -230,9 +231,8 @@ def _as_channels_first(x, name='x'):
 
 def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=50.0,
                         notch_width=5.0, notch_order=3, notch_harmonics=1, target_fs=200.0,
-                        decimation='integer', window_s=5.0, threshold=3.65, min_distance_s=0.1, eps_rel=1e-6,
-                        nan_policy='fill', gap_margin_s=0.1, fill_kwargs=None,
-                        return_details=False):
+                        decimation='integer', window_s=5.0, threshold=3.65,
+                        min_distance_s=0.1, eps_rel=1e-6, return_details=False):
     """
     Janca envelope-distribution spike detector (eeg_forge formulation, fixed).
 
@@ -242,7 +242,9 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
     ----------
     x : np.ndarray
         Signal, ``(n_samples,)`` or ``(n_channels, n_samples)``. Any amplitude unit
-        (the detector is scale-invariant). NaN marks missing data (see ``nan_policy``).
+        (the detector is scale-invariant). Must be finite: NaN/inf raise ``ValueError``
+        (wrap the detector in :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector`
+        for data with gaps).
     fs : float
         Sampling frequency of ``x`` (Hz).
     band : (float, float)
@@ -283,14 +285,6 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
     eps_rel : float
         Envelope offset before the log, relative to the channel's median envelope
         (our choice, replaces the reference's absolute 1e-6; see module docstring).
-    nan_policy : {'fill', 'raise'}
-        ``'fill'`` (default): NaN gaps are filled with
-        :func:`brainmaze_eeg.spikes._gaps.fill_gaps` before detection and detections inside a gap
-        or within ``gap_margin_s`` of it are dropped. ``'raise'``: ``ValueError`` on NaN.
-    gap_margin_s : float
-        Exclusion margin around each gap in seconds (default 0.1).
-    fill_kwargs : dict, optional
-        Passed to :func:`brainmaze_eeg.spikes._gaps.fill_gaps` (e.g. ``{'max_interp_s': 0.2}``; see the README, "Gaps").
     return_details : bool
         Also return per-channel diagnostics (see Returns).
 
@@ -305,14 +299,13 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         ``fs_analysis`` (Hz), ``up``/``down`` resampling factors (``fs_analysis = fs * up /
         down``), ``envelope`` and ``threshold`` (at the analysis rate; sample ``i``
         corresponds to input sample ``i * down / up``), ``filters``
-        (output of :func:`design_janca_filters`), ``gaps`` (``[start, stop)`` input samples).
+        (output of :func:`design_janca_filters`).
 
     Raises
     ------
     ValueError
         Invalid parameters, a band edge at/above the analysis Nyquist, a 2-D array with more
-        rows than columns (probably transposed), ``+/-inf`` in ``x``, or NaN with
-        ``nan_policy='raise'``.
+        rows than columns (probably transposed), or a non-finite value (NaN/inf) in ``x``.
     """
     fs = float(fs)
     if not fs > 0:
@@ -326,8 +319,6 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         raise ValueError(f'min_distance_s must be >= 0, got {min_distance_s}')
     if not eps_rel >= 0:
         raise ValueError(f'eps_rel must be >= 0, got {eps_rel}')
-    if not gap_margin_s >= 0:
-        raise ValueError(f'gap_margin_s must be >= 0, got {gap_margin_s}')
 
     filters = design_janca_filters(fs, band, filter_order, powerline, notch_width,
                                    notch_order, notch_harmonics)
@@ -341,10 +332,10 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         win += 1
     dist = max(int(min_distance_s * fs_a), 1)
 
-    Y, gaps, dead = prepare_signal(X, fs, nan_policy, fill_kwargs)
+    _check_finite(X, 'x')
 
     # -- preprocessing (all channels at once, time on the last axis) ----------------------
-    y = sosfiltfilt(filters['bandpass'], Y, axis=-1)
+    y = sosfiltfilt(filters['bandpass'], X, axis=-1)
     for _, sos in filters['notches']:
         y = sosfiltfilt(sos, y, axis=-1)
     if (up, down) != (1, 1):
@@ -359,7 +350,7 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         scale = np.median(e)
         if not scale > 0:
             scale = e.mean()
-        if not dead[c] and scale > 0:
+        if scale > 0:
             log_e = np.log(e + eps_rel * scale)
             mu = uniform_filter1d(log_e, win, mode='reflect')
             sd = np.sqrt(uniform_filter1d((log_e - mu) ** 2, win, mode='reflect'))
@@ -369,17 +360,65 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
                 idx = pk.astype(np.int64) * down
             else:
                 idx = np.minimum(np.round(pk * (down / up)).astype(np.int64), X.shape[1] - 1)
-            if len(gaps[c]):
-                idx = idx[~in_gap_mask(idx / fs, gaps[c], fs, gap_margin_s)]
         results.append(idx)
         if return_details:
             details.append({'fs_analysis': fs_a, 'up': up, 'down': down, 'envelope': e,
-                            'threshold': thr_curve, 'filters': filters, 'gaps': gaps[c]})
+                            'threshold': thr_curve, 'filters': filters})
 
     if one_d:
         results = results[0]
         details = details[0] if details else details
     return (results, details) if return_details else results
+
+
+def _check_finite(X, name):
+    bad = ~np.isfinite(X)
+    if bad.any():
+        ch = np.flatnonzero(bad.any(axis=-1)).tolist()
+        raise ValueError(f"'{name}' contains NaN/inf (channels {ch}). The raw detectors need "
+                         'finite input; use brainmaze_eeg.spikes.GapAwareSpikeDetector to fill '
+                         'gaps and drop detections near them.')
+
+
+class JancaDetector:
+    """
+    :func:`detect_spikes_janca` as a detector object (the protocol of
+    :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector`).
+
+    ``JancaDetector(**params).detect(x, fs)`` equals ``detect_spikes_janca(x, fs, **params)``
+    for 2-D ``x`` ``(n_channels, n_samples)``: a list with one ``int64`` array of sample
+    indices per channel. Parameters are those of :func:`detect_spikes_janca` (except
+    ``return_details``) and are validated at construction.
+
+    Example (ripple-band configuration; see the README)::
+
+        det = JancaDetector(band=(80, 250), target_fs=1000)
+    """
+
+    output = 'indices'
+
+    def __init__(self, **params):
+        if 'return_details' in params:
+            raise TypeError('return_details is not a detector parameter; call '
+                            'detect_spikes_janca directly for details')
+        import inspect
+        allowed = set(inspect.signature(detect_spikes_janca).parameters) - {'x', 'fs',
+                                                                             'return_details'}
+        unknown = set(params) - allowed
+        if unknown:
+            raise TypeError(f'unknown JancaDetector parameter(s) {sorted(unknown)}')
+        self.params = dict(params)
+
+    def __repr__(self):
+        args = ', '.join(f'{k}={v!r}' for k, v in self.params.items())
+        return f'JancaDetector({args})'
+
+    def detect(self, x, fs):
+        """Detection sample indices per channel of ``x`` ``(n_channels, n_samples)``."""
+        x = np.asarray(x, dtype=np.float64)
+        if x.ndim != 2:
+            raise ValueError(f'JancaDetector.detect expects (n_channels, n_samples), got {x.shape}')
+        return detect_spikes_janca(x, fs, **self.params)
 
 
 # ===================================================================== MATLAB-v24 port
@@ -459,12 +498,10 @@ class SpikeDetectorHilbert:
     beta : float
         Low edge (Hz) of beta rejection. ``inf`` (default) disables it; any finite value
         raises ``NotImplementedError``.
-    nan_policy : {'fill', 'raise'}
-        NaN handling, as in :func:`detect_spikes_janca`. With ``'fill'`` the returned
-        signals (``d_decim``, ``envelope``, ...) are those of the filled signal, and
-        detections in/near gaps are removed before discharge grouping.
-    gap_margin_s : float
-        Exclusion margin around gaps (seconds). Default 0.1.
+
+    Input must be finite (NaN/inf raise ``ValueError``). For data with gaps use
+    ``GapAwareSpikeDetector(SpikeDetectorHilbert(...))``: it calls :meth:`detect`, which
+    takes ``(n_channels, n_samples)`` and returns detection sample indices per channel.
 
     Buffering scheme
     ----------------
@@ -495,9 +532,6 @@ class SpikeDetectorHilbert:
         self.cheb_rs = 60.0
         self.cheb_transition_hz = (5.0, 10.0)
         self.beta = np.inf
-        self.nan_policy = 'fill'
-        self.gap_margin_s = 0.1
-        self.fill_kwargs = None
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise TypeError(f'unknown parameter {key!r}')
@@ -612,8 +646,7 @@ class SpikeDetectorHilbert:
             raise ValueError(f'bandwidth high edge {self.bandwidth[1]} >= target Nyquist {target/2}')
         filters = self.design_filters(target)
 
-        filled, gaps, _ = prepare_signal(d.T, fs, self.nan_policy, self.fill_kwargs)
-        d = filled.T
+        _check_finite(d.T, 'd')
 
         # -- decimate (per channel), then notch mains + 1 Hz high-pass -----------
         d_dec = self._resample(d, fs, target)
@@ -659,20 +692,37 @@ class SpikeDetectorHilbert:
             markers_low[:edge] = markers_low[-edge:] = False
 
         out = self._markers_to_out(markers_high, markers_low, envelope_cdf, envelope_pdf, fsd)
-        out = self._drop_in_gaps(out, gaps, fs)
         discharges = self._group_discharges(out, envelope, background, envelope_cdf,
                                             envelope_pdf, d_decim, fsd)
         return out, discharges, d_decim, envelope, background, envelope_pdf
 
-    def _drop_in_gaps(self, out, gaps, fs):
-        if not len(out['pos']) or not any(len(g) for g in gaps):
-            return out
-        keep = np.ones(len(out['pos']), dtype=bool)
-        for ch, g in enumerate(gaps):
-            if len(g):
-                sel = out['chan'] == ch
-                keep[sel] = ~in_gap_mask(out['pos'][sel], g, fs, self.gap_margin_s)
-        return {k: v[keep] for k, v in out.items()}
+    output = 'indices'
+
+    def detect(self, x, fs):
+        """
+        Detector protocol of :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector`.
+
+        Parameters
+        ----------
+        x : np.ndarray, shape (n_channels, n_samples)
+            **Channels first** (unlike :meth:`run`).
+        fs : float
+
+        Returns
+        -------
+        list of np.ndarray
+            Per channel, sorted ``int64`` sample indices (input rate) of the detections
+            (obvious and, with ``k2 > k1``, ambiguous ones), ``round(pos * fs)``.
+        """
+        x = np.asarray(x, dtype=np.float64)
+        if x.ndim != 2:
+            raise ValueError(f'detect expects (n_channels, n_samples), got {x.shape}')
+        out = self.run(x.T, fs)[0]
+        pos = np.asarray(out['pos'], dtype=float)
+        chan = np.asarray(out['chan']).astype(int) if pos.size else np.zeros(0, int)
+        n = x.shape[1]
+        return [np.unique(np.minimum(np.round(pos[chan == c] * fs).astype(np.int64), n - 1))
+                for c in range(x.shape[0])]
 
     # ------------------------------------------------------------- core science
     def _detect_block(self, d, fs, winsize, filters):

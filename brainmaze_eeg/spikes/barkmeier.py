@@ -30,8 +30,8 @@ Algorithm
 1. **[paper] Artifact channels.** In each block a channel is artifactual if its average
    slope is more than ``artifact_sd`` (10) standard deviations from the mean slope of the
    channels; it is excluded from that block (no detections, not used for scaling).
-   **[ours]** Average slope = mean ``|dx/dt|`` of the (gap-filled) input signal over the
-   block. The mean and SD are computed **leave-one-out** (over the *other* channels, SD with
+   **[ours]** Average slope = mean ``|dx/dt|`` of the input signal over the (valid samples
+   of the) block. The mean and SD are computed **leave-one-out** (over the *other* channels, SD with
    ``ddof=1``): including the tested channel bounds its z-score by ``sqrt(n_channels - 1)``,
    so the paper's literal rule could never fire with fewer than 102 channels. Needs at least
    3 usable channels; otherwise no channel is flagged. ``artifact_sd=None`` disables it.
@@ -76,9 +76,11 @@ Differences from the earlier version of this module
 - No artifact-channel rule. Now implemented (see step 1).
 - The refractory period was applied before the 50 ms merge, so a merge could pick a
   detection the refractory had already used to suppress its neighbour. Now merge first.
-- A single NaN anywhere made the median scaling factor NaN for **every** channel. Gaps are
-  now filled before and detections in/near them removed after (``nan_policy``), and block
-  statistics use only non-gap samples.
+- A single NaN anywhere silently made the median scaling factor NaN for **every** channel.
+  Non-finite input now raises ``ValueError``; data with gaps go through
+  :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` (with
+  :class:`BarkmeierDetector`), which fills the gaps, passes the gap mask as ``valid`` so
+  that block statistics use only real samples, and drops detections in/near gaps.
 - A transposed ``(n_samples, n_channels)`` array was silently accepted. A 2-D input with
   more rows than columns, or shorter than 1 s, now raises ``ValueError``.
 
@@ -98,9 +100,9 @@ import numpy as np
 from scipy.signal import find_peaks, sosfiltfilt
 
 from brainmaze_eeg.spikes import _filters as flt
-from brainmaze_eeg.spikes._gaps import gap_sample_mask, in_gap_mask, prepare_signal
 
-__all__ = ['detect_spikes_barkmeier', 'design_barkmeier_filters', 'DEFAULT_THRESHOLDS']
+__all__ = ['detect_spikes_barkmeier', 'BarkmeierDetector', 'design_barkmeier_filters',
+           'DEFAULT_THRESHOLDS']
 
 # Thresholds are evaluated in the block-scaled domain (median channel amplitude -> `scale`).
 # total_amp and slope are the paper's 600 uV and 7 uV/ms (= 7000 uV/s); half_dur is the
@@ -165,8 +167,7 @@ def _artifact_channels(slopes, usable, n_sd):
 def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.05,
                             thresholds=None, narrow_band=(20.0, 50.0), broad_band=(1.0, 35.0),
                             refractory=0.0, *, narrow_order=2, broad_order=2, block_s=60.0,
-                            artifact_sd=10.0, nan_policy='fill', gap_margin_s=0.1,
-                            fill_kwargs=None, return_info=False):
+                            artifact_sd=10.0, valid=None, return_info=False):
     """
     Detect interictal spikes with the Barkmeier (2012) multichannel half-wave criteria.
 
@@ -176,7 +177,9 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
     ----------
     sig : np.ndarray
         iEEG in **uV**, ``(n_samples,)`` or ``(n_channels, n_samples)`` -- pass the whole
-        montage: scaling and the artifact rule are across channels. NaN marks missing data.
+        montage: scaling and the artifact rule are across channels. Must be finite:
+        NaN/inf raise ``ValueError`` (use
+        :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` for data with gaps).
     fs : float
         Sampling frequency in Hz.
     scale : float
@@ -201,14 +204,12 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         Block length in seconds (paper: 60). ``None``: one block for the whole record.
     artifact_sd : float or None
         Artifact-channel rule threshold in SDs (paper: 10); ``None`` disables.
-    nan_policy : {'fill', 'raise'}
-        ``'fill'`` (default): fill NaN gaps with :func:`brainmaze_eeg.spikes._gaps.fill_gaps`, use
-        only non-gap samples for block statistics, drop detections in/within
-        ``gap_margin_s`` of a gap. ``'raise'``: ``ValueError`` on NaN.
-    gap_margin_s : float
-        Exclusion margin around gaps (s), default 0.1.
-    fill_kwargs : dict, optional
-        Passed to :func:`brainmaze_eeg.spikes._gaps.fill_gaps`.
+    valid : np.ndarray of bool, optional
+        Same shape as ``sig``; samples that are real data (default: all). Only valid samples
+        enter the per-block statistics (scaling factor, candidate threshold, artifact slope);
+        a channel with no valid sample in a block is excluded from that block. Used by
+        :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` so that filled gaps do
+        not bias the statistics; detections are not filtered by it.
     return_info : bool
         Also return a dict with per-block diagnostics (see Returns).
 
@@ -224,14 +225,14 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         Only with ``return_info=True``: ``blocks`` ``(n_blocks, 2)`` ``[start, stop)``
         samples; ``scale_factor`` ``(n_blocks,)``; ``artifact`` ``(n_blocks, n_channels)``
         bool; ``channel_slope`` and ``candidate_threshold`` ``(n_blocks, n_channels)`` in
-        input units; ``gaps`` per channel; ``filters``.
+        input units; ``filters``.
 
     Raises
     ------
     ValueError
         Invalid band/order/thresholds, input not 1-D/2-D, a 2-D input with more rows than
-        columns (probably transposed), a record shorter than 1 s, ``+/-inf``, or NaN with
-        ``nan_policy='raise'``.
+        columns (probably transposed), a record shorter than 1 s, a non-finite value, or a
+        ``valid`` mask of the wrong shape.
     """
     if thresholds is None:
         thr = dict(DEFAULT_THRESHOLDS)
@@ -260,15 +261,21 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
     if n_samples < fs:
         raise ValueError(f'record has {n_samples} samples (< 1 s at fs={fs} Hz); check fs and '
                          'the array layout (n_channels, n_samples).')
-    if not gap_margin_s >= 0:
-        raise ValueError(f'gap_margin_s must be >= 0, got {gap_margin_s}')
 
     filters = design_barkmeier_filters(fs, narrow_band, broad_band, narrow_order, broad_order)
-    y, gaps, dead = prepare_signal(x, fs, nan_policy, fill_kwargs)
-    valid = np.ones(x.shape, dtype=bool)
-    for c, g in enumerate(gaps):
-        if len(g):
-            valid[c] = ~gap_sample_mask(g, n_samples)
+    if not np.isfinite(x).all():
+        ch = np.flatnonzero(~np.isfinite(x).all(axis=1)).tolist()
+        raise ValueError(f"'sig' contains NaN/inf (channels {ch}). The raw detector needs "
+                         'finite input; use brainmaze_eeg.spikes.GapAwareSpikeDetector('
+                         'BarkmeierDetector()) to fill gaps and drop detections near them.')
+    y = x
+    if valid is None:
+        valid = np.ones(x.shape, dtype=bool)
+    else:
+        valid = np.asarray(valid, dtype=bool).reshape(-1, n_samples) if sig.ndim == 1 else \
+            np.asarray(valid, dtype=bool)
+        if valid.shape != x.shape:
+            raise ValueError(f'valid has shape {valid.shape}, expected {sig.shape}')
 
     fx_narrow = sosfiltfilt(filters['narrow'], y, axis=-1)
     fx_broad = sosfiltfilt(filters['broad'], y, axis=-1)
@@ -288,7 +295,7 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         v = valid[:, s:e]
         amp = np.full(n_ch, np.nan)
         for c in range(n_ch):
-            if dead[c] or not v[c].any():
+            if not v[c].any():
                 continue
             pair = v[c, 1:] & v[c, :-1]
             if pair.any():
@@ -374,19 +381,55 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         # One discharge produces a cluster of supra-threshold narrow-band maxima: merge
         # detections closer than `trough_search` (keep the largest), THEN apply refractory.
         merged = _apply_refractory(_merge_close(ch_detections, n_trough), refractory_n)
-        if len(gaps[ch]) and merged:
-            t = np.array([d['peak_time'] for d in merged])
-            drop = in_gap_mask(t, gaps[ch], fs, gap_margin_s)
-            merged = [d for d, m in zip(merged, drop) if not m]
         detections.extend(merged)
 
     detections.sort(key=lambda d: (d['channel'], d['peak_index']))
     if return_info:
         info = {'blocks': blocks, 'scale_factor': factor, 'artifact': artifact,
-                'channel_slope': slopes, 'candidate_threshold': cand_thr, 'gaps': gaps,
-                'filters': filters}
+                'channel_slope': slopes, 'candidate_threshold': cand_thr, 'filters': filters}
         return detections, info
     return detections
+
+
+class BarkmeierDetector:
+    """
+    :func:`detect_spikes_barkmeier` as a detector object (the protocol of
+    :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector`).
+
+    ``BarkmeierDetector(**params).detect(x, fs)`` runs :func:`detect_spikes_barkmeier` on
+    the whole montage ``x`` ``(n_channels, n_samples)`` and returns a list with one list of
+    detection dicts per channel (same dicts as :func:`detect_spikes_barkmeier`, sorted by
+    ``peak_index``). Parameters are those of :func:`detect_spikes_barkmeier` except
+    ``valid`` and ``return_info``.
+    """
+
+    output = 'records'           # per-channel lists of dicts with a 'peak_index' key
+    accepts_valid = True         # detect(x, fs, valid=mask) excludes gaps from statistics
+
+    def __init__(self, **params):
+        import inspect
+        allowed = set(inspect.signature(detect_spikes_barkmeier).parameters) - {
+            'sig', 'fs', 'valid', 'return_info'}
+        unknown = set(params) - allowed
+        if unknown:
+            raise TypeError(f'unknown BarkmeierDetector parameter(s) {sorted(unknown)}')
+        self.params = dict(params)
+
+    def __repr__(self):
+        args = ', '.join(f'{k}={v!r}' for k, v in self.params.items())
+        return f'BarkmeierDetector({args})'
+
+    def detect(self, x, fs, valid=None):
+        """Per-channel lists of detection dicts for ``x`` ``(n_channels, n_samples)``."""
+        x = np.asarray(x, dtype=np.float64)
+        if x.ndim != 2:
+            raise ValueError(f'BarkmeierDetector.detect expects (n_channels, n_samples), '
+                             f'got {x.shape}')
+        dets = detect_spikes_barkmeier(x, fs, valid=valid, **self.params)
+        out = [[] for _ in range(x.shape[0])]
+        for d in dets:
+            out[d['channel']].append(d)
+        return out
 
 
 def _merge_close(dets, min_gap):

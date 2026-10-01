@@ -13,23 +13,34 @@ Detectors
   duration half-wave detector (Barkmeier et al. 2012). Layout ``(n_samples,)`` or
   ``(n_channels, n_samples)``.
 
-All detectors fill NaN gaps before detection and drop detections in or near gaps afterwards
-(``nan_policy='fill'``, the default), or raise on NaN (``nan_policy='raise'``). The 2-D
-detectors raise ``ValueError`` on an array with more channels than samples (probably
-transposed).
+Two layers:
+
+- **raw detectors** (above): the algorithm only; finite input required (NaN/inf raise
+  ``ValueError``);
+- :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector`: wraps a detector object
+  (``JancaDetector``, ``BarkmeierDetector``, ``SpikeDetectorHilbert`` or any object with a
+  ``detect(x, fs)`` method), fills NaN/inf gaps, runs it, removes detections in or near gaps
+  and reports the valid time per channel.
+
+The 2-D entry points raise ``ValueError`` on an array with more channels than samples
+(probably transposed).
 
 See ``brainmaze_eeg/spikes/README.md`` for the algorithms, parameters, filter verification
 and the comparison with the reference implementations.
 """
 
-from brainmaze_eeg.spikes.barkmeier import (DEFAULT_THRESHOLDS, design_barkmeier_filters,
-                                            detect_spikes_barkmeier)
-from brainmaze_eeg.spikes.janca import (SpikeDetectorHilbert, design_janca_filters,
-                                        detect_spikes_janca, janca_decimation_factor,
-                                        janca_resampling, spike_detector_hilbert_v24)
+from brainmaze_eeg.spikes.barkmeier import (DEFAULT_THRESHOLDS, BarkmeierDetector,
+                                            design_barkmeier_filters, detect_spikes_barkmeier)
+from brainmaze_eeg.spikes.gap_aware import GapAwareSpikeDetector
+from brainmaze_eeg.spikes.janca import (JancaDetector, SpikeDetectorHilbert,
+                                        design_janca_filters, detect_spikes_janca,
+                                        janca_decimation_factor, janca_resampling,
+                                        spike_detector_hilbert_v24)
 
 __all__ = [
-    'detect_spikes_janca', 'design_janca_filters', 'janca_decimation_factor',
+    'GapAwareSpikeDetector',
+    'detect_spikes_janca', 'JancaDetector', 'design_janca_filters', 'janca_decimation_factor',
     'janca_resampling', 'SpikeDetectorHilbert', 'spike_detector_hilbert_v24',
-    'detect_spikes_barkmeier', 'design_barkmeier_filters', 'DEFAULT_THRESHOLDS',
+    'detect_spikes_barkmeier', 'BarkmeierDetector', 'design_barkmeier_filters',
+    'DEFAULT_THRESHOLDS',
 ]
