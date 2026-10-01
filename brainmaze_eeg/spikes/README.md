@@ -247,18 +247,52 @@ Each step is marked [paper] or [ours] in the module docstring. In brief:
    record). A trailing remainder shorter than half a block joins the previous block.
    **[ours]** Filtering runs once on the whole record, so there are no block-edge
    transients.
-2. **[paper]** Artifact channels: in each block, a channel whose mean slope is more than
-   `artifact_sd`=10 SD from the channels' mean is excluded. **[ours: robust formulation]**
-   Centre = median slope, spread = `max(1.4826·MAD, artifact_rel_floor·median)` with
-   `artifact_rel_floor` = 0.2, so with 10 SD a channel is flagged only above **3× the
-   median channel's slope**. The literal rule can never fire below 102 channels (the
-   tested channel bounds its own z-score at √(n−1)); the previous leave-one-out version
-   excluded a genuinely spiking channel in homogeneous montages (61 of 598 spikes found)
-   and falsely flagged 1–13 % of channel-blocks in 3–4 channel montages. Measured with
-   the robust rule: no false flags on 3–32 channel noise montages, a spiking channel
-   (slope ratio 1.1–2.3) never flagged, broadband artifacts (≥ 2× background rms, slope
-   ratio ≥ 3.6) flagged in ≥ 95 % of blocks. Trade-off: an artifact that raises a
-   channel's slope less than 3× is not excluded.
+2. **[paper] Artifact channels: OFF by default (opt-in).** The paper excludes, per block,
+   a channel whose mean slope is more than 10 SD from the channels' mean. No formulation
+   we tested keeps every real detection *and* removes realistic artifacts (table below), so
+   by default no channel is excluded (`artifact_sd=None`, `artifact_ratio=None`). Two
+   formulations are opt-in; both can be combined:
+   - `artifact_sd=10` (**spatial robust rule**): centre = median slope, spread =
+     `max(1.4826·MAD, artifact_rel_floor·median)`, `artifact_rel_floor` = 0.2. It flags any
+     channel above **3× the median channel's slope, whatever the cause**. Use it only
+     for montages of similar contacts.
+   - `artifact_ratio=3` (**self-referenced rule**, ours): each channel's slope is divided
+     by its own median over all blocks; a channel-block is flagged when this ratio is
+     more than `artifact_ratio` times the montage's median ratio in that block. It is safe
+     for heterogeneous montages, but needs ≥ 3 blocks and misses an artifact that is
+     present in most blocks.
+
+   Both rules also remove strong IED bursts confined to a few minutes (2000 µV at 3/s:
+   541 → 4 at 256 Hz). A `UserWarning` names the excluded channels.
+
+   **Rule comparison**:
+   - Setup: 1/f background, 10 × 60 s blocks, 256 Hz (1000 Hz in brackets where it
+     differs).
+   - Literal, leave-one-out and self-referenced (`ratio 3`) rules: applied post hoc to
+     the detector's per-block slopes.
+   - "spatial (sd 10)" and "ratio 3": also run through the detector itself, with the same
+     counts.
+   - Probes: `brainmaze-work/scratch/eeg-spikes/r3/v1_rules.py`, `v1_final.py`,
+     `v1_real_seizure.py`, `v1_burst.py`, `v1_lvfa.py`.
+
+   | case | no rule (default) | paper literal | leave-one-out (round 1) | spatial, sd 10 (round 2) | ratio 3 |
+   |---|---|---|---|---|---|
+   | (a) 8 equal ch, 300 µV IEDs 1/s on one: kept / 598 | 595 (598) | 595 | **120** (598) | 595 | 595 |
+   | (a) same, 1000 µV at 3/s: kept / 1794 | 1619 (1684) | 1619 | **0** (0) | 1619 | 1619 |
+   | (b) noise, 3–32 ch, false flags | 0 | 0 | **3–12 %** at 3–4 ch | 0 | 0 |
+   | (c) 12 ch 1× + 4 ch at 3.5 / 4 / 6×: large ch flagged | 0 | 0 | 0 | **100 %** | 0 |
+   | (c) spiking large ch: kept (no rule: 221 / 181 / 145) | = | = | = | **0 / 0 / 0** | = |
+   | (d) white noise 3× rms in 3 of 10 blocks: flagged; FPs left (no rule: 44 (61)) | 0; 44 | 0; 44 | 100 %; 0 | 100 %; 0 | 100 %; 0 |
+   | (d) same, whole record: flagged | 0 | 0 | 100 % | 100 % | **0** |
+   | (d) 60 Hz pick-up 300 µV in 3 of 10 blocks: flagged (it causes no FP anyway) | 0 | 0 | 100 % | 100 % | 100 % |
+   | (d) slow drift 1500 µV rms / EMG bursts / electrode pops / flat + jumps, 3 of 10 blocks: flagged (FPs with no rule: 0 / 64 / 18 / 39) | 0 | 0 | 33 / 100 / 0 / 100 % | 0 | 0 |
+   | strong burst 2000 µV at 3/s in 3 of 10 blocks: kept / 540 | 541 | 541 | **4** | **4** | **4** |
+   | real 15-ch iEEG, 2 × 1 h (contact slopes 0.14–4.1× median): flags | 0 | 0 | 0 | 0 | 0 |
+
+   The mean slope of a realistic artifact (drift, EMG, pops, flat stretches with jumps)
+   is 0.03–1.9× normal, i.e. inside the range of real spiking channels (1.1–2.3×). A
+   slope rule can only catch broadband noise and mains pick-up, and only leave-one-out,
+   which fails (a) and (b), catches more. This is why the rule is off by default.
 3. **[paper]** Candidates are maxima of the rectified 20–50 Hz signal above a threshold of
    4 SD. **[ours: interpretation]** The paper's wording ("four standard deviations of the
    channel mean amplitude") is ambiguous; here it is `mean + 4·SD` of the *rectified*
@@ -277,8 +311,9 @@ Each step is marked [paper] or [ours] in the module docstring. In brief:
 | `scale` | `70` | µV | paper |
 | `std_coeff` | `4` | SD | paper |
 | `thresholds` | `{'total_amp': 600, 'slope': 7000, 'half_dur': 0.010}` | µV, µV/s, s | paper (7 µV/ms = 7000 µV/s) |
-| `artifact_sd` | `10` | SD | paper (`None` = off); robust SD, see step 2 |
-| `artifact_rel_floor` | `0.2` | – | ours: floor of the artifact rule's spread relative to the median slope (flag only above 3× the median) |
+| `artifact_sd` | `None` (off) | SD | paper value 10; opt-in spatial robust rule, see step 2 |
+| `artifact_rel_floor` | `0.2` | – | ours: floor of the spatial rule's spread relative to the median slope (flag above 3× the median) |
+| `artifact_ratio` | `None` (off) | – | ours: opt-in self-referenced rule (e.g. 3), see step 2 |
 | `trough_search` | `0.05` | s | ours |
 | `refractory` | `0` | s | ours |
 | `valid` | `None` | bool mask | ours: samples used for the block statistics (set by the wrapper to exclude filled gaps) |
@@ -299,7 +334,7 @@ Changes from the previous version:
   Sensitivity is unchanged for spikes ≥ 200 µV (8 channels, 30 µV 1/f background: 98/98
   for both). It is lower for small spikes (100 µV: 39 vs 50 of 98; 150 µV: 78 vs 86), where
   the old band also produced 4–10× more extra detections.
-- **Blocks.** There used to be no one-minute blocks and no artifact rule.
+- **Blocks.** There used to be no one-minute blocks and no artifact rule (now opt-in, see step 2).
 - **NaN.** One NaN in one channel made the scaling factor NaN for every channel, so all
   thresholds silently applied to unscaled data. The raw detector now raises. Through
   `GapAwareSpikeDetector` the gap is filled and excluded from the block statistics, and

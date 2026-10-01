@@ -162,7 +162,8 @@ def test_default_bands_are_the_papers():
     assert sig['broad_order'].default == 2
     assert sig['narrow_band'].default == (20.0, 50.0)
     assert sig['block_s'].default == 60.0
-    assert sig['artifact_sd'].default == 10.0
+    assert sig['artifact_sd'].default is None          # opt-in (review V1), paper value 10
+    assert sig['artifact_ratio'].default is None
     assert sig['scale'].default == 70.0 and sig['std_coeff'].default == 4.0
     assert DEFAULT_THRESHOLDS == {'total_amp': 600.0, 'slope': 7000.0, 'half_dur': 0.010}
 
@@ -188,8 +189,9 @@ def test_valid_mask_excludes_samples_from_block_statistics():
     valid = np.ones(X.shape, bool)
     valid[1, 10 * fs:20 * fs] = False
     _, inf_v = detect_spikes_barkmeier(Y, fs, valid=valid, return_info=True)
+    _, inf_v = detect_spikes_barkmeier(Y, fs, valid=valid, artifact_sd=10.0, return_info=True)
     with pytest.warns(UserWarning, match='artifact'):
-        _, inf_n = detect_spikes_barkmeier(Y, fs, return_info=True)
+        _, inf_n = detect_spikes_barkmeier(Y, fs, artifact_sd=10.0, return_info=True)
     # with the mask, channel 1's statistics come from its real samples only; without it
     # the garbage dominates its slope and the artifact rule drops the channel
     assert not inf_v['artifact'].any()
@@ -281,13 +283,17 @@ def test_artifact_channel_rule():
     X = np.vstack([pink_background(120 * fs, fs, 40.0, rng) for _ in range(8)])
     X[5, 60 * fs:] += rng.normal(0, 2000.0, 60 * fs)          # artifact in minute 2 only
     with pytest.warns(UserWarning, match='artifact'):
-        dets, info = detect_spikes_barkmeier(X, fs, return_info=True)
+        dets, info = detect_spikes_barkmeier(X, fs, artifact_sd=10.0, return_info=True)
     np.testing.assert_array_equal(info['artifact'][:, 5], [False, True])
     assert info['artifact'].sum() == 1
     assert not any(d['channel'] == 5 and d['block'] == 1 for d in dets)
     with warnings.catch_warnings():
         warnings.simplefilter('error')
         _, info = detect_spikes_barkmeier(X, fs, artifact_sd=None, return_info=True)
+    assert not info['artifact'].any()
+    with warnings.catch_warnings():                        # default: off
+        warnings.simplefilter('error')
+        _, info = detect_spikes_barkmeier(X, fs, return_info=True)
     assert not info['artifact'].any()
 
 
@@ -351,19 +357,21 @@ def test_spiking_channel_among_homogeneous_channels_is_not_flagged():
         for t in truth:
             c = int(t * fs)
             X[0, c - int(0.05 * fs): c - int(0.05 * fs) + w.size] += w
-        with warnings.catch_warnings():
-            warnings.simplefilter('error')                 # no artifact warning at all
-            dets, info = detect_spikes_barkmeier(X, fs, return_info=True)
-        assert not info['artifact'].any()
-        assert _hits(_peaks(dets, 0), truth * fs, 0.03 * fs) >= 0.95 * truth.size
+        for kw in ({}, {'artifact_sd': 10.0}, {'artifact_ratio': 3.0}):
+            with warnings.catch_warnings():
+                warnings.simplefilter('error')             # no artifact warning at all
+                dets, info = detect_spikes_barkmeier(X, fs, return_info=True, **kw)
+            assert not info['artifact'].any()
+            assert _hits(_peaks(dets, 0), truth * fs, 0.03 * fs) >= 0.95 * truth.size
 
 
 @pytest.mark.parametrize('n_ch', [3, 4, 5])
 @pytest.mark.parametrize('spread', [0.0, 0.1, 0.3])
 def test_no_false_artifact_flags_on_small_noise_montages(n_ch, spread):
-    _, info = detect_spikes_barkmeier(_homogeneous(n_ch, 256, 600, seed=7, spread=spread), 256,
-                                      return_info=True)
-    assert not info['artifact'].any()
+    X = _homogeneous(n_ch, 256, 600, seed=7, spread=spread)
+    for kw in ({'artifact_sd': 10.0}, {'artifact_ratio': 3.0}):
+        _, info = detect_spikes_barkmeier(X, 256, return_info=True, **kw)
+        assert not info['artifact'].any()
 
 
 @pytest.mark.parametrize('n_ch', [3, 4, 8])
@@ -372,7 +380,7 @@ def test_broadband_artifact_channel_is_flagged(n_ch):
     X = _homogeneous(n_ch, fs, 120, seed=3, spread=0.1)
     X[1] += np.random.default_rng(1).normal(0, 90.0, X.shape[1])     # 3x background rms
     with pytest.warns(UserWarning, match='artifact'):
-        _, info = detect_spikes_barkmeier(X, fs, return_info=True)
+        _, info = detect_spikes_barkmeier(X, fs, artifact_sd=10.0, return_info=True)
     assert info['artifact'][:, 1].all() and info['artifact'].sum() == info['artifact'].shape[0]
 
 
@@ -384,6 +392,114 @@ def test_artifact_rel_floor_sets_the_slope_ratio():
                                   [False] * 4 + [True])                       # 2.5x > 2x
     s = np.array([0.0, 0.0, 0.0, 5.0])                                         # median 0
     assert not _artifact_channels(s, np.ones(4, bool), 10.0).any()
+
+
+# --------------------------------------- artifact rule is opt-in (verification V1)
+def _ied_train(x, fs, amp, period, t0=1.0, t1=None):
+    from brainmaze_eeg.tests.spike_synth import ied_waveform
+    w = ied_waveform(fs, amp)
+    i0 = int(0.05 * fs)
+    t1 = x.size / fs - 1 if t1 is None else t1
+    times = np.arange(t0, t1, period)
+    for t in times:
+        c = int(t * fs) - i0
+        x[c:c + w.size] += w
+    return times
+
+
+def _mixed_montage(fs, k, minutes, seed):
+    """12 contacts at 1x and 4 at k x amplitude (1/f + 0.5 uV white floor), no artifact."""
+    rng = np.random.default_rng(seed)
+    n = int(60 * fs * minutes)
+    return np.vstack([pink_background(n, fs, 30.0 * g, rng) + rng.normal(0, 0.5, n)
+                      for g in [1.0] * 12 + [k] * 4])
+
+
+def test_r2_case_spiking_channel_kept_by_default():
+    # round-1 R2 case: 8 equal channels, 300 uV IEDs at 1/s on channel 0 (598 spikes)
+    fs = 256
+    rng = np.random.default_rng(0)
+    X = np.vstack([pink_background(600 * fs, fs, 30.0, rng) + rng.normal(0, 0.5, 600 * fs)
+                   for _ in range(8)])
+    truth = _ied_train(X[0], fs, 300.0, 1.0)
+    for kw in ({}, {'artifact_sd': 10.0}, {'artifact_ratio': 3.0}):
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            dets, info = detect_spikes_barkmeier(X, fs, return_info=True, **kw)
+        assert not info['artifact'].any()
+        assert sum(d['channel'] == 0 for d in dets) >= 590 and truth.size == 598
+
+
+@pytest.mark.parametrize('k', [3.5, 6.0])
+def test_mixed_amplitude_montage_keeps_spikes_by_default(k):
+    # V1: large normal contacts (grey matter) must not lose their detections by default
+    fs = 256
+    X = _mixed_montage(fs, k, 5, seed=int(10 * k))
+    truth = _ied_train(X[12], fs, 400.0, 2.0)
+    ref = detect_spikes_barkmeier(X, fs, artifact_sd=None)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')                     # no exclusion, no warning
+        dets, info = detect_spikes_barkmeier(X, fs, return_info=True)
+        _, info_r = detect_spikes_barkmeier(X, fs, artifact_ratio=3.0, return_info=True)
+    assert dets == ref and not info['artifact'].any() and not info_r['artifact'].any()
+    # (sensitivity on a channel with a k x larger background is the detector's own: ~0.5-0.7)
+    assert sum(d['channel'] == 12 for d in dets) > 0.35 * truth.size
+    # the opt-in spatial rule excludes every large channel (documented trade-off)
+    with pytest.warns(UserWarning, match='artifact'):
+        d_sd, info_sd = detect_spikes_barkmeier(X, fs, artifact_sd=10.0, return_info=True)
+    assert info_sd['artifact'][:, 12:].all() and not info_sd['artifact'][:, :12].any()
+    assert sum(d['channel'] == 12 for d in d_sd) == 0
+
+
+def _artifact_blocks_3_to_5(X, fs, kind, rng):
+    lo, hi = 180 * fs, 360 * fs
+    if kind == 'white':
+        X[0, lo:hi] += rng.normal(0, 90.0, hi - lo)          # 3x background rms
+    else:
+        X[0, lo:hi] += 300.0 * np.sin(2 * np.pi * 60 * np.arange(hi - lo) / fs)
+
+
+@pytest.mark.parametrize('kind', ['white', 'mains'])
+def test_opt_in_rules_flag_broadband_artifacts(kind):
+    fs = 256
+    rng = np.random.default_rng(5)
+    X = np.vstack([pink_background(600 * fs, fs, 30.0, rng) + rng.normal(0, 0.5, 600 * fs)
+                   for _ in range(16)])
+    _artifact_blocks_3_to_5(X, fs, kind, rng)
+    _, info = detect_spikes_barkmeier(X, fs, return_info=True)
+    assert not info['artifact'].any()                      # default: off
+    for kw in ({'artifact_sd': 10.0}, {'artifact_ratio': 3.0},
+               {'artifact_sd': 10.0, 'artifact_ratio': 3.0}):
+        with pytest.warns(UserWarning, match='artifact'):
+            dets, info = detect_spikes_barkmeier(X, fs, return_info=True, **kw)
+        np.testing.assert_array_equal(np.flatnonzero(info['artifact'][:, 0]), [3, 4, 5])
+        assert not info['artifact'][:, 1:].any()
+        assert not any(d['channel'] == 0 and 3 <= d['block'] <= 5 for d in dets)
+
+
+def test_self_referenced_rule_limits():
+    from brainmaze_eeg.spikes.barkmeier import _artifact_self_referenced
+    S = np.ones((10, 5))
+    S[:, 4] = 4.0                                          # large but steady channel
+    S[3, 1] = 3.5                                          # transient 3.5x on channel 1
+    flags = _artifact_self_referenced(S, np.ones(S.shape, bool), 3.0)
+    assert flags.sum() == 1 and flags[3, 1]
+    S[:, 0] = 6.0                                          # artifact in every block: missed
+    assert not _artifact_self_referenced(S, np.ones(S.shape, bool), 3.0)[:, 0].any()
+    assert not _artifact_self_referenced(S[:2], np.ones((2, 5), bool), 3.0).any()  # < 3 blocks
+    assert not _artifact_self_referenced(S, np.ones(S.shape, bool), None).any()
+    u = np.ones(S.shape, bool)
+    u[:, 2:] = False                                       # < 3 usable channels
+    assert not _artifact_self_referenced(S, u, 3.0).any()
+
+
+@pytest.mark.parametrize('bad', [1.0, 0.5, -3.0, np.nan, np.inf])
+def test_artifact_ratio_validation(bad):
+    with pytest.raises(ValueError):
+        detect_spikes_barkmeier(_noise(4 * FS), FS, artifact_ratio=bad)
+    from brainmaze_eeg.spikes import BarkmeierDetector
+    with pytest.raises(ValueError):
+        BarkmeierDetector(artifact_ratio=bad)
 
 
 def test_montage_noise_rate_per_channel():

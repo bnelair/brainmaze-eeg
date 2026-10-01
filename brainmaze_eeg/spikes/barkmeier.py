@@ -27,30 +27,48 @@ Algorithm
    threshold are computed **per block**. **[ours]** Filtering is done once on the whole
    record (no block-edge transients); a trailing remainder shorter than half a block is
    merged into the previous block; ``block_s=None`` treats the whole record as one block.
-1. **[paper] Artifact channels.** In each block a channel is artifactual if its average
-   slope is more than ``artifact_sd`` (10) standard deviations from the mean slope of the
-   channels; it is excluded from that block (no detections, not used for scaling).
-   **[ours]** Average slope = mean ``|dx/dt|`` of the input signal over the (valid samples
-   of the) block. **[ours: robust formulation]** The literal rule cannot work: with the
-   tested channel included, its z-score is bounded by ``sqrt(n_channels - 1)``, so it could
-   never fire below 102 channels; computed leave-one-out (an earlier version of this module)
-   the reference SD of a homogeneous montage is tiny, so a genuinely spiking channel was
-   excluded (8 equal channels, one with 300 uV IEDs at 1/s: 61 of 598 spikes found) and 3-4
-   channel montages had 1-13 % false flags on pure noise. Here the centre is the
-   **median** slope of the usable channels and the spread is
-   ``max(1.4826 * MAD, artifact_rel_floor * median)``; a channel is flagged when
-   ``|slope - median| > artifact_sd * spread``. The floor (``artifact_rel_floor`` = 0.2)
-   means that, with the default 10 SD, a channel is only flagged when its mean slope exceeds
-   **3x the median channel's** (a low slope can never be flagged). Measured
-   (``brainmaze-work/scratch/eeg-spikes/r2/r2_artifact.py``, 1/f background, 60 s blocks):
-   0 false flags in 3-32 channel montages with 0-50 % amplitude spread (3 x 40 blocks
-   each, one flag in 120 at 3 channels / 50 % spread); a spiking channel (300-1000 uV
-   IEDs at 1-3/s, slope ratio 1.1-2.3) is never flagged; a broadband artifact (white noise
-   at >= 2x the background rms, slope ratio >= 3.6) is flagged in >= 95 % of blocks. The
-   intent of the paper's rule (exclude channels dominated by broadband artifact) is kept;
-   the trade-off is that a channel whose slope is raised less than 3x by an artifact is not
-   excluded. Needs at least 3 usable channels and a positive median slope; otherwise no
-   channel is flagged. ``artifact_sd=None`` disables the rule.
+1. **[paper] Artifact channels -- OFF by default here (opt-in).** The paper excludes, in
+   each block, a channel whose average slope is more than 10 standard deviations from the
+   mean slope of the channels. **[ours]** Average slope = mean ``|dx/dt|`` of the input
+   signal over the (valid samples of the) block. No formulation of this rule we tested
+   keeps every real detection *and* removes realistic artifacts, so the default is
+   ``artifact_sd=None, artifact_ratio=None`` (no channel is ever excluded) and two
+   formulations are offered as opt-in. Measured on 1/f background with 60 s blocks at 256
+   and 1000 Hz (``brainmaze-work/scratch/eeg-spikes/r3/v1_*.py``; table in the README):
+
+   - *Literal paper rule* (mean/SD over all channels): the tested channel is part of the
+     SD, so its z-score is bounded by ``sqrt(n_channels - 1)``; it cannot fire below 102
+     channels (flagged nothing in any test).
+   - *Leave-one-out mean/SD* (round 1 of this module): the reference SD of similar
+     channels is tiny, so a genuinely spiking channel is excluded (8 channels, 300 uV
+     IEDs at 1/s on one: 120 of 598 kept at 256 Hz; 1000 uV at 3/s: 0 of 1794 kept), and
+     3-4 channel noise montages have 3-12 % false flags.
+   - **Spatial robust rule** (``artifact_sd``, e.g. 10; round 2 of this module): centre =
+     median slope of the usable channels, spread = ``max(1.4826 * MAD, artifact_rel_floor
+     * median)``, flagged when ``|slope - median| > artifact_sd * spread``. With the floor
+     0.2 a channel is flagged whenever its slope exceeds **3x the median channel's,
+     whatever the cause**: in a montage of 12 contacts at 1x and 4 at 3.5-6x amplitude
+     (grey vs white matter, no artifact) the 4 large channels are flagged in every block
+     and a spiking large channel loses **all** its detections (0 of 221, 181, 154 and 145
+     kept at 3.5x, 4x, 5x, 6x). It also removes strong IED bursts (2000 uV at 3/s:
+     541 -> 4 at 256 Hz). Use it only for montages of similar contacts.
+   - **Self-referenced rule** (``artifact_ratio``, e.g. 3; ours): each channel's slope is
+     divided by its own median slope over all blocks, and a channel-block is flagged when
+     that ratio exceeds ``artifact_ratio`` times the median ratio of the montage in that
+     block. Heterogeneous montages and steady spiking are never flagged (all cases above
+     kept), but it needs >= 3 blocks, misses an artifact present in more than half of the
+     blocks, and also removes strong IED bursts confined to a few blocks (2000 uV at 3/s
+     in 3 of 10 blocks at 256 Hz: 541 -> 4).
+
+   What either rule catches: broadband noise (white noise at 3x the background rms:
+   slope ratio 5.5-6.2) and mains pick-up (300 uV, 60 Hz). What neither catches (mean slope
+   barely changes, ratio 0.03-1.9): slow drifts, EMG bursts, electrode pops, flat
+   stretches with jumps -- although EMG, pops and jumps cause false detections (17-94 in a
+   3-minute stretch). On real 15-channel iEEG (2 x 1 h, 256 Hz, contact slopes 0.14-4.1x
+   the median) no rule flagged anything. Only usable channels count (>= 3 needed, positive
+   median); excluded channel-blocks get no detections and do not enter the scaling, and a
+   ``UserWarning`` names them. Both rules may be combined (a channel-block is excluded if
+   either flags it).
 2. **[paper] Candidates.** Band-pass 20-50 Hz (``narrow_band``); candidates are local maxima
    of the rectified narrow-band signal above a threshold of ``std_coeff`` (4) standard
    deviations. **[ours: interpretation]** The paper's wording ("four standard deviations of
@@ -94,7 +112,8 @@ Differences from the earlier version of this module
   the paper's band (see the README for numbers).
 - No blocks: one scaling factor and one threshold per channel for the whole record. Now per
   ``block_s`` (paper: one minute).
-- No artifact-channel rule. Now implemented (see step 1).
+- No artifact-channel rule. Now available as two opt-in formulations (see step 1); off by
+  default because none keeps every real detection.
 - The refractory period was applied before the 50 ms merge, so a merge could pick a
   detection the refractory had already used to suppress its neighbour. Now merge first.
 - A single NaN anywhere silently made the median scaling factor NaN for **every** channel.
@@ -193,9 +212,39 @@ def _artifact_channels(slopes, usable, n_sd, rel_floor=0.2):
     return flag
 
 
+def _artifact_self_referenced(slopes, usable, ratio):
+    """
+    Self-referenced artifact rule (see the module docstring, step 1).
+
+    ``slopes`` and ``usable`` are ``(n_blocks, n_channels)``. Each usable channel-block slope
+    is divided by the channel's median slope over its usable blocks (>= 3 needed); a
+    channel-block is flagged when that ratio exceeds ``ratio`` times the median ratio of the
+    eligible channels in the block (>= 3 needed). Returns a bool ``(n_blocks, n_channels)``.
+    """
+    flag = np.zeros(slopes.shape, dtype=bool)
+    if ratio is None or slopes.shape[0] < 3:
+        return flag
+    s = np.where(usable, slopes, np.nan)
+    enough = np.isfinite(s).sum(axis=0) >= 3
+    base = np.full(s.shape[1], np.nan)
+    if enough.any():
+        base[enough] = np.nanmedian(s[:, enough], axis=0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        rel = s / base
+    rel[:, ~(base > 0)] = np.nan
+    for b in range(s.shape[0]):
+        idx = np.flatnonzero(np.isfinite(rel[b]))
+        if idx.size < 3:
+            continue
+        m = np.median(rel[b, idx])
+        if m > 0:
+            flag[b, idx] = rel[b, idx] > ratio * m
+    return flag
+
+
 def _check_params(scale, std_coeff, trough_search, thresholds, narrow_band, broad_band,
                   refractory, narrow_order, broad_order, block_s, artifact_sd,
-                  artifact_rel_floor):
+                  artifact_rel_floor, artifact_ratio=None):
     """Validate every Barkmeier parameter that does not need ``fs``; return the thresholds."""
     chk.number('scale', scale, gt=0)
     chk.number('std_coeff', std_coeff, ge=0)
@@ -210,6 +259,7 @@ def _check_params(scale, std_coeff, trough_search, thresholds, narrow_band, broa
     chk.number('block_s', block_s, ge=1.0, allow_none=True)
     chk.number('artifact_sd', artifact_sd, gt=0, allow_none=True)
     chk.number('artifact_rel_floor', artifact_rel_floor, ge=0)
+    chk.number('artifact_ratio', artifact_ratio, gt=1, allow_none=True)
     if thresholds is None:
         return dict(DEFAULT_THRESHOLDS)
     if not isinstance(thresholds, dict):
@@ -228,7 +278,8 @@ def _check_params(scale, std_coeff, trough_search, thresholds, narrow_band, broa
 def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.05,
                             thresholds=None, narrow_band=(20.0, 50.0), broad_band=(1.0, 35.0),
                             refractory=0.0, *, narrow_order=2, broad_order=2, block_s=60.0,
-                            artifact_sd=10.0, artifact_rel_floor=0.2, valid=None,
+                            artifact_sd=None, artifact_rel_floor=0.2, artifact_ratio=None,
+                            valid=None,
                             return_info=False):
     """
     Detect interictal spikes with the Barkmeier (2012) multichannel half-wave criteria.
@@ -270,12 +321,21 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         Block length in seconds (paper: 60), finite and >= 1. ``None``: one block for the
         whole record.
     artifact_sd : float or None
-        Artifact-channel rule threshold in robust SDs (paper: 10), finite and > 0; ``None``
-        disables the rule.
+        **Opt-in** spatial robust artifact-channel rule (paper: 10 SD; default ``None`` =
+        off), finite and > 0. Flags any channel whose block slope exceeds ``1 + artifact_sd
+        * artifact_rel_floor`` (3x) times the median channel's **whatever the cause**, so
+        large normal channels of a heterogeneous montage lose all detections; use only for
+        montages of similar contacts. See the module docstring, step 1.
     artifact_rel_floor : float
-        Floor of the artifact rule's spread, relative to the median channel slope (ours:
-        0.2; with ``artifact_sd=10`` a channel is flagged only above 3x the median slope).
-        Finite, >= 0. See the module docstring, step 1.
+        Floor of the spatial rule's spread, relative to the median channel slope (ours:
+        0.2). Finite, >= 0.
+    artifact_ratio : float or None
+        **Opt-in** self-referenced artifact rule (ours; e.g. 3; default ``None`` = off),
+        finite and > 1: flags a channel-block whose slope, relative to the channel's own
+        median over blocks, exceeds ``artifact_ratio`` times the montage's median relative
+        slope in that block. Safe for heterogeneous montages; needs >= 3 blocks; misses
+        artifacts present in most blocks and removes strong IED bursts confined to a few
+        blocks. See the module docstring, step 1.
     valid : np.ndarray of bool, optional
         Same shape as ``sig``; samples that are real data (default: all). Only valid samples
         enter the per-block statistics (scaling factor, candidate threshold, artifact slope);
@@ -308,7 +368,7 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
     """
     thr = _check_params(scale, std_coeff, trough_search, thresholds, narrow_band, broad_band,
                         refractory, narrow_order, broad_order, block_s, artifact_sd,
-                        artifact_rel_floor)
+                        artifact_rel_floor, artifact_ratio)
     fs = chk.number('fs', fs, gt=0)
     if int(round(fs * trough_search)) < 2:
         raise ValueError(f'trough_search={trough_search} s is shorter than 2 samples at '
@@ -375,11 +435,13 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
             cand_thr[b, c] = r.mean() + std_coeff * r.std()
 
     # -- cross-channel decisions per block ----------------------------------------------
+    usable_all = np.isfinite(slopes) & np.isfinite(amps)
+    artifact |= _artifact_self_referenced(slopes, usable_all, artifact_ratio)
     for b in range(nb):
         amp = amps[b]
-        usable = np.isfinite(slopes[b]) & np.isfinite(amp)
-        artifact[b] = _artifact_channels(np.nan_to_num(slopes[b]), usable, artifact_sd,
-                                         artifact_rel_floor)
+        usable = usable_all[b].copy()
+        artifact[b] |= _artifact_channels(np.nan_to_num(slopes[b]), usable, artifact_sd,
+                                          artifact_rel_floor)
         usable &= ~artifact[b]
         cand_thr[b, ~usable] = np.inf
         med = np.median(amp[usable]) if usable.any() else 0.0
