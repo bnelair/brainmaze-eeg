@@ -13,6 +13,9 @@ readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.10"
 dependencies = [
     "setuptools>=61",
+    # brainmaze_utils >= 2.1.0 (utils PR #28) is needed for correct resampling at every
+    # input rate; with 2.0.0 the classifiers raise ValueError for the rates it corrupts
+    # (e.g. 134-145 Hz, >= ~1500 Hz to 200 Hz). Raise this pin once 2.1.0 is on PyPI.
     "brainmaze_utils>=1.0.4",
     "numpy>=1.20.0",
     "pandas>=2.2.0",

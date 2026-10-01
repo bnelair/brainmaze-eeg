@@ -403,10 +403,21 @@ class _EpochClassifierMixin:
     ``log_lik_quantile`` : float, default 0.001
     ``log_lik_margin`` : float, nats, default 30
         30 nats = a density about 1e13 times lower than the 0.1 %-quantile training epoch.
-        Evidence (PR #69): held-out in-distribution epochs flagged 0 of 20 000 for
-        Gaussian features with >= 100 training epochs per state, <= 7e-4 for Student-t5
-        features and <= 2e-3 for Student-t3 features (polynomial tails: some held-out
-        epochs are farther from the training data than any training epoch).
+        Evidence (PR #69, through this pipeline, ~170 and ~700 training epochs, ~19 600
+        held-out in-distribution epochs per run): false-flag rate 0 for Gaussian
+        features (all models) and for synthetic raw EEG (1255 held-out epochs);
+        1e-4 to 7e-4 for heavy-tailed Student-t5 features (some held-out epochs are
+        farther from the training data than any training epoch). Artefact rows
+        (features + 1e3) were flagged in 100 % of cases, flat/disconnected raw epochs
+        too. Smaller margins flag more in-distribution epochs (Student-t features:
+        about 1e-3 at 10 nats); larger ones miss moderate outliers.
+
+    Limits: OOD is judged in the model's own feature space (after selection / PCA for the
+    KDE family), so a change confined to discarded features or directions is invisible,
+    and the spectral features are amplitude-invariant ratios, so artefacts that keep
+    the spectral shape (e.g. clipping / saturation of a normal-looking epoch) are not
+    flagged. A row about 7 SD from every state in that space is not flagged by default
+    (lower ``log_lik_margin`` to be stricter).
 
     After ``fit``: ``log_lik_floor_`` (float, ``-inf`` if disabled) and
     ``train_max_log_lik_`` (np.ndarray, (n_train,)). After every ``scores`` call:
