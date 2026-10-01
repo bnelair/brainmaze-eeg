@@ -471,7 +471,9 @@ The mean frequency is calculated as the power-weighted average frequency:</p>
 \[f_{mean} = \frac{\sum_{i} P(f_i) \cdot f_i}{\sum_{i} P(f_i)}\]</div>
 <p>where P(f_i) is the power spectral density at frequency f_i. The calculation
 is performed over the frequency range defined by the minimum and maximum
-of the provided frequency bands.</p>
+of the provided frequency bands.
+PSD bins that are NaN (bands excluded with the extractor’s <code class="docutils literal notranslate"><span class="pre">ignore_bands</span></code>) are
+left out of both sums.</p>
 <p><strong>Use Case:</strong>
 Commonly used to distinguish between sleep stages where different frequency
 bands dominate (e.g., delta in deep sleep vs. alpha/beta in wakefulness).</p>

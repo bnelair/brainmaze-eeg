@@ -415,6 +415,10 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vals"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.eigen_vals</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vecs"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.eigen_vecs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.explained_variance_ratio"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.explained_variance_ratio</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.n"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.n</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.fit"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.fit()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.fit_transform"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.fit_transform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.transform"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.transform()</span></code></a></li>
@@ -579,12 +583,90 @@ and <cite>n_features</cite> is the number of features.</p></li>
 <dl class="py class">
 <dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.scikit_modules.</span></span><span class="sig-name descname"><span class="pre">PCAModuleSVD</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">var_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.98</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD" title="Link to this definition">#</a></dt>
-<dd><p>PCA using SVD decomposition with automatic component selection based on variance threshold.
-Compatible with scikit-learn pipelines.</p>
+<dd><p>PCA via eigendecomposition of the covariance matrix, with automatic component
+selection by an explained-variance threshold. Compatible with scikit-learn pipelines.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Despite the name, this does not use an SVD: it eigendecomposes the sample
+covariance <code class="docutils literal notranslate"><span class="pre">C</span> <span class="pre">=</span> <span class="pre">X.T</span> <span class="pre">&#64;</span> <span class="pre">X</span> <span class="pre">/</span> <span class="pre">(n</span> <span class="pre">-</span> <span class="pre">1)</span></code>. It does <strong>not</strong> centre <code class="docutils literal notranslate"><span class="pre">X</span></code>; it assumes the
+input is already zero-mean per feature (e.g. the output of a z-score step). On
+non-centred data the “covariance” is the second-moment matrix and the components
+are not principal components. Use <a class="reference internal" href="#brainmaze_eeg.scikit_modules.PCAModule" title="brainmaze_eeg.scikit_modules.PCAModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">PCAModule</span></code></a> (scikit-learn, centres the
+data) if that assumption does not hold.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vals">
+<span class="sig-name descname"><span class="pre">eigen_vals</span></span><a class="headerlink" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vals" title="Link to this definition">#</a></dt>
+<dd><p>Set by <code class="docutils literal notranslate"><span class="pre">fit</span></code>. Eigenvalues of <code class="docutils literal notranslate"><span class="pre">C</span></code> (variance along each component), real and sorted in
+<strong>descending</strong> order. Tiny negative values from round-off are clipped to 0.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray, shape (n_features,), float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vecs">
+<span class="sig-name descname"><span class="pre">eigen_vecs</span></span><a class="headerlink" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vecs" title="Link to this definition">#</a></dt>
+<dd><p>Matching unit eigenvectors in columns (<code class="docutils literal notranslate"><span class="pre">eigen_vecs[:,</span> <span class="pre">i]</span></code> &lt;-&gt; <code class="docutils literal notranslate"><span class="pre">eigen_vals[i]</span></code>).
+Sign convention (like scikit-learn’s <code class="docutils literal notranslate"><span class="pre">svd_flip</span></code>): the largest-magnitude loading
+of each column is positive (the first one on ties), so the projections do not
+depend on the LAPACK build.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray, shape (n_features, n_features), float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD.explained_variance_ratio">
+<span class="sig-name descname"><span class="pre">explained_variance_ratio</span></span><a class="headerlink" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.explained_variance_ratio" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">eigen_vals</span> <span class="pre">/</span> <span class="pre">eigen_vals.sum()</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray, shape (n_features,)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD.n">
+<span class="sig-name descname"><span class="pre">n</span></span><a class="headerlink" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.n" title="Link to this definition">#</a></dt>
+<dd><p>Number of retained components: the smallest <code class="docutils literal notranslate"><span class="pre">n</span></code> such that the cumulative
+explained-variance ratio of the first <code class="docutils literal notranslate"><span class="pre">n</span></code> components is <code class="docutils literal notranslate"><span class="pre">&gt;=</span> <span class="pre">var_threshold</span></code>
+(clipped to <code class="docutils literal notranslate"><span class="pre">n_features</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD.fit">
 <span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.fit" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Fit the components on <code class="docutils literal notranslate"><span class="pre">X</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>np.ndarray</em><em>, </em><em>shape</em><em> (</em><em>n_samples</em><em>, </em><em>n_features</em><em>)</em>) – Zero-mean data (see the class note; <code class="docutils literal notranslate"><span class="pre">X</span></code> is not centred here).</p></li>
+<li><p><strong>Y</strong> (<em>ignored</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>self</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Up to v1.0.0 this used <code class="docutils literal notranslate"><span class="pre">np.linalg.eig</span></code> (general, non-symmetric solver) and took
+the first <code class="docutils literal notranslate"><span class="pre">n</span></code> eigenpairs as if they were in descending order. <code class="docutils literal notranslate"><span class="pre">eig</span></code> does not
+guarantee any order (e.g. it returned <code class="docutils literal notranslate"><span class="pre">[..,</span> <span class="pre">0.896,</span> <span class="pre">0.292,</span> <span class="pre">0.589,</span> <span class="pre">0.449]</span></code> for an
+8-feature covariance) and returns complex dtype, so the selected components and
+<code class="docutils literal notranslate"><span class="pre">n</span></code> could be wrong. It now uses <code class="docutils literal notranslate"><span class="pre">np.linalg.eigh</span></code> (symmetric solver, real
+output) and sorts explicitly in descending order (issue #39).</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="brainmaze_eeg.scikit_modules.PCAModuleSVD.fit_transform">
@@ -829,6 +911,10 @@ Number of output features is multiplied by a number of training categories</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vals"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.eigen_vals</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.eigen_vecs"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.eigen_vecs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.explained_variance_ratio"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.explained_variance_ratio</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.n"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.n</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.fit"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.fit()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.fit_transform"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.fit_transform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.scikit_modules.PCAModuleSVD.transform"><code class="docutils literal notranslate"><span class="pre">PCAModuleSVD.transform()</span></code></a></li>
