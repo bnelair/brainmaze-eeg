@@ -221,6 +221,12 @@ def test_janca_invalid_parameters_raise(kw):
         detect_spikes_janca(x, 500, **kw)
 
 
+def test_janca_notch_order_validated_even_if_all_notches_skipped():
+    from brainmaze_eeg.spikes import design_janca_filters
+    with pytest.raises(ValueError, match='notch_order'):
+        design_janca_filters(80, band=(10, 30), notch_order=0)    # 50 Hz notch skipped at 80 Hz
+
+
 def test_janca_band_above_analysis_nyquist_raises_with_hint():
     x, _ = synth_ieeg(2000, dur=10.0, seed=0, mains_hz=None)
     with pytest.raises(ValueError, match='analysis'):

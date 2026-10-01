@@ -34,7 +34,9 @@ either
 
 - a 1-D integer array of detection **sample indices** into ``x[c]``, or
 - a list of dicts, each with an integer ``'peak_index'`` (sample index); a ``'channel'`` key,
-  if present, is rewritten to the channel index of the caller's array.
+  if present, is rewritten to the channel index of the caller's array. Such detectors set
+  the class attribute ``output = 'records'`` so that empty channels keep the list type
+  (``output = 'indices'`` otherwise).
 
 If the object has ``accepts_valid = True``, ``detect`` is called as
 ``detect(x, fs, valid=mask)`` with a boolean ``(n_channels, n_samples)`` mask that is False
@@ -61,12 +63,12 @@ from brainmaze_eeg.spikes._gaps import FILL_METHODS, fill_gaps, find_gaps, gap_m
 __all__ = ['GapAwareSpikeDetector']
 
 
-def _indices_of(item):
+def _indices_of(item, records_hint):
     """Sample indices of one channel's detections (array or list of dicts)."""
     if isinstance(item, np.ndarray):
         return item.astype(np.int64, copy=False), False
     item = list(item)
-    if item and isinstance(item[0], dict):
+    if (item and isinstance(item[0], dict)) or (not item and records_hint):
         return np.array([d['peak_index'] for d in item], dtype=np.int64), True
     return np.asarray(item, dtype=np.int64).reshape(-1), False
 
@@ -199,6 +201,7 @@ class GapAwareSpikeDetector:
         live = np.flatnonzero(~all_nan)
 
         out = [None] * n_ch
+        records_hint = getattr(self.detector, 'output', None) == 'records'
         n_removed = np.zeros(n_ch, dtype=np.int64)
         if live.size:
             y = x[live].copy()
@@ -215,7 +218,7 @@ class GapAwareSpikeDetector:
                                 f'length {getattr(res, "__len__", lambda: "?")()}; expected a '
                                 f'list with one entry per channel ({live.size})')
             for k, c in enumerate(live):
-                idx, records = _indices_of(res[k])
+                idx, records = _indices_of(res[k], records_hint)
                 keep = ~mask_in_gaps(idx, gaps[c], fs, units='samples',
                                      margin_s=self.edge_margin_s)
                 n_removed[c] = int((~keep).sum())
@@ -232,9 +235,8 @@ class GapAwareSpikeDetector:
                     out[c] = res[k][keep]
                 else:
                     out[c] = idx[keep]
-        empty_records = live.size and isinstance(out[live[0]], list)
         for c in np.flatnonzero(all_nan):
-            out[c] = [] if empty_records else np.zeros(0, dtype=np.int64)
+            out[c] = [] if records_hint else np.zeros(0, dtype=np.int64)
 
         result = out[0] if one_d else out
         if not return_info:

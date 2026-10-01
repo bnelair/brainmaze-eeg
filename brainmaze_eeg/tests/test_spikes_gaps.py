@@ -103,3 +103,18 @@ def test_mask_in_gaps_explicit_units():
         mask_in_gaps(t, gaps, fs)                             # units is required
     with pytest.raises(ValueError):
         mask_in_gaps(t, gaps / fs, fs, units='seconds', margin_s=-1)
+
+
+def test_generator_seed_gives_independent_per_gap_streams():
+    # a gap's fill must not depend on other gaps, also when seed is a Generator
+    fs = 200.0
+    x = pink_background(int(60 * fs), fs, 30.0, np.random.default_rng(5))
+    one = x.copy()
+    one[8000:9000] = np.nan
+    two = one.copy()
+    two[2000:2600] = np.nan
+    a = fill_gaps(one, fs, method='pink', seed=np.random.default_rng(1))
+    b = fill_gaps(two, fs, method='pink', seed=np.random.default_rng(1))
+    np.testing.assert_array_equal(a[8000:9000], b[8000:9000])
+    with pytest.raises(TypeError):
+        fill_gaps(one, fs, method='pink', seed=np.random.RandomState(0))

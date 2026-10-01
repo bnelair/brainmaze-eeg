@@ -323,3 +323,12 @@ def test_info_filters_are_the_designed_ones():
     ref = design_barkmeier_filters(FS)
     np.testing.assert_array_equal(info['filters']['broad'], ref['broad'])
     np.testing.assert_array_equal(info['filters']['narrow'], ref['narrow'])
+
+
+def test_artifact_rule_with_zero_variance_reference_channels():
+    from brainmaze_eeg.spikes.barkmeier import _artifact_channels
+    flags = _artifact_channels(np.array([1.0, 1.0, 1.0, 5.0]), np.ones(4, bool), 10.0)
+    np.testing.assert_array_equal(flags, [False, False, False, True])
+    flags = _artifact_channels(np.array([1.0, 1.0, 1.0, 1.0]), np.ones(4, bool), 10.0)
+    assert not flags.any()
+

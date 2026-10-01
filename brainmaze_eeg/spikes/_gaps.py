@@ -130,22 +130,28 @@ def _reflect(k, length):
     return np.where(k < length, k, 2 * length - 1 - k)
 
 
-def _gap_rng(seed, s, e, context):
-    """Generator for one gap: seed entropy + (start, stop, hash of the neighbouring data)."""
+def _root_entropy(seed):
+    """Entropy of the root SeedSequence of one fill operation (drawn once per call)."""
     if isinstance(seed, np.random.Generator):
-        return seed
+        return int(seed.integers(0, 2 ** 63))       # one draw: per-gap streams stay independent
+    if isinstance(seed, np.random.SeedSequence):
+        return seed.entropy
+    if seed is None:
+        return np.random.SeedSequence().entropy
+    if isinstance(seed, np.random.RandomState):
+        raise TypeError('seed must be None, an int, a sequence of ints, a SeedSequence or a '
+                        'Generator (not RandomState)')
+    return seed
+
+
+def _gap_rng(entropy, s, e, context):
+    """Generator for one gap: root entropy + (start, stop, hash of the neighbouring data)."""
     h = int.from_bytes(hashlib.blake2b(np.ascontiguousarray(context).tobytes(),
                                        digest_size=8).digest(), 'little')
-    if seed is None:
-        entropy = None
-    elif isinstance(seed, np.random.SeedSequence):
-        entropy = seed.entropy
-    else:
-        entropy = seed
     return np.random.default_rng(np.random.SeedSequence(entropy, spawn_key=(int(s), int(e), h)))
 
 
-def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, seed):
+def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, entropy):
     y = np.array(x, dtype=np.float64, copy=True)
     gaps = find_gaps(y)
     n_total = y.size
@@ -187,7 +193,7 @@ def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, seed):
             continue
         # pink: independent, reproducible stream per gap
         context = np.concatenate([left, right])
-        rng = _gap_rng(seed, s, e, context)
+        rng = _gap_rng(entropy, s, e, context)
         fill = base + _robust_sd(context) * pink_noise(n, beta, rng=rng)
         t = min(taper, n // 2) if (has_l and has_r) else min(taper, n)
         tl = min(t, left.size)
@@ -261,7 +267,8 @@ def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=10.0, taper
                       + ('returned unchanged' if all_nan == 'keep' else 'returned as zeros'),
                       RuntimeWarning, stacklevel=2)
         return x.copy() if all_nan == 'keep' else np.zeros_like(x)
-    return _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, seed)
+    return _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta,
+                    _root_entropy(seed))
 
 
 def _as_positions(v, units, name):

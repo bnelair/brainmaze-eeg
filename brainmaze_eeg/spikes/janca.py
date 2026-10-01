@@ -200,6 +200,7 @@ def design_janca_filters(fs, band=(10.0, 60.0), filter_order=3, powerline=50.0,
         raise ValueError(f'powerline must be > 0 Hz or None, got {powerline}')
     if not 0 < notch_width < 2 * powerline:
         raise ValueError(f'notch_width must be in (0, 2*powerline), got {notch_width}')
+    flt._check_order(notch_order, 'notch_order')
     if int(notch_harmonics) != notch_harmonics or notch_harmonics < 1:
         raise ValueError(f'notch_harmonics must be a positive integer, got {notch_harmonics}')
     for k in range(1, int(notch_harmonics) + 1):

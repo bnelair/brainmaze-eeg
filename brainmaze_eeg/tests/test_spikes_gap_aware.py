@@ -157,3 +157,16 @@ def test_custom_detector_protocol():
             return np.zeros(3)
     with pytest.raises(TypeError, match='one entry per channel'):
         GapAwareSpikeDetector(Broken()).detect(np.zeros((2, 100)), 100.0)
+
+
+def test_empty_barkmeier_channel_keeps_record_type():
+    X = _montage(3, dur=60.0)
+    X[1] = np.random.default_rng(0).normal(0, 1e-3, X.shape[1])   # quiet channel: no spikes
+    raw = BarkmeierDetector().detect(X, FS)
+    wrapped = GapAwareSpikeDetector(BarkmeierDetector()).detect(X, FS)
+    assert wrapped == raw
+    assert all(isinstance(w, list) for w in wrapped)
+    X[2] = np.nan
+    with pytest.warns(RuntimeWarning):
+        wrapped = GapAwareSpikeDetector(BarkmeierDetector()).detect(X, FS)
+    assert all(isinstance(w, list) for w in wrapped)

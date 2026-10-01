@@ -159,8 +159,13 @@ def _artifact_channels(slopes, usable, n_sd):
     for k, c in enumerate(idx):
         others = np.delete(s, k)
         sd = others.std(ddof=1)
-        if sd > 0 and abs(s[k] - others.mean()) > n_sd * sd:
-            flag[c] = True
+        dev = abs(s[k] - others.mean())
+        if sd > 0:
+            flag[c] = dev > n_sd * sd
+        else:
+            # identical reference slopes (e.g. duplicated/flat channels): any real
+            # deviation is infinitely many SDs away
+            flag[c] = dev > 1e-9 * max(abs(others.mean()), np.finfo(float).tiny)
     return flag
 
 
@@ -336,7 +341,7 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
             seg = broad[l:r]
             spike_i = l + int(np.argmax(np.abs(seg)))
             sign = np.sign(broad[spike_i]) or 1.0
-            b = block_of[spike_i]
+            b = block_of[pi]           # the candidate's block: same statistics throughout
             k = factor[b]
             if k == 0 or artifact[b, ch]:
                 continue
