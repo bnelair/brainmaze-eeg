@@ -38,7 +38,7 @@ Three steps around an unchanged detector:
 Relation to ``brainmaze_utils.gaps``
 ------------------------------------
 The canonical gap helpers of the BrainMaze family are being added to brainmaze-utils
-(``brainmaze_utils.gaps``, PR bnelair/brainmaze-utils#26, to ship in brainmaze-utils 2.1.0).
+(``brainmaze_utils.gaps``, PR bnelair/brainmaze-utils#26, to ship in brainmaze-utils 3.0.0).
 This module is a deliberately thin, self-contained stand-in with the same names, signatures
 and semantics as that module's final API: ``find_gaps``, ``gap_intervals``,
 ``fill_gaps(x, fs, *, max_interp_s, method, context_s, taper_s, beta, seed, axis, all_nan,
@@ -48,7 +48,7 @@ gaps (both required). The one difference: there is **no**
 ``'spectral'`` fill here (the default there), so this module's default ``method`` is
 ``'mirror'``. :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` always passes
 ``method`` explicitly, so switching to ``from brainmaze_utils.gaps import ...`` is a one-line
-change (follow-up, once 2.1.0 is released; then benchmark ``'spectral'`` as the wrapper
+change (follow-up, once brainmaze-utils 3.0.0 is released; then benchmark ``'spectral'`` as the wrapper
 default).
 """
 
