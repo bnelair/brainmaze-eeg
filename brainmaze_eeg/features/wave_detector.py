@@ -188,11 +188,12 @@ near-equal extremes).
   margin at 0.5 Hz (s)   0         3.2    3.8    5.7    6.7    8.0
   =====================  ========  =====  =====  =====  =====  ======
 
-  With this rule, among the waves within 6 periods of gaps of 4 ms to 5 s, at most
-  0.6 % had a value error (0.5-0.9 Hz band; 0 % in the others), 0.1 % were lost or
-  gained and 0.3 % switched. Gaps up to 20 ms changed nothing even with no margin (a
-  1-sample dropout costs only the wave it falls in). Without margins long gaps gave
-  up to 16 % value errors; the previous fixed ``3 / fband[0]`` up to 0.9 %. With
+  With this rule (brainmaze-utils' spectral fill, utils#26 round 3), among the waves
+  within 6 periods of gaps of 4 ms to 5 s, at most 0.8 % had a value error (0.5-0.9 Hz
+  band; 0 % in the others), 0.1 % were lost or gained and 0.5 % switched; the same at
+  1 kHz. Gaps up to 20 ms changed nothing even with no margin (a 1-sample dropout costs
+  only the wave it falls in). Without margins long gaps gave up to 18 % value errors;
+  the previous fixed ``3 / fband[0]`` up to 1.1 %. With
   ``'paper'`` the margin is capped at the trace's filter support. A fixed
   ``gap_margin_s`` (seconds, all gaps) overrides the rule.
 
