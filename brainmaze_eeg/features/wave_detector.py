@@ -166,18 +166,34 @@ Edges and gaps
 
 Both margins exist because a zero-phase filter needs time to forget a signal end or a
 gap fill. They were measured on 1/f EEG with slow oscillations and delta bursts (fs 250
-and 1000 Hz, bands 0.5-4, 0.5-0.9 and 1-3.9 Hz; ``scratch`` probes listed in PR #68):
-the share of waves whose trough / peak moved or whose broadband value changed by more
-than 1 uV, as a function of the distance between the wave's span and the gap.
+and 1000 Hz; bands 0.5-4, 0.5-0.9 and 1-3.9 Hz; ``'refine'`` and ``'band'``; probes
+listed in PR #68) by comparing every wave with the same wave in the uncut, gap-free
+recording, against the distance between the wave's span and the cut or gap, in periods
+of ``fband[0]``: *value error* = broadband trough or peak value changed by more than
+1 uV; *lost / gained* = no wave with a zero crossing within 20 ms; *switched* = trough
+or peak moved by more than 2 samples (1 nV of white noise alone switches 0.1-1 %, between
+near-equal extremes).
 
-* ``edge_margin_s`` (default ``3 / fband[0]``; ``'paper'``: the trace's filter
-  support). At 2.5-3 periods from a cut about 1 % of waves changed, 0.4 % at 3-4.
+* ``edge_margin_s`` (default ``4 / fband[0]``, 8 s for a 0.5 Hz edge; ``'paper'``: the
+  trace's filter support). At 3-3.5 periods from a signal end 1.5 % of waves still had a
+  value error (0.5-4 Hz), none beyond 3.5 periods. Use ``context`` for consecutive
+  segments so this costs nothing at the segment borders.
 * gap margin (default: depends on the gap length ``L``)::
 
-      margin = min(GAP_CAP, GAP_K * sqrt(L * fband[0])) / fband[0]
+      margin = 0                                        if L <= 25 ms
+      margin = min(4, 4 * (L * fband[0]) ** 0.25) / fband[0]   otherwise
 
-  __GAP_TABLE__
-  With ``'paper'`` the margin is capped at the trace's filter support. A fixed
+  =====================  ========  =====  =====  =====  =====  ======
+  gap length ``L``       <= 25 ms  50 ms  0.1 s  0.5 s  1 s    >= 2 s
+  margin at 0.5 Hz (s)   0         3.2    3.8    5.7    6.7    8.0
+  =====================  ========  =====  =====  =====  =====  ======
+
+  With this rule, among the waves within 6 periods of gaps of 4 ms to 5 s, at most
+  0.6 % had a value error (0.5-0.9 Hz band; 0 % in the others), 0.1 % were lost or
+  gained and 0.3 % switched. Gaps up to 20 ms changed nothing even with no margin (a
+  1-sample dropout costs only the wave it falls in). Without margins long gaps gave
+  up to 16 % value errors; the previous fixed ``3 / fband[0]`` up to 0.9 %. With
+  ``'paper'`` the margin is capped at the trace's filter support. A fixed
   ``gap_margin_s`` (seconds, all gaps) overrides the rule.
 
 ``WAVE_RATE`` counts waves per *analysable* second: the time outside the margins and
@@ -280,7 +296,11 @@ Everything is vectorised (no Python loop over samples, waves or windows); time a
 memory are O(n) per signal, dominated by the ``sosfiltfilt`` passes. 2-D input is
 converted to float64 one channel at a time; the working set is about five float64
 copies of one channel (~1.8 GB for a 30-min channel at 25 kHz), times ``n_processes``.
-__PERF__
+CPU time per 30-minute channel (single thread, ``fband=(0.5, 4)``, ``segm_size=30``,
+synthetic 1/f EEG with delta bursts, on a loaded 12-core workstation): 0.054 s at
+250 Hz, 0.20 s at 1 kHz (0.32 s with 20 gaps), 1.0 s at 5 kHz, 5.3 s at 25 kHz;
+``trough='paper'`` adds 10-45 % (its FIR). v1.0.0 needed 0.40 / 1.56 / 8.7 / 48.4 s
+(7.5-9x slower) and returned ``WAVE_RATE = 0`` for any input with a gap.
 
 Changes from v1.0.0 (class version 2.0.0 -> 2.1.0)
 --------------------------------------------------
@@ -356,13 +376,14 @@ _FILL_METHOD = 'spectral'
 _FILL_MAX_INTERP_S = 0.1
 
 #: default edge margin, in periods of fband[0] (module docstring, *Edges and gaps*)
-_EDGE_MARGIN_PERIODS = 3.0
+_EDGE_MARGIN_PERIODS = 4.0
 #: default gap margin (s) = 0 for gaps <= _GAP_MARGIN_SHORT_S, else
-#: min(_GAP_MARGIN_MAX_PERIODS, _GAP_MARGIN_SLOPE * sqrt(L * f_low)) / f_low (see
-#: _default_gap_margins and the module docstring, *Edges and gaps*)
-_GAP_MARGIN_MAX_PERIODS = 3.0
+#: min(_GAP_MARGIN_MAX_PERIODS, _GAP_MARGIN_SLOPE * (L * f_low) ** _GAP_MARGIN_POWER) / f_low
+#: (see _default_gap_margins and the module docstring, *Edges and gaps*)
+_GAP_MARGIN_MAX_PERIODS = 4.0
 _GAP_MARGIN_SHORT_S = 0.025
-_GAP_MARGIN_SLOPE = 3.0
+_GAP_MARGIN_SLOPE = 4.0
+_GAP_MARGIN_POWER = 0.25
 
 #: trough='paper' (Carvalho et al. 2024, Methods): 0.5-35 Hz zero-phase FIR (Hamming
 #: window, ~4 s = 2000 taps at the study's 500 Hz), then a 50 ms moving average
@@ -760,16 +781,16 @@ def _default_gap_margins(gap_len_s, f_low, fs, trough):
     """
     Default per-gap margin (s) as a function of the gap length ``L`` (s)::
 
-        margin = min(3, 3 * sqrt(L * f_low)) / f_low   if L > 0.025 s, else 0
+        margin = min(4, 4 * (L * f_low) ** 0.25) / f_low   if L > 0.025 s, else 0
 
-    i.e. in periods of ``f_low``: 0 for gaps up to 25 ms, ~0.7 for 0.1 s, 1.5 for 0.5 s
-    (at 0.5 Hz), and 3 for gaps of ``1 / f_low`` and longer. With ``trough='paper'`` it
+    i.e. in periods of ``f_low`` (at 0.5 Hz): 0 for gaps up to 25 ms, 1.6 for 50 ms, 1.9
+    for 0.1 s, 2.8 for 0.5 s, 3.4 for 1 s and 4 for gaps of ``2 / f_low`` and longer. With ``trough='paper'`` it
     is capped at the support of the paper trace's filters (beyond which the fill has
     exactly no effect). Measurements: module docstring, *Edges and gaps*.
     """
     L = np.asarray(gap_len_s, dtype=np.float64)
     periods = np.minimum(_GAP_MARGIN_MAX_PERIODS,
-                         _GAP_MARGIN_SLOPE * np.sqrt(np.maximum(L, 0.0) * f_low))
+                         _GAP_MARGIN_SLOPE * (np.maximum(L, 0.0) * f_low) ** _GAP_MARGIN_POWER)
     m = np.where(L > _GAP_MARGIN_SHORT_S, periods / f_low, 0.0)
     if trough == 'paper':
         m = np.minimum(m, _paper_support_s(fs))
@@ -864,12 +885,12 @@ def detect_waves(x, fs, fband=(0.5, 4.0), measure_on=None, filter='butter',
     gap_margin_s : float or None
         Seconds added on both sides of every gap; a wave whose span overlaps a widened
         gap is discarded. ``None`` (default): depends on the gap length (0 up to 25 ms,
-        rising to ``3 / fband[0]`` for gaps of ``1 / fband[0]`` and longer; module
+        rising to ``4 / fband[0]`` for gaps of ``2 / fband[0]`` and longer; module
         docstring, *Edges and gaps*).
     edge_margin_s : float or None
         A wave whose span starts within ``edge_margin_s`` of the first sample or ends
         within it of the last sample is discarded (the zero-phase filters' edge
-        transient). ``None`` (default): ``3 / fband[0]`` (with ``trough='paper'``: the
+        transient). ``None`` (default): ``4 / fband[0]`` (with ``trough='paper'``: the
         support of the paper trace's filters, ~2 s). ``0`` keeps every complete wave.
     trough : {'refine', 'band', 'paper'}
         Where the broadband (unsuffixed) trough / peak are placed (module docstring,
@@ -1131,7 +1152,7 @@ class WaveDetector:
         analysable time of each window. ``'raise'``: raise ``ValueError``.
     gap_margin_s, edge_margin_s : float or None
         Exclusion margins in seconds around gaps / at the two ends of each signal.
-        ``None`` (default): gap-length-dependent / ``3 / fband[0]``. See
+        ``None`` (default): gap-length-dependent / ``4 / fband[0]``. See
         :func:`detect_waves` and the module docstring, *Edges and gaps*.
     trough : {'refine', 'band', 'paper'}
         Where the broadband trough / peak are placed (module docstring, *Trough
