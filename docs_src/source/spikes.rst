@@ -2,7 +2,8 @@ Spike detectors
 ===============
 
 Interictal epileptiform discharge (spike) detectors: Janca (Hilbert-envelope distribution
-modelling; eeg_forge formulation and MATLAB-v24 port) and Barkmeier (multichannel half-wave
+modelling; eeg_forge formulation with presets ``'spike'`` and ``'ripple'`` -- the latter not
+validated on real ripples -- and MATLAB-v24 port) and Barkmeier (multichannel half-wave
 morphology). The detectors are raw (finite input only);
 :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` wraps any of them for data
 with NaN/inf gaps. Algorithms, every parameter with its default and source, the filter
@@ -16,7 +17,7 @@ Janca
 -----
 
 .. automodule:: brainmaze_eeg.spikes.janca
-   :members: detect_spikes_janca, JancaDetector, design_janca_filters, janca_resampling, janca_decimation_factor, SpikeDetectorHilbert
+   :members: detect_spikes_janca, JancaDetector, JANCA_PRESETS, janca_params, design_janca_filters, janca_resampling, janca_decimation_factor, resampler_gain_db, MAX_RESAMPLER_LOSS_DB, SpikeDetectorHilbert
 
 Barkmeier
 ---------
