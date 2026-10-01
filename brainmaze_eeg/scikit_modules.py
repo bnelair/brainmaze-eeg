@@ -316,10 +316,10 @@ class PCAModuleSVD:
        are not principal components. Use :class:`PCAModule` (scikit-learn, centres the
        data) if that assumption does not hold.
 
-    Attributes (after ``fit``)
-    --------------------------
+    Attributes
+    ----------
     eigen_vals : np.ndarray, shape (n_features,), float
-        Eigenvalues of ``C`` (variance along each component), real and sorted in
+        Set by ``fit``. Eigenvalues of ``C`` (variance along each component), real and sorted in
         **descending** order. Tiny negative values from round-off are clipped to 0.
     eigen_vecs : np.ndarray, shape (n_features, n_features), float
         Matching unit eigenvectors in columns (``eigen_vecs[:, i]`` <-> ``eigen_vals[i]``).
