@@ -50,9 +50,13 @@ preset only supplies defaults. :func:`janca_params` returns the resolved, valida
     Zelmann, R., Leijten, F.S.S., Jefferys, J.G.R., Gotman, J. (2012). *High-frequency
     oscillations as a new biomarker in epilepsy.* Annals of Neurology 71(2), 169-178.
     https://doi.org/10.1002/ana.22548) analysed at ``target_fs`` = **1000 Hz** [ours: four
-    times the band top, so the band stays well inside the analysis Nyquist; with the default
-    ``decimation='integer'`` the analysis rate is ``fs / floor(fs / 1000)``, e.g. 1000 Hz
-    for 2-5 kHz input, 1024 Hz for 1024 or 2048 Hz input]. Every other value (threshold,
+    times the band top, so that after decimation the band top sits at half the analysis
+    Nyquist; with the default ``decimation='integer'`` the analysis rate is
+    ``fs / floor(fs / 1000)``, e.g. 1000 Hz for 2-5 kHz input, 1024 Hz for 2048 Hz input].
+    Input of 501-1999 Hz is **not** decimated (``integer`` needs ``fs >= 2 * target_fs``)
+    and is analysed at its own rate, where 250 Hz can lie close to Nyquist (0.98 of it at
+    512 Hz, 0.998 at 501 Hz): the realised edges are still -6.02 dB, but there is almost no
+    room above the band. Input of 500 Hz or less raises. Every other value (threshold,
     window, minimum distance, notch) is the ``'spike'`` preset's, carried over **untuned**.
     Applying the Janca envelope model to the ripple band is our choice; **this preset has
     not been validated on real ripples** (only its filters, resampling and validation are
@@ -84,13 +88,16 @@ rate ``fs``):
    The resampler's anti-alias filter attenuates the top ~15 % below the analysis Nyquist,
    so a resampled configuration is only accepted if that filter loses at most
    :data:`MAX_RESAMPLER_LOSS_DB` (0.1 dB) at ``band[1]`` (about ``band[1] <= 0.85 *
-   fs_a / 2``); the realised high edge is then -6.0 to -6.1 dB as stated.
+   fs_a / 2``); the realised high edge is then -6.02 to -6.12 dB (-6.12 dB at the limit,
+   ``band[1]`` = 0.858 * ``fs_a / 2``).
 4. Envelope ``e = |hilbert(x)|``. When the analysis length has a prime factor > 1000 the
    FFT is padded to :func:`scipy.fft.next_fast_len` (pocketfft is 3-11x slower on such
-   lengths; measured). Padding changes the envelope only near the end of the record:
-   detections in the last ~2 s can differ (on a 6.8 h record cut to a prime analysis
-   length: 5 of ~1500, all in the last 1.6 s), as they would for a record a few samples
-   longer. All other lengths are transformed unpadded, exactly as in the reference.
+   lengths; measured). Padding changes the envelope near **both ends** of the record (the
+   zeros wrap the end into the start): on band-passed noise, > 1 % relative change in the
+   first ~0.2-0.27 s and the last ~0.05-0.2 s. Detections there can differ (on a 6.8 h
+   record cut to a prime analysis length: 5 of ~1500, all in the last 1.6 s; none changed
+   on a 1 h prime-length record), as they would for a record a few samples longer. All
+   other lengths are transformed unpadded, exactly as in the reference.
 5. Sliding statistics of ``L = log(e + eps)`` over a centred window of
    ``W = int(window_s * fs_a)`` samples (made odd), ``mode='reflect'`` at the ends::
 
@@ -458,8 +465,8 @@ def _largest_prime_factor(n):
 def _envelope(y):
     """
     ``|hilbert(y)|``. For lengths with a large prime factor (> 1000) the FFT is padded to a
-    fast length: 3-11x faster, and the envelope changes only near the end of the record
-    (detections in the last ~2 s may differ, as they would for a record a few samples
+    fast length: 3-11x faster, and the envelope changes near both ends of the record
+    (detections in the first/last ~2 s may differ, as they would for a record a few samples
     longer). Other lengths -- including every eeg_forge parity case -- are transformed
     unpadded, so their results are unchanged.
     """
@@ -527,7 +534,9 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
         the realised ratio.
     window_s : float
         Length (s) of the sliding window of the log-envelope statistics (reference ``w``: 5).
-        Must span at least 3 analysis samples.
+        Must span at least 3 analysis samples. A window longer than the analysis record issues a
+        ``UserWarning``: the statistics then cover the whole (reflected) record, not a
+        local window.
     threshold : float
         Threshold multiplier on ``mode + median`` of the local log-normal model
         (reference ``thr``: 3.65, the paper's ``k1``). Finite, > 0.
@@ -594,6 +603,14 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
     if n <= padlen:
         raise ValueError(f'record too short: {n} samples; the zero-phase filters need more '
                          f'than {padlen} samples ({padlen / fs:g} s at fs={fs:g} Hz)')
+    n_a = -(-n * up // down)                      # analysis length (resample_poly output)
+    if win > n_a:
+        warnings.warn(f"window_s={p['window_s']:g} s ({win} analysis samples) is longer than "
+                      f'the record ({n_a} samples = {n_a / fs_a:.3g} s at {fs_a:g} Hz): the '
+                      'background statistics then cover the whole record (reflected at both '
+                      'ends) instead of a local window, so detections are relative to the '
+                      'whole-record background. Use a shorter window_s or a longer record.',
+                      UserWarning, stacklevel=2)
 
     _check_finite(X, 'x')
 
@@ -767,7 +784,8 @@ class SpikeDetectorHilbert:
     buffering : float
         Core window length for batch processing (seconds). Default 300.
     winsize, noverlap : float
-        Envelope-model window and overlap in **seconds**. Defaults 5 and 4.
+        Envelope-model window and overlap in **seconds**. Defaults 5 and 4. A ``winsize`` longer
+        than the analysis record issues a ``UserWarning`` (one fit for the whole record).
     polyspike_union_time : float
         Poly-spike union interval (seconds). Default 0.12.
     discharge_tol : float
@@ -982,6 +1000,12 @@ class SpikeDetectorHilbert:
 
         n = d_decim.shape[0]
         winsize = int(round(self.winsize * fsd))
+        if winsize > n:
+            warnings.warn(f'winsize={self.winsize:g} s ({winsize} samples) is longer than the '
+                          f'record ({n} samples = {n / fsd:.3g} s at {fsd:g} Hz): one '
+                          'log-normal fit covers the whole record instead of sliding '
+                          'windows. Use a shorter winsize or a longer record.',
+                          UserWarning, stacklevel=2)
         margin = 3 * winsize
         core = max(int(round(self.buffering * fsd)), winsize)
 

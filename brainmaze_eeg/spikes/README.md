@@ -126,9 +126,13 @@ returns the resolved values.
 already when `JancaDetector(...)` is constructed. Checks that need `fs` run at call time: a
 band edge at or above the Nyquist frequency of the input or of the analysis rate; a band
 edge that the resampler's anti-alias filter attenuates by more than 0.1 dB (about
-`band[1] > 0.85 × fs_analysis/2`, where the realised edge would no longer be −6 dB; e.g.
+`band[1] > 0.858 × fs_analysis/2`; the realised edge is −6.02 to −6.12 dB up to that limit; e.g.
 `band=(80, 99)` at 1000 → 200 Hz was −11.1 dB); a window shorter than 3 analysis samples;
-a record too short for the zero-phase filters. Each raises `ValueError` with a hint.
+a record too short for the zero-phase filters. Each raises `ValueError` with a hint. A
+`window_s` longer than the analysis record is accepted with a `UserWarning`: the
+background statistics then cover the whole (reflected) record instead of a local window
+(planted spikes in 4–30 s records are still found; `SpikeDetectorHilbert` warns likewise
+for `winsize`).
 
 **Resampling.** `'integer'` keeps the reference's integer factor. `'exact'` uses
 `up/down`, the smallest-denominator continued-fraction convergent of `target_fs/fs` within
@@ -138,9 +142,11 @@ detections are mapped back with that ratio, so the approximation causes no timin
 
 **Hilbert length.** If the analysis length has a prime factor > 1000, the FFT of the
 Hilbert transform is padded to `scipy.fft.next_fast_len` (pocketfft is 3–11× slower on
-such lengths). This only changes detections in the last ~2 s of the record (5 of ~1500 on
-the 6.8 h recording cut to a prime length), as a record a few samples longer would. All
-other lengths, including every parity case, are transformed unpadded.
+such lengths). The padding changes the envelope near **both ends** of the record (more
+than 1 % in the first ~0.2 s and the last ~0.05–0.2 s on band-passed noise), so only
+detections there can differ (5 of ~1500 on the 6.8 h recording cut to a prime length, all
+in its last 1.6 s), as for a record a few samples longer. All other lengths, including
+every parity case, are transformed unpadded.
 
 ### Agreement with eeg_forge (`spike_detection_Janca`)
 
@@ -175,7 +181,7 @@ Spikes and ripples use **one implementation**; a preset only supplies the defaul
 | preset | `band` | `target_fs` | everything else | source |
 |---|---|---|---|---|
 | `'spike'` (default) | 10–60 Hz | 200 Hz | reference values (table above) | eeg_forge `spike_detection_Janca` (54c3704); Janca et al. 2015 |
-| `'ripple'` | 80–250 Hz | 1000 Hz | the `'spike'` values, **untuned** | band: clinical ripple band (Zijlmans et al. 2012); analysis rate: ours (4 × the band top, so the band stays well inside the analysis Nyquist) |
+| `'ripple'` | 80–250 Hz | 1000 Hz | the `'spike'` values, **untuned** | band: clinical ripple band (Zijlmans et al. 2012); analysis rate: ours (4 × the band top: after decimation the band top is at half the analysis Nyquist) |
 
 ```python
 detect_spikes_janca(x, fs, preset='ripple')                         # 80-250 Hz at ~1 kHz
@@ -184,8 +190,10 @@ GapAwareSpikeDetector(JancaDetector('ripple'))                      # with gaps
 ```
 
 With the default `decimation='integer'` the ripple analysis rate is `fs / floor(fs/1000)`:
-1000 Hz for 2–5 kHz input, 1024 Hz for 1024 and 2048 Hz, the input rate for 520–1999 Hz.
-Input below ~520 Hz is rejected (the 250 Hz edge must lie below Nyquist). Mains harmonics
+1000 Hz for 2–5 kHz input, 1024 Hz for 2048 Hz, and the input rate itself for 501–1999 Hz
+(not decimated). At the input rate the 250 Hz edge can lie close to Nyquist (0.98 of it at
+512 Hz, 0.998 at 501 Hz): the edges are still −6.02 dB, but there is almost no room above
+the band. Input of 500 Hz or less is rejected (the 250 Hz edge must lie below Nyquist). Mains harmonics
 inside 80–250 Hz are not notched by default (`notch_harmonics=1`).
 
 **The ripple preset has not been validated on real ripples.** The test-suite verifies its

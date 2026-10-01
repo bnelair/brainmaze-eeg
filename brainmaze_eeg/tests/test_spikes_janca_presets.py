@@ -310,3 +310,18 @@ def test_float32_input_identical_and_channels_independent():
     for p, q, r in zip(a, b, c):
         np.testing.assert_array_equal(q, r)
         assert abs(p.size - q.size) <= 1                        # float32 rounding only
+
+
+# ------------------------------------------------ verification V5: window vs record length
+def test_window_longer_than_record_warns():
+    from brainmaze_eeg.tests.spike_synth import synth_ieeg
+    x, truth = synth_ieeg(500.0, dur=8.0, seed=1, n_spikes=4, amp_range=(300, 400))
+    with pytest.warns(UserWarning, match='longer than the record'):
+        d = detect_spikes_janca(x, 500.0, window_s=60.0)
+    assert sum(bool(np.any(np.abs(d - t) < 15)) for t in truth) == truth.size
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        detect_spikes_janca(x, 500.0, window_s=5.0)        # 5 s < 8 s: no warning
+    from brainmaze_eeg.spikes import SpikeDetectorHilbert
+    with pytest.warns(UserWarning, match='longer than the record'):
+        SpikeDetectorHilbert(winsize=10.0, noverlap=8.0).run(x[:, None], 500.0)
