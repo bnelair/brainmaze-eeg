@@ -20,16 +20,22 @@ jobs:
           fetch-depth: 0
       - name: Reject version edits outside the release flow
         shell: bash
+        # PR-controlled values (branch name, login) go through env, never inline into the
+        # script, so a crafted branch name cannot inject shell commands.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event.pull_request.base.ref }}" == "main" \
-                && "${{ github.head_ref }}" == release/bump-* \
-                && "${{ github.event.pull_request.user.login }}" == "github-actions[bot]" ]]; then
+          if [[ "$BASE_REF" == "main" \
+                && "$HEAD_REF" == release/bump-* \
+                && "$PR_AUTHOR" == "github-actions[bot]" ]]; then
             echo "Automated release bump PR -- version change allowed."
             exit 0
           fi
-          base='${{ github.event.pull_request.base.sha }}'
-          if git diff "$base" HEAD -- pyproject.toml | grep -qE '^[+-][[:space:]]*version[[:space:]]*='; then
+          if git diff "$BASE_SHA" HEAD -- pyproject.toml | grep -qE '^[+-][[:space:]]*version[[:space:]]*='; then
             echo "::error::This PR changes [project].version in pyproject.toml. The version is owned by the release automation on main -- use the 'Prepare release' action instead. See the README 'How to contribute' section."
             exit 1
           fi
