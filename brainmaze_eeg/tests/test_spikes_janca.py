@@ -91,9 +91,12 @@ def test_all_zero_channel_is_handled():
 
 
 def test_pure_noise_low_false_positive_rate():
-    X = _recording(30, {}, n_ch=1, seed=7)
-    out, *_ = SpikeDetectorHilbert().run(X, FS)
-    assert len(out['pos']) / 30.0 < 1.0
+    # measured: 0 detections in 30 s of white noise for seeds 7-11 (review R10: the old
+    # bound of 1/s could not catch a real regression)
+    for seed in range(7, 10):
+        X = _recording(30, {}, n_ch=1, seed=seed)
+        out, *_ = SpikeDetectorHilbert().run(X, FS)
+        assert len(out['pos']) / 30.0 <= 0.1
 
 
 def test_ambiguous_markers_with_k2_above_k1():

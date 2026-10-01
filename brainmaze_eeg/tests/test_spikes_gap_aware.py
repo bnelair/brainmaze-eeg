@@ -171,3 +171,170 @@ def test_empty_barkmeier_channel_keeps_record_type():
     with pytest.warns(RuntimeWarning):
         wrapped = GapAwareSpikeDetector(BarkmeierDetector()).detect(X, FS)
     assert all(isinstance(w, list) for w in wrapped)
+
+
+# ------------------------------------------------- round 2 (independent review of #67)
+from brainmaze_eeg.spikes._gaps import mask_in_gaps     # noqa: E402
+
+
+def _extra_missing(got, ref, tol):
+    extra = sum(not np.any(np.abs(ref - d) <= tol) for d in got)
+    missing = sum(not np.any(np.abs(got - d) <= tol) for d in ref)
+    return extra, missing
+
+
+def _dense_montage(seed, dur=300.0):
+    return np.vstack([synth_ieeg(FS, dur=dur, seed=seed + c, n_spikes=int(dur / 2),
+                                 amp_range=(150, 400), mains_hz=None)[0] for c in range(2)])
+
+
+@pytest.mark.parametrize('seed', [0, 10])
+def test_many_short_gaps_do_not_add_detections_in_valid_time(seed):
+    """R1: 100 ms dropouts every second. The old default (0.1 s linear fill) lowered Janca's
+    threshold everywhere (+4..+7 detections per channel here, +67 on real data); the defaults
+    keep the valid-time detections within 2 of the gap-free run."""
+    X = _dense_montage(seed)
+    clean = detect_spikes_janca(X, FS)
+    Xg = X.copy()
+    L = int(0.1 * FS)
+    for s in np.arange(int(FS), X.shape[1] - L, int(FS)):
+        Xg[:, s:s + L] = np.nan
+
+    def compare(det, info, margin):
+        out = []
+        for c in range(2):
+            ref = clean[c][~mask_in_gaps(clean[c], info['gaps'][c], FS, units='samples',
+                                         margin_s=margin)]
+            out.append(_extra_missing(det[c], ref, 10))
+        return out
+
+    det, info = GapAwareSpikeDetector(JancaDetector()).detect(Xg, FS, return_info=True)
+    np.testing.assert_allclose(info['valid_fraction'], 0.5, atol=0.01)   # 0.1 s gap + 2 x 0.2
+    for extra, missing in compare(det, info, 0.2):
+        assert extra <= 2 and missing <= 1
+    old = GapAwareSpikeDetector(JancaDetector(), short_gap_s=0.1, edge_margin_s=0.1)
+    det, info = old.detect(Xg, FS, return_info=True)
+    assert max(e for e, _ in compare(det, info, 0.1)) >= 4      # the test can see the bias
+
+
+@pytest.mark.parametrize('det', [JancaDetector(), SpikeDetectorHilbert()],
+                         ids=lambda d: type(d).__name__)
+def test_near_gap_detections_match_gap_free_run(det):
+    """R10: compare 0.2-3 s from each gap (where fill effects live), at most 1 per gap."""
+    X = _dense_montage(3, dur=240.0)
+    clean = det.detect(X, FS)
+    rng = np.random.default_rng(5)
+    Xg = X.copy()
+    gaps = []
+    for c in range(2):
+        for s in rng.choice(np.arange(10, 225, 9), 12, replace=False):
+            L = rng.choice([0.5, 2.0, 5.0])
+            Xg[c, int(s * FS):int((s + L) * FS)] = np.nan
+            gaps.append((c, s, s + L))
+    out, info = GapAwareSpikeDetector(det).detect(Xg, FS, return_info=True)
+    for c in range(2):
+        g = info['gaps'][c]
+        near = (mask_in_gaps(clean[c], g, FS, units='samples', margin_s=3.0)
+                & ~mask_in_gaps(clean[c], g, FS, units='samples', margin_s=0.2))
+        near_out = (mask_in_gaps(out[c], g, FS, units='samples', margin_s=3.0))
+        extra, missing = _extra_missing(out[c][near_out], clean[c][near], 10)
+        assert extra + missing <= len(g), (c, extra, missing, len(g))
+
+
+def test_constant_runs_are_gaps_by_default():
+    """R4: missing data stored as a constant (not NaN)."""
+    X = _montage(1, dur=120.0)[0]
+    raw_clean = detect_spikes_janca(X, FS)
+    x = X.copy()
+    runs = [(30.0, 33.0), (70.0, 70.5), (100.0, 110.0)]
+    for a, b in runs:
+        x[int(a * FS):int(b * FS)] = 0.1975
+    raw = detect_spikes_janca(x, FS)                     # the raw detector fires at the steps
+    out, info = GapAwareSpikeDetector(JancaDetector()).detect(x, FS, return_info=True)
+    np.testing.assert_allclose(info['flat_runs'] / FS, runs, atol=1 / FS)
+    t = out / FS
+    for a, b in runs:
+        assert not np.any((t >= a - 0.2) & (t < b + 0.2))
+    near_raw = sum(np.any((raw / FS >= a - 1) & (raw / FS < b + 1)) for a, b in runs)
+    assert near_raw >= 1
+    # outside the runs the wrapper agrees with the clean recording
+    far = ~mask_in_gaps(raw_clean, info['gaps'], FS, units='samples', margin_s=3.0)
+    extra, missing = _extra_missing(out, raw_clean[far], 10)
+    assert missing == 0
+    # disabled: the constant runs are not gaps
+    _, info = GapAwareSpikeDetector(JancaDetector(), flat_as_gap_s=None).detect(
+        x, FS, return_info=True)
+    assert len(info['gaps']) == 0 and len(info['flat_runs']) == 0
+
+
+def test_constant_channel_is_reported_as_missing():
+    X = _montage(2, dur=30.0)
+    X[1] = 0.0
+    with pytest.warns(RuntimeWarning, match='constant throughout'):
+        out, info = GapAwareSpikeDetector(BarkmeierDetector()).detect(X, FS, return_info=True)
+    assert info['all_nan'][1] and out[1] == []
+
+
+def test_real_signal_is_not_flat():
+    # quantised real-like data: no run of equal samples reaches 0.1 s
+    X = np.round(_montage(2, dur=60.0))
+    _, info = GapAwareSpikeDetector(JancaDetector()).detect(X, FS, return_info=True)
+    assert all(len(r) == 0 for r in info['flat_runs'])
+
+
+@pytest.mark.parametrize('kw', [dict(fill_kwargs={'context_s': -1}),
+                                dict(fill_kwargs={'taper_s': np.nan}),
+                                dict(fill_kwargs={'beta': np.inf}), dict(seed='abc'),
+                                dict(seed=-1), dict(seed=1.5), dict(short_gap_s=np.inf),
+                                dict(short_gap_s=-0.1), dict(edge_margin_s=np.nan),
+                                dict(flat_as_gap_s=0), dict(flat_as_gap_s=np.inf),
+                                dict(fill=None)])
+def test_wrapper_options_validated_at_construction(kw):
+    """R6: rejected before any data is seen (previously only on the first gap)."""
+    with pytest.raises((ValueError, TypeError)):
+        GapAwareSpikeDetector(JancaDetector(), **kw)
+
+
+def test_fill_method_is_always_passed_explicitly(monkeypatch):
+    """R7: a different default in the fill module (e.g. brainmaze_utils' 'spectral') must
+    not change the wrapper's fill."""
+    import brainmaze_eeg.spikes.gap_aware as ga
+    seen = []
+    real = ga.fill_gaps
+
+    def spy(x, fs, **kw):
+        seen.append(kw)
+        return real(x, fs, **kw)
+    monkeypatch.setattr(ga, 'fill_gaps', spy)
+    x = _montage(1, dur=30.0)
+    x[0, 5000:6000] = np.nan
+    GapAwareSpikeDetector(JancaDetector()).detect(x, FS)
+    assert seen and seen[0]['method'] == 'mirror' and seen[0]['max_interp_s'] == 0.02
+
+
+def test_low_valid_time_warns():
+    X = _montage(1, dur=30.0)[0]
+    for s in range(1, 29):
+        X[int(s * FS):int(s * FS) + 200] = np.nan            # 0.4 s gaps every second
+    with pytest.warns(RuntimeWarning, match='less than half'):
+        _, info = GapAwareSpikeDetector(JancaDetector()).detect(X, FS, return_info=True)
+    assert info['valid_fraction'] < 0.5
+
+
+def test_defaults():
+    import inspect
+    p = inspect.signature(GapAwareSpikeDetector).parameters
+    assert p['short_gap_s'].default == 0.02 and p['edge_margin_s'].default == 0.2
+    assert p['fill'].default == 'mirror' and p['flat_as_gap_s'].default == 0.1
+
+
+@pytest.mark.parametrize('det', DETECTORS, ids=lambda d: type(d).__name__)
+def test_float32_input_and_channel_at_a_time_path(det):
+    """R8: float32 input is converted per channel; channel-independent detectors are fed one
+    channel at a time and give the raw multichannel result."""
+    X = _montage(3).astype(np.float32)
+    X[1, 4000:5000] = np.nan
+    a = GapAwareSpikeDetector(det).detect(X, FS)
+    b = GapAwareSpikeDetector(det).detect(X.astype(np.float64), FS)
+    for p, q in zip(a, b):
+        np.testing.assert_array_equal(_idx(p), _idx(q))

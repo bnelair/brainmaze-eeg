@@ -354,14 +354,15 @@ def resampler_gain_db(freq, fs, up, down):
 
 
 def _check_resampler_edge(high, fs, up, down, fs_a, name='band'):
+    nyq = min(fs, fs_a) / 2            # the anti-alias cutoff is the lower Nyquist
     loss = -resampler_gain_db(high, fs, up, down)
     if loss > MAX_RESAMPLER_LOSS_DB:
         raise ValueError(
-            f'{name} high edge ({high} Hz) is too close to the Nyquist frequency of the '
-            f'analysis rate ({fs_a / 2:g} Hz; fs={fs:g} Hz resampled by {up}/{down}): the '
+            f'{name} high edge ({high} Hz) is too close to the resampling Nyquist frequency '
+            f'({nyq:g} Hz; fs={fs:g} Hz resampled by {up}/{down} to {fs_a:g} Hz): the '
             f'resampler\'s anti-alias filter attenuates it by {loss:.2f} dB, so the realised '
             f'edge would be {-6.02 - loss:.1f} dB instead of -6.0 dB (allowed loss '
-            f'{MAX_RESAMPLER_LOSS_DB} dB, i.e. about {name}[1] <= {0.85 * fs_a / 2:.4g} Hz). '
+            f'{MAX_RESAMPLER_LOSS_DB} dB, i.e. about {name}[1] <= {0.85 * nyq:.4g} Hz). '
             'Raise target_fs, or set target_fs=None to analyse at the input rate.')
 
 
@@ -1010,6 +1011,7 @@ class SpikeDetectorHilbert:
         return out, discharges, d_decim, envelope, background, envelope_pdf
 
     output = 'indices'
+    channel_independent = True     # per-channel markers never depend on other channels
 
     def detect(self, x, fs):
         """
