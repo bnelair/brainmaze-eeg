@@ -5,7 +5,8 @@ Detectors
 ---------
 - :func:`~brainmaze_eeg.spikes.janca.detect_spikes_janca` -- Hilbert-envelope
   distribution-modelling detector (Janca et al. 2015), eeg_forge formulation with verified
-  filters. Layout ``(n_samples,)`` or ``(n_channels, n_samples)``.
+  filters; presets ``'spike'`` (default) and ``'ripple'`` (80-250 Hz, not validated on real
+  ripples) of one implementation. Layout ``(n_samples,)`` or ``(n_channels, n_samples)``.
 - :class:`~brainmaze_eeg.spikes.janca.SpikeDetectorHilbert` (alias
   ``spike_detector_hilbert_v24``) -- port of the MATLAB ``spike_detector_hilbert_v24`` with
   its full output. Layout ``(n_samples, n_channels)`` (MATLAB convention).
@@ -32,15 +33,17 @@ and the comparison with the reference implementations.
 from brainmaze_eeg.spikes.barkmeier import (DEFAULT_THRESHOLDS, BarkmeierDetector,
                                             design_barkmeier_filters, detect_spikes_barkmeier)
 from brainmaze_eeg.spikes.gap_aware import GapAwareSpikeDetector
-from brainmaze_eeg.spikes.janca import (JancaDetector, SpikeDetectorHilbert,
-                                        design_janca_filters, detect_spikes_janca,
-                                        janca_decimation_factor, janca_resampling,
+from brainmaze_eeg.spikes.janca import (JANCA_PRESETS, MAX_RESAMPLER_LOSS_DB, JancaDetector,
+                                        SpikeDetectorHilbert, design_janca_filters,
+                                        detect_spikes_janca, janca_decimation_factor,
+                                        janca_params, janca_resampling, resampler_gain_db,
                                         spike_detector_hilbert_v24)
 
 __all__ = [
     'GapAwareSpikeDetector',
-    'detect_spikes_janca', 'JancaDetector', 'design_janca_filters', 'janca_decimation_factor',
-    'janca_resampling', 'SpikeDetectorHilbert', 'spike_detector_hilbert_v24',
+    'detect_spikes_janca', 'JancaDetector', 'JANCA_PRESETS', 'janca_params',
+    'design_janca_filters', 'janca_decimation_factor', 'janca_resampling', 'resampler_gain_db',
+    'MAX_RESAMPLER_LOSS_DB', 'SpikeDetectorHilbert', 'spike_detector_hilbert_v24',
     'detect_spikes_barkmeier', 'BarkmeierDetector', 'design_barkmeier_filters',
     'DEFAULT_THRESHOLDS',
 ]

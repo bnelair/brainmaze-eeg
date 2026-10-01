@@ -277,7 +277,9 @@ def test_janca_return_details():
     assert info['fs_analysis'] == 256.0 and (info['up'], info['down']) == (1, 2)
     assert info['envelope'].shape == info['threshold'].shape == (x.size // 2,)
     assert np.all(info['envelope'][det // 2] > info['threshold'][det // 2])
-    assert set(info) == {'fs_analysis', 'up', 'down', 'envelope', 'threshold', 'filters'}
+    assert set(info) == {'fs_analysis', 'up', 'down', 'envelope', 'threshold', 'filters',
+                         'preset', 'params'}
+    assert info['preset'] == 'spike' and info['params']['band'] == (10.0, 60.0)
 
 
 def test_v24_raw_raises_on_nan_and_detect_protocol():
