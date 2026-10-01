@@ -86,3 +86,20 @@ def test_pcamodulesvd_threshold_semantics():
     # threshold 1.0 terminates (old while-loop could spin forever on round-off) and keeps all
     assert PCAModuleSVD(1.0).fit(X).n == X.shape[1]
     assert PCAModuleSVD(0.98).fit_transform(X).shape == (X.shape[0], 2)
+
+
+def test_pca_svd_sign_convention():
+    # review R7 of PR #69: deterministic eigenvector signs (like sklearn's svd_flip)
+    from brainmaze_eeg.scikit_modules import PCAModuleSVD
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(200, 6)) @ rng.normal(size=(6, 6))
+    X -= X.mean(axis=0)
+    p = PCAModuleSVD(var_threshold=1.0).fit(X)
+    V = p.eigen_vecs
+    piv = np.argmax(np.abs(V), axis=0)
+    assert np.all(V[piv, np.arange(V.shape[1])] > 0)
+    # same components as sklearn up to that sign convention
+    from sklearn.decomposition import PCA
+    comp = PCA().fit(X).components_.T
+    comp = comp * np.sign(comp[np.argmax(np.abs(comp), axis=0), np.arange(comp.shape[1])])
+    np.testing.assert_allclose(V, comp, atol=1e-8)

@@ -323,6 +323,9 @@ class PCAModuleSVD:
         **descending** order. Tiny negative values from round-off are clipped to 0.
     eigen_vecs : np.ndarray, shape (n_features, n_features), float
         Matching unit eigenvectors in columns (``eigen_vecs[:, i]`` <-> ``eigen_vals[i]``).
+        Sign convention (like scikit-learn's ``svd_flip``): the largest-magnitude loading
+        of each column is positive (the first one on ties), so the projections do not
+        depend on the LAPACK build.
     explained_variance_ratio : np.ndarray, shape (n_features,)
         ``eigen_vals / eigen_vals.sum()``.
     n : int
@@ -373,7 +376,12 @@ class PCAModuleSVD:
         eigen_vals, eigen_vecs = np.linalg.eigh(C)       # ascending, real
         order = np.argsort(eigen_vals)[::-1]               # -> descending
         self.eigen_vals = np.clip(eigen_vals[order], 0.0, None)
-        self.eigen_vecs = eigen_vecs[:, order]
+        eigen_vecs = eigen_vecs[:, order]
+        # deterministic signs: largest |loading| of each component positive
+        pivot = np.argmax(np.abs(eigen_vecs), axis=0)
+        signs = np.sign(eigen_vecs[pivot, np.arange(m)])
+        signs[signs == 0] = 1.0
+        self.eigen_vecs = eigen_vecs * signs
 
         total = self.eigen_vals.sum()
         if total > 0:

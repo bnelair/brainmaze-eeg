@@ -1,11 +1,13 @@
 """
-End-to-end validation of every classifier in ``brainmaze_eeg.classifiers`` (issue #57).
+End-to-end tests of every classifier in ``brainmaze_eeg.classifiers`` (issue #57, PR #69).
 
 Each model is fitted on small synthetic data with known, separable class structure and
 checked for: output shapes and label sets, accuracy well above chance on held-out data,
-determinism (refitting gives identical output), and no train/test leakage in the
-normalisation. Raw-signal tests run the full ``extract_features_bulk -> fit ->
-predict_signal`` path.
+determinism (refitting gives identical output), no train/test leakage in the
+normalisation, invariance to feature units, out-of-distribution flagging, and gap
+handling. Raw-signal tests run the full ``extract_features_bulk -> fit ->
+predict_signal`` path. These are wiring/numerics checks on synthetic data, not a
+validation of sleep-staging accuracy on real recordings.
 
 Synthetic data
 --------------
@@ -123,13 +125,16 @@ def test_zscore_fitted_on_balanced_training_data_and_frozen(feature_data):
     m.fit(Xtr, ytr)
 
     Xb, _ = balance_classes(Xtr.copy(), ytr.copy(), std_factor=0.0)
-    Zb = m.PCA.transform(m.SELECTOR.transform(Xb))
+    np.testing.assert_allclose(m.Scaler.mean_, Xb.mean(axis=0), atol=1e-10)
+    Zb = m.PCA.transform(m.SELECTOR.transform(m.Scaler.transform(Xb)))
     np.testing.assert_allclose(m.ZScore.mean, Zb.mean(axis=0, keepdims=True), atol=1e-10)
     np.testing.assert_allclose(m.ZScore.std, Zb.std(axis=0, keepdims=True), rtol=1e-10)
 
     mean0, std0 = m.ZScore.mean.copy(), m.ZScore.std.copy()
     comp0 = m.PCA.components_.copy()
+    smean0 = m.Scaler.mean_.copy()
     m.predict(Xte + 50.0)           # wildly shifted test data
+    np.testing.assert_array_equal(m.Scaler.mean_, smean0)
     np.testing.assert_array_equal(m.ZScore.mean, mean0)
     np.testing.assert_array_equal(m.ZScore.std, std0)
     np.testing.assert_array_equal(m.PCA.components_, comp0)
@@ -148,17 +153,59 @@ def test_rows_scored_independently_without_smoothing(cls, feature_data):
     np.testing.assert_allclose(single, batch[::7], rtol=1e-9, atol=1e-12)
 
 
-def test_scores_survive_density_underflow(feature_data):
-    # a sample far from all training data: every class pdf underflows to 0. Up to v1.0.0
-    # this gave 0/0 = NaN and ``predict`` raised; scores are now computed in log space.
-    Xtr, ytr, Xte, _ = feature_data
-    m = make(C.KDEBayesianModel)
+@pytest.mark.parametrize('cls', ALL_MODELS, ids=lambda c: c.__name__)
+@pytest.mark.parametrize('shift', [100.0, 1e3])
+def test_out_of_distribution_epoch_is_unknown(cls, shift, feature_data):
+    """Review R2 of PR #69 (maintainer decision): an artefact epoch far from every state
+    must not get a confident label. Up to v1.0.0 it gave 0/0 = NaN and ``predict``
+    raised; round 1 of the PR gave probability 1.0 for one state."""
+    Xtr, ytr, Xte, yte = feature_data
+    m = make(cls)
     m.fit(Xtr, ytr)
+    assert np.isfinite(m.log_lik_floor_)
+    assert m.log_lik_floor_ < np.min(m.train_max_log_lik_)
+    X = Xte.copy()
+    X[20] += shift                                  # the reviewer's artefact case
+    sc = m.scores(X).to_numpy(dtype=float)
+    assert np.all(np.isnan(sc[20]))
+    assert m.max_log_lik_[20] < m.log_lik_floor_
+    others = np.r_[0:20, 21:len(X)]
+    assert np.all(np.isfinite(sc[others]))
+    np.testing.assert_allclose(sc[others].sum(axis=1), 1.0, atol=1e-9)
+    pred = m.predict(X)
+    assert pred[20] == C.UNKNOWN_LABEL
+    assert np.mean(pred[others] == yte[others]) > 0.85
+    np.testing.assert_allclose(m.max_log_likelihood(X), m.max_log_lik_)
+
+
+@pytest.mark.parametrize('cls', ALL_MODELS, ids=lambda c: c.__name__)
+def test_log_lik_floor_configurable(cls, feature_data):
+    Xtr, ytr, Xte, _ = feature_data
     X = Xte.copy()
     X[20] += 1e3
-    sc = m.scores(X)
-    assert np.all(np.isfinite(sc.to_numpy(dtype=float)))
-    assert m.predict(X).shape == (X.shape[0],)
+    off = make(cls, log_lik_floor=None)
+    off.fit(Xtr, ytr)
+    assert off.log_lik_floor_ == -np.inf
+    sc = off.scores(X).to_numpy(dtype=float)
+    assert np.all(np.isfinite(sc))                  # legacy behaviour: no flagging
+    fixed = make(cls, log_lik_floor=1e9)            # absurd floor: everything flagged
+    fixed.fit(Xtr, ytr)
+    assert np.all(fixed.predict(Xte) == C.UNKNOWN_LABEL)
+    with pytest.raises(ValueError, match='log_lik_floor'):
+        make(cls, log_lik_floor='bogus').fit(Xtr, ytr)
+
+
+def test_held_out_in_distribution_epochs_not_flagged():
+    """False-flag rate of the default floor on held-out in-distribution data
+    (large sample; the PR #69 notes give the full evidence)."""
+    ytr = cyc_hypnogram(40, 10)
+    yte = cyc_hypnogram(250, 11)                    # ~2000 held-out epochs
+    Xtr, Xte = features(ytr, seed=10), features(yte, seed=11)
+    for cls in (C.KDEBayesianModel, C.MVGaussBayesianModel, C.MultiChannelMVGaussBayesClassifier):
+        m = make(cls, window_smooth_n=1) if cls is not C.MultiChannelMVGaussBayesClassifier else make(cls)
+        m.fit(Xtr, ytr)
+        flagged = np.mean(m.predict(Xte) == C.UNKNOWN_LABEL)
+        assert flagged == 0.0, (cls.__name__, flagged)
 
 
 def test_scores_on_few_epochs(feature_data):
@@ -246,6 +293,57 @@ def test_sleep_structure_classifier_drops_untrained_states():
     assert set(m.predict(X)) <= {'N2', 'N3'}
 
 
+def test_sleep_structure_classifier_rejects_unknown_labels():
+    # review R3: AWAKE with the default states (WAKE, ...) was silently dropped
+    y = np.repeat(['AWAKE', 'N2', 'N3'], 6)
+    X = features(y, d=3, seed=0)
+    with pytest.raises(ValueError, match='AWAKE'):
+        C.SleepStructureClassifier().fit(X, y)
+
+
+def test_sleep_structure_classifier_refit_restores_states():
+    # Copilot / review R3: the state list must not shrink permanently
+    m = C.SleepStructureClassifier(states=STATES)
+    y1 = np.repeat(['N2', 'N3'], 6)
+    with pytest.warns(UserWarning):
+        m.fit(features(y1, d=3, seed=0), y1)
+    assert m.STATES == ['N2', 'N3']
+    y2 = np.repeat(STATES, 6)
+    m.fit(features(y2, d=3, seed=1), y2)
+    assert m.STATES == STATES
+
+
+def test_sleep_structure_classifier_too_few_pairs_clear_error():
+    # Copilot: 2 epochs per state passed the old check but gaussian_kde then raised
+    y = np.repeat(['N2', 'N3'], 2)
+    with pytest.raises(ValueError, match='needs at least'):
+        C.SleepStructureClassifier(states=['N2', 'N3']).fit(features(y, d=3, seed=0), y)
+
+
+def test_sleep_structure_classifier_single_epoch_raises():
+    # review R6: one epoch has no pairs -> NaN row before
+    y = np.repeat(STATES, 6)
+    m = C.SleepStructureClassifier(states=STATES).fit(features(y, d=3, seed=0), y)
+    with pytest.raises(ValueError, match='>= 2 epochs'):
+        m.scores(features(y, d=3, seed=1)[:1])
+
+
+def test_markov_filter_refit_with_more_states():
+    # Copilot: after a fit on N2/N3 a refit including AWAKE raised (mutated STATES)
+    mf = C.SleepStageProbabilityMarkovChainFilter()
+    y1 = np.array(['N2', 'N3'] * 20)
+    mf.fit(pd.DataFrame({'N2': np.r_[[0.8, 0.2] * 20], 'N3': np.r_[[0.2, 0.8] * 20]}), y1)
+    assert list(mf.STATES) == ['N2', 'N3']
+    y2 = np.array(['AWAKE', 'N2', 'N3'] * 10)
+    sc = pd.DataFrame({'AWAKE': np.r_[[0.8, 0.1, 0.1] * 10], 'N2': np.r_[[0.1, 0.8, 0.1] * 10],
+                       'N3': np.r_[[0.1, 0.1, 0.8] * 10]})
+    mf.fit(sc, y2)
+    assert list(mf.STATES) == ['AWAKE', 'N2', 'N3']
+    fresh = C.SleepStageProbabilityMarkovChainFilter()
+    fresh.fit(sc, y2)
+    np.testing.assert_allclose(mf.tmat, fresh.tmat)
+
+
 # --------------------------------------------------------------------------- Mapper
 def test_mapper_map_recovers_affine_shift():
     y = np.repeat(STATES, 15)
@@ -297,17 +395,20 @@ def test_mapper_fit_map_uses_labels(monkeypatch):
 _FREQ = {'AWAKE': (10.0, 20.0, 2.0), 'N2': (13.0, 3.0, 1.5), 'N3': (1.5, 1.0, 6.0), 'REM': (6.0, 25.0, 2.0)}
 
 
-def _epoch(state, fs, dur, r):
+def _epoch(state, fs, dur, r, noise_fs=None):
+    """``noise_fs``: scale the white noise to the spectral density it has at ``noise_fs``
+    (so recordings at different rates have the same in-band noise level)."""
     t = np.arange(int(round(fs * dur))) / fs
     f1, f2, a1 = _FREQ[state]
+    noise = 1.0 if noise_fs is None else np.sqrt(fs / noise_fs)
     return (a1 * np.sin(2 * np.pi * f1 * t + r.uniform(0, 2 * np.pi))
             + 0.7 * np.sin(2 * np.pi * f2 * t + r.uniform(0, 2 * np.pi))
-            + r.normal(size=t.size))
+            + noise * r.normal(size=t.size))
 
 
-def _recording(labels, fs, dur, seed):
+def _recording(labels, fs, dur, seed, noise_fs=None):
     r = np.random.default_rng(seed)
-    return np.concatenate([_epoch(s, fs, dur, r) for s in labels])
+    return np.concatenate([_epoch(s, fs, dur, r, noise_fs) for s in labels])
 
 
 @pytest.mark.parametrize('cls', [C.KDEBayesianModel, C.MultiChannelMVGaussBayesClassifier],
@@ -360,16 +461,39 @@ def test_sleep_classifier_wrapper_train_predict():
 
     yt = np.repeat(['AWAKE', 'N2', 'N3', 'N2', 'REM'], 3)
     r = np.random.default_rng(99)
-    s500 = np.concatenate([_epoch(s, 500, 30, r) for s in yt])
-    s500[100:200] = np.nan
-    before = s500.copy()
-    out = w.predict_signal(s500, 500, 0)
-    np.testing.assert_array_equal(s500, before)              # caller's array untouched
+    s250 = np.concatenate([_epoch(s, fs, 30, r) for s in yt])
+    s250[100:200] = np.nan
+    before = s250.copy()
+    out = w.predict_signal(s250, fs, 0)
+    np.testing.assert_array_equal(s250, before)              # caller's array untouched
     assert list(out['annotation']) == ['AWAKE', 'N2', 'N3', 'N2', 'REM']
     np.testing.assert_allclose(out['duration'], 90.0)
 
     with pytest.raises(ValueError, match='stim_freq'):
-        w.predict_signal(s500[::2], 250, 5)
+        w.predict_signal(s250, 250, 5)
+
+    # Copilot: a second train without 72.5-Hz epochs must not keep the old 72.5 model
+    keep = df['freq'].to_numpy() != 72.5
+    w.train(Xw[keep], df.loc[keep].reset_index(drop=True), fs=fs)
+    assert sorted(w.MODEL) == [0, 2, 7]
+    with pytest.raises(ValueError, match='stim_freq'):
+        w.predict_signal(s250, fs, 72.5)
+
+
+def test_sleep_classifier_wrapper_same_resampling_in_train_and_predict():
+    """Review R9: any fs, and train / predict_signal resample identically (both through
+    the model's checked ``extract_features_bulk``): a 500-Hz model input gives the same
+    labels as in training."""
+    fs = 500
+    y = np.repeat(STATES, 10)
+    Xw = np.stack([_epoch(s, fs, 30, np.random.default_rng(i)) for i, s in enumerate(y)])
+    df = pd.DataFrame({'annotation': y, 'freq': [0] * len(y)})
+    w = C.SleepClassifierWrapper(n_jobs=1)
+    w.train(Xw, df, fs=fs)
+    yt = np.repeat(['AWAKE', 'N2', 'N3', 'N2', 'REM'], 3)
+    r = np.random.default_rng(98)
+    out = w.predict_signal(np.concatenate([_epoch(s, fs, 30, r) for s in yt]), fs, 0)
+    assert list(out['annotation']) == ['AWAKE', 'N2', 'N3', 'N2', 'REM']
 
 
 def test_scores_to_annotations_uses_segment_size():
@@ -377,3 +501,155 @@ def test_scores_to_annotations_uses_segment_size():
     df = C._scores_to_annotations(sc, np.array([0, 10, 20, 30]), 10)
     assert df.to_dict('list') == {'annotation': ['A', 'B'], 'start': [0.0, 20.0],
                                   'end': [20.0, 40.0], 'duration': [20.0, 20.0]}
+
+
+# --------------------------------------------------------------------------- review round 2 (PR #69)
+def _scaled(X, scales):
+    return X * np.asarray(scales)[None, :]
+
+
+@pytest.mark.parametrize('cls', [C.KDEBayesianModel, C.KDEBayesianModelNC, C.MVGaussBayesianModel],
+                         ids=lambda c: c.__name__)
+@pytest.mark.parametrize('selector2', [True, False])
+def test_invariant_to_feature_units(cls, selector2, feature_data):
+    """Review R4: the real features mix Hz, [0, 1] ratios and log10 ratios. With the
+    default ``standardize=True`` a per-feature rescaling of the input (which leaves the
+    Bayes accuracy unchanged) must not change the predictions. Without it the
+    discriminative features x 0.1 gave chance-level accuracy (or a ValueError)."""
+    Xtr, ytr, Xte, yte = feature_data
+    scale_sets = [np.r_[[0.1] * 4, [1.0] * 6],                                 # discriminative x 0.1
+                  np.random.default_rng(5).uniform(0.1, 10, Xtr.shape[1]),     # random units
+                  np.r_[[1000.0] * 4, [0.01] * 6]]
+    ref = make(cls, Selector2=selector2)
+    ref.fit(Xtr, ytr)
+    p_ref = ref.predict(Xte)
+    assert np.mean(p_ref == yte) > 0.85
+    for sc in scale_sets:
+        m = make(cls, Selector2=selector2)
+        m.fit(_scaled(Xtr, sc), ytr)
+        p = m.predict(_scaled(Xte, sc))
+        assert np.mean(p == p_ref) > 0.98, (sc, np.mean(p == p_ref))
+        assert np.mean(p == yte) > 0.85
+
+
+def test_selector2_keeping_no_feature_raises_clearly(feature_data):
+    # without standardisation this scaling made SelectFromModel keep 0 features and
+    # gaussian_kde fail on an empty array
+    Xtr, ytr, _, _ = feature_data
+    Xs = _scaled(Xtr, np.r_[[0.1] * 4, [1.0] * 6])
+    m = make(C.KDEBayesianModel, standardize=False, Selector2=True)
+    try:
+        m.fit(Xs, ytr)
+    except ValueError as e:
+        assert 'kept no feature' in str(e)
+    else:   # if it does keep features the model must still be usable
+        assert m.predict(Xs).shape == (Xs.shape[0],)
+
+
+@pytest.mark.parametrize('cls', KDE_FAMILY, ids=lambda c: c.__name__)
+def test_smoothing_and_filter_do_not_cross_gaps(cls, feature_data):
+    """Review R5: rows after a gap in ``start_time`` (skipped epochs) are scored exactly as
+    if the segment were scored on its own; the segment before the gap is unaffected too."""
+    Xtr, ytr, Xte, _ = feature_data
+    m = make(cls)
+    m.fit(Xtr, ytr)
+    seg = m.segm_size
+    n1 = 40
+    st = np.r_[np.arange(n1), np.arange(n1 + 5, Xte.shape[0] + 5)] * float(seg)
+    full = m.scores(Xte, start_time=st).to_numpy(dtype=float)
+    first = m.scores(Xte[:n1]).to_numpy(dtype=float)
+    np.testing.assert_allclose(full[:n1], first, rtol=1e-12, atol=1e-12)
+    if cls in (C.KDEBayesianCausalModel, C.MVGaussBayesianCausalModel):
+        # the chain after the gap restarts in the arg-max state of its first epoch
+        return
+    second = m.scores(Xte[n1:]).to_numpy(dtype=float)
+    np.testing.assert_allclose(full[n1:], second, rtol=1e-12, atol=1e-12)
+    # without start_time the rows are treated as consecutive (smoothing crosses row n1)
+    joined = m.scores(Xte).to_numpy(dtype=float)
+    assert not np.allclose(joined[n1 - 1:n1 + 1], full[n1 - 1:n1 + 1])
+
+
+@pytest.mark.parametrize('cls', [C.KDEBayesianModel, C.KDEBayesianCausalModel,
+                                 C.MultiChannelMVGaussBayesClassifier], ids=lambda c: c.__name__)
+def test_predict_signal_empty_or_short(cls):
+    """Copilot: every epoch below the datarate threshold (or a signal shorter than one
+    epoch) returns an empty table instead of crashing in feature extraction."""
+    fs, seg = 100, 10
+    ytr = np.repeat(CYCLE * 2, 6)
+    m = make(cls, fs=fs, segm_size=seg)
+    X, _ = m.extract_features_bulk(list(_recording(ytr, fs, seg, 0).reshape(len(ytr), -1)), [fs] * len(ytr))
+    m.fit(X, ytr)
+    for sig in (np.full(5 * fs * seg, np.nan), np.zeros(fs * seg - 1), np.zeros(0)):
+        df = m.predict_signal(sig, fs)
+        assert list(df.columns) == ['annotation', 'start', 'end', 'duration'] and len(df) == 0
+        sc = m.predict_signal_scores(sig, fs)
+        assert sc.shape == (0, len(m.STATES))
+
+
+def test_single_epoch_scores_clear():
+    # review R6 for the KDE family: one epoch gives one finite row (or NaN = UNKNOWN)
+    ytr = cyc_hypnogram(20, 0)
+    m = make(C.KDEBayesianCausalModel)
+    m.fit(features(ytr, seed=0), ytr)
+    sc = m.scores(features(ytr, seed=1)[:1])
+    assert sc.shape == (1, len(STATES)) and np.isclose(sc.to_numpy().sum(), 1.0)
+
+
+# ---- R1: resampling sanity checks
+def _utils_resamples_141_hz_correctly():
+    try:
+        C._resampling_self_test(141, 200, 141 * 30)
+        return True
+    except ValueError:
+        return False
+
+
+def test_resampling_141_hz_never_silently_wrong():
+    """Review R1: with brainmaze_utils 2.0.0, 139-141 Hz input resampled to 200 Hz is
+    finite but blown up (1e72-1e230) and every epoch was labelled REM without an error.
+    Now: a ValueError naming brainmaze_utils (2.0.0), or correct labels (>= 2.1.0)."""
+    fs_tr, fs_in, seg = 200, 141, 30
+    ytr = np.repeat(CYCLE * 2, 6)
+    m = make(C.KDEBayesianModel, fs=fs_tr, segm_size=seg)
+    X, _ = m.extract_features_bulk(list(_recording(ytr, fs_tr, seg, 0).reshape(len(ytr), -1)), [fs_tr] * len(ytr))
+    m.fit(X, ytr)
+    yte = np.repeat(CYCLE, 4)
+    sig = _recording(yte, fs_in, seg, 1, noise_fs=fs_tr)       # same in-band noise density
+    if _utils_resamples_141_hz_correctly():
+        df = m.predict_signal(sig, fs_in)
+        pred = np.full(len(yte), '', dtype=object)
+        for _, r in df.iterrows():
+            pred[int(r.start // seg):int(r.end // seg)] = r.annotation
+        assert np.mean(pred == yte) > 0.9
+    else:
+        with pytest.raises(ValueError, match='brainmaze_utils'):
+            m.predict_signal(sig, fs_in)
+
+
+@pytest.mark.parametrize('corrupt, match', [
+    (lambda x: x * 1e80, 'RMS grew'),
+    (lambda x: np.full_like(x, np.nan), 'finite fraction'),
+    (lambda x: np.where(np.arange(x.size) == 3, np.inf, x), 'inf'),
+])
+def test_resample_epochs_rejects_corrupted_output(monkeypatch, corrupt, match):
+    """The per-epoch checks catch a corrupting resampler even when the self-test passes."""
+    real = C.unify_sampling_frequency
+    state = {'n': 0}
+
+    def fake(x, sampling_frequency, fs_new=None):
+        out, fs = real(x, sampling_frequency, fs_new=fs_new)
+        state['n'] += 1
+        if state['n'] > 1:                       # first call = self-test, leave it intact
+            out = [corrupt(np.asarray(o, float)) for o in out]
+        return out, fs
+
+    monkeypatch.setattr(C, 'unify_sampling_frequency', fake)
+    sig = np.random.default_rng(0).normal(size=250 * 30)
+    with pytest.raises(ValueError, match=match):
+        C._resample_epochs([sig], [250], 200)
+
+
+def test_resample_epochs_identity_at_model_rate():
+    sig = np.random.default_rng(0).normal(size=6000)
+    out, fs = C._resample_epochs([sig], [200], 200)
+    assert fs == 200 and np.array_equal(out[0], sig)

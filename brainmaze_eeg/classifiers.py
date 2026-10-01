@@ -548,7 +548,7 @@ class _KDEFamilyMixin(_EpochClassifierMixin):
             self.KDE.append(self._make_density(X_))
         # training best-state log-likelihood; an epoch's own state uses the leave-one-out
         # density for KDEs (its own kernel would inflate it)
-        ll = np.asarray(self._log_likelihood(X), dtype=float).reshape(X.shape[0], len(self.STATES))
+        ll = np.array(self._log_likelihood(X), dtype=float).reshape(X.shape[0], len(self.STATES))
         for idx, state in enumerate(self.STATES):
             if isinstance(self.KDE[idx], gaussian_kde):
                 sel = np.asarray(y) == state
@@ -1512,6 +1512,14 @@ class Mapper:
     Usage: ``create_template(x_ref[, y_ref])`` then ``map(x, name)`` (fits once per
     ``name``, cached in ``self.MAPS``). ``x`` arrays are (n_samples, n_dims) with the same
     ``n_dims`` as the template.
+
+    The KL costs come from ``brainmaze_utils.stat.kl_divergence_nonparametric`` on the
+    (n_dims, 200) histogram array: the sum of the per-dimension divergences. Every bin is
+    floored at 1e-9 in ``get_probabilities``, so the ``inf`` that brainmaze_utils >= 2.1.0
+    returns for ``q == 0, p > 0`` cannot occur. (An intermediate state of brainmaze_utils
+    PR #28 averaged over dimensions instead, which would have rescaled the stored
+    ``MAPS[name]['cost']`` but not the selected transform; the released behaviour keeps
+    the sum, so costs are comparable across versions.)
     """
     def __init__(self):
         self.TEMPLATE = None
@@ -1777,11 +1785,16 @@ class SleepStructureClassifier:
     Parameters
     ----------
     states : list of str
-        States to model. States without training samples are dropped in ``fit`` with a
-        warning; each kept state needs >= 2 epochs.
+        States the model may use (default ``['WAKE', 'N1', 'N2', 'N3', 'REM']``; note
+        that the other classifiers in this module use ``'AWAKE'``). Every ``fit`` starts
+        again from this list: states without training epochs are dropped for that fit
+        with a warning (``self.STATES`` = the states actually fitted), and training labels
+        that are not in the list raise ``ValueError``. Each fitted state pair needs enough
+        pairs for a non-singular ``(d + 1)``-dimensional KDE (see ``fit``).
     """
     def __init__(self, states=['WAKE', 'N1', 'N2', 'N3', 'REM']):
-        self.STATES = states
+        self._states_init = tuple(states)
+        self.STATES = list(states)
         self.norml2 = None
         # up to v1.0.0 this was None and ``fit`` raised TypeError on the first
         # ``self.KDE[s1] = {}`` (issue #57)
@@ -1802,24 +1815,42 @@ class SleepStructureClassifier:
         """
         x = np.asarray(x, dtype=float)
         y = np.asarray(y)
-        present = [s_ for s_ in self.STATES if np.sum(y == s_) > 0]
-        missing = [s_ for s_ in self.STATES if s_ not in present]
+        states_init = list(getattr(self, '_states_init', self.STATES))
+        unknown = sorted(set(np.unique(y).tolist()) - set(states_init))
+        if unknown:
+            # up to round 1 of PR #69 these epochs were silently ignored (review R3)
+            raise ValueError(f'SleepStructureClassifier.fit: labels {unknown} are not in states='
+                             f'{states_init}; pass states=... including them (e.g. AWAKE vs WAKE) '
+                             'or remove those epochs.')
+        present = [s_ for s_ in states_init if np.sum(y == s_) > 0]
+        missing = [s_ for s_ in states_init if s_ not in present]
         if missing:
             warnings.warn(f'SleepStructureClassifier.fit: no training samples for {missing}; '
-                          f'these states are dropped.')
-        too_few = [s_ for s_ in present if np.sum(y == s_) < 2]
-        if too_few:
-            raise ValueError(f'SleepStructureClassifier.fit: states {too_few} have < 2 epochs')
-        self.STATES = present
-
+                          f'these states are dropped for this fit.')
+        if not present:
+            raise ValueError('SleepStructureClassifier.fit: no training epochs')
+        d = x.shape[1]
         diff, i_idx, j_idx = _pairwise_differences(x)
         rep_ = _norm_direction(diff)
-        self.KDE = {}
-        for s1 in self.STATES:
-            self.KDE[s1] = {}
-            for s2 in self.STATES:
+        kde = {}
+        for s1 in present:
+            kde[s1] = {}
+            for s2 in present:
                 sel = (y[i_idx] == s1) & (y[j_idx] == s2)
-                self.KDE[s1][s2] = gaussian_kde(rep_[sel, :].T)
+                n_pairs = int(sel.sum())
+                if n_pairs < d + 2:
+                    raise ValueError(
+                        f'SleepStructureClassifier.fit: state pair ({s1}, {s2}) has {n_pairs} epoch '
+                        f'pairs; a KDE in d + 1 = {d + 1} dimensions needs at least {d + 2} '
+                        f'(epochs per state: { {s_: int(np.sum(y == s_)) for s_ in present} }).')
+                try:
+                    kde[s1][s2] = gaussian_kde(rep_[sel, :].T)
+                except (np.linalg.LinAlgError, ValueError) as e:
+                    raise ValueError(f'SleepStructureClassifier.fit: the pair vectors of state pair '
+                                     f'({s1}, {s2}) ({n_pairs} pairs, {d + 1} dims) have a singular '
+                                     f'covariance ({e}); more / less degenerate epochs are needed.') from e
+        self.STATES = present
+        self.KDE = kde
         self.N = x.shape[1]
         return self
 
@@ -1844,6 +1875,10 @@ class SleepStructureClassifier:
         """
         x = np.asarray(x, dtype=float)
         n = x.shape[0]
+        if n < 2:
+            # one epoch has no pairs: the score would be 0/0 (review R6)
+            raise ValueError(f'SleepStructureClassifier.scores: needs >= 2 epochs (scores are built '
+                             f'from pairs of epochs), got {n}')
         diff, i_idx, j_idx = _pairwise_differences(x)
         rep_ = _norm_direction(diff)
         out = np.zeros((n, len(self.STATES)))
@@ -1858,8 +1893,9 @@ class SleepStructureClassifier:
         return pd.DataFrame(out, columns=list(self.STATES))
 
     def predict(self, x):
-        """Arg-max state per epoch, np.ndarray of str, shape (n_epochs,)."""
-        return np.array(self.scores(x).idxmax(axis=1))
+        """Arg-max state per epoch, np.ndarray of str, shape (n_epochs,). An epoch whose
+        densities all underflow (all-NaN score row) gets ``UNKNOWN_LABEL``."""
+        return _labels_from_scores(self.scores(x))
 
 
 class SleepClassifierWrapper:
@@ -1873,8 +1909,15 @@ class SleepClassifierWrapper:
     2 (bands around 2 Hz harmonics erased); 7 Hz <- freq 0 or 7; 72.5 Hz <- freq 72.5. A
     model with no training epochs is skipped with a warning.
 
-    ``predict_signal(X, fs, stim_freq)``: ``fs`` must be 250 or 500 Hz (500 is low-passed
-    at 40 Hz and decimated by 2); returns the annotation table of the matching model.
+    ``predict_signal(X, fs, stim_freq)``: any ``fs``; returns the annotation table of the
+    matching model. Training and prediction resample each 30-s epoch to 250 Hz the same way
+    (``KDEBayesianModel.extract_features_bulk`` -> ``unify_sampling_frequency``, checked
+    by ``_resample_epochs``). Up to round 1 of PR #69 ``predict_signal`` accepted only 250
+    or 500 Hz and used a different anti-alias path (Butterworth 40 Hz + ``[::2]``) from
+    ``train`` (review R9).
+
+    Every ``train`` call starts from an empty ``MODEL`` dict: a model skipped for lack of
+    epochs is absent, never a stale one from an earlier call.
 
     Parameters
     ----------
@@ -1898,6 +1941,8 @@ class SleepClassifierWrapper:
             ``fsamp_list`` (``TypeError``; issue #57); its ``(features, fs)`` tuple was
             also passed to ``fit`` as if it were the feature matrix.
         """
+        # forget models of a previous ``train`` call (Copilot, PR #69)
+        self.MODEL = {}
         datarate = get_datarate(X)
         df = df.loc[datarate > 0.85].reset_index(drop=True)
         X = X[datarate > 0.85]
@@ -1970,27 +2015,23 @@ class SleepClassifierWrapper:
             model725.fit(X725, Y725)
             self.MODEL[72.5] = model725
 
-    def predict_signal(self, X, fs, stim_freq):
-        assert (fs == 250 or fs == 500), 'Sampling frequency has to be 250 or 500 Hz!!!!'
+    def predict_signal(self, X, fs, stim_freq, datarate_threshold=0.85):
+        """
+        Classify a continuous signal with the model of ``stim_freq``.
 
+        ``X`` : np.ndarray (n_samples,), NaN = missing; ``fs`` : any rate in Hz (epochs are
+        resampled to 250 Hz exactly as in ``train``). Returns the model's
+        ``predict_signal`` annotation table (``'UNKNOWN'`` = out-of-distribution epoch).
+        ``ValueError`` if no model was trained for ``stim_freq``.
+        """
         if stim_freq not in self.MODEL:
             raise ValueError(f'SleepClassifierWrapper: no trained model for stim_freq={stim_freq}; '
                              f'available: {sorted(self.MODEL)}')
-        if fs == 500:
-            b, a = signal.butter(6, 40, fs=fs, btype='low', analog=False)
-            # work on a copy: up to v1.0.0 the caller's array was overwritten in place
-            X = np.array(X, dtype=float, copy=True)
-            nans = np.isnan(X)
-            X[nans] = np.nanmean(X)
-            X = signal.filtfilt(b, a, X)
-            X[nans] = np.nan
-            X = X[::2]
-
         clf = self.MODEL[stim_freq]
-        return clf.predict_signal(X, 250, 0.85)
+        return clf.predict_signal(np.asarray(X, dtype=float), fs, datarate_threshold)
 
 
-class MultiChannelMVGaussBayesClassifier:
+class MultiChannelMVGaussBayesClassifier(_EpochClassifierMixin):
     """
     Gaussian naive Bayes (``sklearn.naive_bayes.GaussianNB``) on a feature matrix.
 
@@ -2000,7 +2041,10 @@ class MultiChannelMVGaussBayesClassifier:
     KDE family, ``scores`` are not smoothed across epochs.
 
     Constructor parameters as for :class:`KDEBayesianModel` (``window_*``, ``cat_bias``,
-    ``Selector2`` are accepted but unused). ``__name__`` was ``"KDEBayesianModel"`` up to
+    ``Selector2`` are accepted but unused). Out-of-distribution epochs are flagged as in
+    the KDE family (``log_lik_floor`` etc., see :class:`_EpochClassifierMixin`), using the
+    class-conditional log-likelihood of the naive-Bayes model (joint log-likelihood minus
+    log prior; in-sample training values). ``__name__`` was ``"KDEBayesianModel"`` up to
     v1.0.0 (copy-paste); it is now ``"MultiChannelMVGaussBayesClassifier"``.
     """
     __name__ = "MultiChannelMVGaussBayesClassifier"
@@ -2012,9 +2056,13 @@ class MultiChannelMVGaussBayesClassifier:
                                [14, 20],
                                [20, 30]], segm_size=30, fs=200, bands_to_erase=[], filter_bands=True, nfft=12000,
                  window_smooth_n=3, window_std=1, cat_bias={'AWAKE': 1, 'N2': 1, 'N3': 1, 'REM': 1},
-                 Selector2=True):
+                 Selector2=True, log_lik_floor='auto', log_lik_quantile=_DEFAULT_LOG_LIK_QUANTILE,
+                 log_lik_margin=_DEFAULT_LOG_LIK_MARGIN):
 
         self.fbands = fbands
+        self.log_lik_floor = log_lik_floor
+        self.log_lik_quantile = log_lik_quantile
+        self.log_lik_margin = log_lik_margin
         self.segm_size = segm_size
         self.fs = fs
         self.bands_to_erase = bands_to_erase
@@ -2146,77 +2194,36 @@ class MultiChannelMVGaussBayesClassifier:
         self.classifier = GaussianNB()
         self.classifier.fit(X, y)
         self.STATES = self.classifier.classes_
+        self._fit_log_lik_floor(self.max_log_likelihood(X))
         return self
+
+    def max_log_likelihood(self, X):
+        """Best-class log-likelihood ``max_c log p(x | c)`` per row, shape (n_epochs,)."""
+        X = np.asarray(X, dtype=float)
+        jll = self.classifier.predict_joint_log_proba(X)
+        return (jll - np.log(self.classifier.class_prior_)).max(axis=1)
 
     def transform(self, X):
         """Identity (this model has no feature transform); returns ``np.asarray(X)``."""
         return np.asarray(X)
 
-    def scores(self, X):
+    def scores(self, X, start_time=None):
         """
         Class probabilities.
+
+        ``start_time`` is accepted for API symmetry and unused (no smoothing).
 
         Returns
         -------
         pd.DataFrame, shape (n_epochs, n_classes)
-            Columns are ``self.classifier.classes_``; rows sum to 1. Up to v1.0.0 this
-            returned an (n_classes, n_classes) frame whose cells held whole arrays, and
-            ``predict`` raised ``ValueError`` (issue #57).
+            Columns are ``self.classifier.classes_``; rows sum to 1, except
+            out-of-distribution rows (best class log-likelihood below
+            ``self.log_lik_floor_``), which are all-NaN. ``self.max_log_lik_`` is set.
+            Up to v1.0.0 this returned an (n_classes, n_classes) frame whose cells held
+            whole arrays, and ``predict`` raised ``ValueError`` (issue #57).
         """
-        scr = self.classifier.predict_proba(X)
+        X = np.asarray(X, dtype=float)
+        scr = np.array(self.classifier.predict_proba(X), dtype=float)
+        self.max_log_lik_ = self.max_log_likelihood(X)
+        scr[self._ood_mask(self.max_log_lik_)] = np.nan
         return pd.DataFrame(scr, columns=list(self.classifier.classes_))
-
-    def fit_transform(self, X, y):
-        """Fit, then return ``transform(X)`` (= ``X``). Up to v1.0.0 this raised
-        ``AttributeError`` because ``transform`` did not exist (issue #57)."""
-        self.fit(X, y)
-        return self.transform(X)
-
-    def predict(self, X):
-        return np.array(self.scores(X).idxmax(axis=1))
-
-    def preprocess_signal(self, signal, fs, datarate_threshold=0.85):
-        data = buffer(signal, fs, self.segm_size)
-        start_time = np.array([k * self.segm_size for k in range(data.__len__())])
-        end_time = start_time + self.segm_size
-        datarate = np.array(get_datarate(data))
-
-        data = data[datarate >= datarate_threshold]
-        start_time = start_time[datarate >= datarate_threshold]
-        end_time = end_time[datarate >= datarate_threshold]
-        return list(data), start_time, end_time
-
-    def predict_signal(self, signal, fs, datarate_threshold=0.85):
-        """
-        Classify a continuous single-channel signal epoch by epoch.
-
-        Parameters
-        ----------
-        signal : np.ndarray, shape (n_samples,)
-            Raw signal; NaN marks missing data.
-        fs : float, Hz
-            Sampling rate of ``signal``.
-        datarate_threshold : float, 0-1
-            Epochs with a smaller fraction of non-NaN samples are skipped.
-
-        Returns
-        -------
-        pd.DataFrame with columns ``['annotation', 'start', 'end', 'duration']``
-            Times in seconds relative to the first sample; epochs of ``self.segm_size``
-            seconds, consecutive equal labels merged (see ``_scores_to_annotations``).
-        """
-        data, start_time, end_time = self.preprocess_signal(signal, fs, datarate_threshold)
-        x, fs = self.extract_features_bulk(data, [fs] * data.__len__())
-        scores = self.scores(x)
-        return _scores_to_annotations(scores, start_time, self.segm_size)
-
-    def predict_signal_scores(self, signal, fs, datarate_threshold=0.85):
-        data, start_time, end_time = self.preprocess_signal(signal, fs, datarate_threshold)
-        x, fs = self.extract_features_bulk(data, [fs] * data.__len__())
-        scores = self.scores(x)
-        return scores
-
-
-
-
-
