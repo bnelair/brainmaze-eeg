@@ -224,6 +224,7 @@
 <li class="toctree-l1"><a class="reference internal" href="hypnogram.html">Hypnogram</a></li>
 <li class="toctree-l1"><a class="reference internal" href="preprocessing.html">Preprocessing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scikit_modules.html">Scikit Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spikes.html">Spike detectors</a></li>
 </ul>
 
     </div>
@@ -767,6 +768,55 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <li class="toctree-l3"><a class="reference internal" href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule.fit"><code class="docutils literal notranslate"><span class="pre">ZScoreModule.fit()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule.fit_transform"><code class="docutils literal notranslate"><span class="pre">ZScoreModule.fit_transform()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule.transform"><code class="docutils literal notranslate"><span class="pre">ZScoreModule.transform()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="spikes.html">Spike detectors</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="spikes.html#detectors">Detectors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes.janca">Janca</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#janca-hilbert-envelope-interictal-spike-detectors">Janca (Hilbert-envelope) interictal spike detectors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.JANCA_PRESETS"><code class="docutils literal notranslate"><span class="pre">JANCA_PRESETS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.JancaDetector"><code class="docutils literal notranslate"><span class="pre">JancaDetector</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB"><code class="docutils literal notranslate"><span class="pre">MAX_RESAMPLER_LOSS_DB</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.design_janca_filters"><code class="docutils literal notranslate"><span class="pre">design_janca_filters()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_decimation_factor"><code class="docutils literal notranslate"><span class="pre">janca_decimation_factor()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_params"><code class="docutils literal notranslate"><span class="pre">janca_params()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_resampling"><code class="docutils literal notranslate"><span class="pre">janca_resampling()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.resampler_gain_db"><code class="docutils literal notranslate"><span class="pre">resampler_gain_db()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes.barkmeier">Barkmeier</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#barkmeier-interictal-spike-detector">Barkmeier interictal spike detector</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.barkmeier.BarkmeierDetector"><code class="docutils literal notranslate"><span class="pre">BarkmeierDetector</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.barkmeier.design_barkmeier_filters"><code class="docutils literal notranslate"><span class="pre">design_barkmeier_filters()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.barkmeier.detect_spikes_barkmeier"><code class="docutils literal notranslate"><span class="pre">detect_spikes_barkmeier()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes.gap_aware">Gap handling</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#gap-aware-wrapper-for-the-spike-detectors">Gap-aware wrapper for the spike detectors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#relation-to-brainmaze-utils-gaps">Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.fill_gaps"><code class="docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.find_gaps"><code class="docutils literal notranslate"><span class="pre">find_gaps()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.gap_intervals"><code class="docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.pink_noise"><code class="docutils literal notranslate"><span class="pre">pink_noise()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes._filters">Filter design</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.butter_bandpass"><code class="docutils literal notranslate"><span class="pre">butter_bandpass()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.butter_bandstop"><code class="docutils literal notranslate"><span class="pre">butter_bandstop()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.butter_highpass"><code class="docutils literal notranslate"><span class="pre">butter_highpass()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.butter_lowpass"><code class="docutils literal notranslate"><span class="pre">butter_lowpass()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.cheby2_highpass"><code class="docutils literal notranslate"><span class="pre">cheby2_highpass()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.cheby2_lowpass"><code class="docutils literal notranslate"><span class="pre">cheby2_lowpass()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.check_band"><code class="docutils literal notranslate"><span class="pre">check_band()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.iir_notch_sos"><code class="docutils literal notranslate"><span class="pre">iir_notch_sos()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._filters.zero_phase_response_db"><code class="docutils literal notranslate"><span class="pre">zero_phase_response_db()</span></code></a></li>
 </ul>
 </li>
 </ul>

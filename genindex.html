@@ -218,6 +218,7 @@
 <li class="toctree-l1"><a class="reference internal" href="hypnogram.html">Hypnogram</a></li>
 <li class="toctree-l1"><a class="reference internal" href="preprocessing.html">Preprocessing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scikit_modules.html">Scikit Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spikes.html">Spike detectors</a></li>
 </ul>
 
     </div>
@@ -351,6 +352,7 @@
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#I"><strong>I</strong></a>
+ | <a href="#J"><strong>J</strong></a>
  | <a href="#K"><strong>K</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
@@ -382,6 +384,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="features.utils.html#brainmaze_eeg.features.utils.balance_classes">balance_classes() (in module brainmaze_eeg.features.utils)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.barkmeier.BarkmeierDetector">BarkmeierDetector (class in brainmaze_eeg.spikes.barkmeier)</a>
 </li>
       <li>
     brainmaze_eeg.classifiers
@@ -425,8 +429,6 @@
         <li><a href="features.spectral_features.html#module-brainmaze_eeg.features.spectral_features">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     brainmaze_eeg.features.time_domain_features
 
@@ -455,6 +457,8 @@
         <li><a href="hypnogram.html#module-brainmaze_eeg.hypnogram">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     brainmaze_eeg.preprocessing
 
@@ -469,6 +473,56 @@
         <li><a href="scikit_modules.html#module-brainmaze_eeg.scikit_modules">module</a>
 </li>
       </ul></li>
+      <li>
+    brainmaze_eeg.spikes
+
+      <ul>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes">module</a>
+</li>
+      </ul></li>
+      <li>
+    brainmaze_eeg.spikes._filters
+
+      <ul>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes._filters">module</a>
+</li>
+      </ul></li>
+      <li>
+    brainmaze_eeg.spikes._gaps
+
+      <ul>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes._gaps">module</a>
+</li>
+      </ul></li>
+      <li>
+    brainmaze_eeg.spikes.barkmeier
+
+      <ul>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes.barkmeier">module</a>
+</li>
+      </ul></li>
+      <li>
+    brainmaze_eeg.spikes.gap_aware
+
+      <ul>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes.gap_aware">module</a>
+</li>
+      </ul></li>
+      <li>
+    brainmaze_eeg.spikes.janca
+
+      <ul>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes.janca">module</a>
+</li>
+      </ul></li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.butter_bandpass">butter_bandpass() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.butter_bandstop">butter_bandstop() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.butter_highpass">butter_highpass() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.butter_lowpass">butter_lowpass() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -479,14 +533,22 @@
 </li>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.channel_data_rate_thresholding">channel_data_rate_thresholding() (in module brainmaze_eeg.preprocessing)</a>
 </li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.channel_independent">channel_independent (brainmaze_eeg.spikes.janca.SpikeDetectorHilbert property)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.cheby2_highpass">cheby2_highpass() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.cheby2_lowpass">cheby2_lowpass() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.check_band">check_band() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
       <li><a href="features.dataset.html#brainmaze_eeg.features.dataset.compare_datasets">compare_datasets() (in module brainmaze_eeg.features.dataset)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule.continuous_learning">continuous_learning (brainmaze_eeg.scikit_modules.ZScoreModule attribute)</a>
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.correct_certainty">correct_certainty() (brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.correct_hypnogram">correct_hypnogram() (in module brainmaze_eeg.hypnogram)</a>
 </li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.correct_rem">correct_rem() (in module brainmaze_eeg.hypnogram)</a>
@@ -505,17 +567,39 @@
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.barkmeier.design_barkmeier_filters">design_barkmeier_filters() (in module brainmaze_eeg.spikes.barkmeier)</a>
+</li>
       <li><a href="features.feature_extraction.html#brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor.design_filters">design_filters() (brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor method)</a>
+
+      <ul>
+        <li><a href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.design_filters">(brainmaze_eeg.spikes.janca.SpikeDetectorHilbert method)</a>
+</li>
+      </ul></li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.design_janca_filters">design_janca_filters() (in module brainmaze_eeg.spikes.janca)</a>
 </li>
       <li><a href="features.wave_detector.html#brainmaze_eeg.features.wave_detector.WaveDetector.detect">detect() (brainmaze_eeg.features.wave_detector.WaveDetector method)</a>
+
+      <ul>
+        <li><a href="spikes.html#brainmaze_eeg.spikes.barkmeier.BarkmeierDetector.detect">(brainmaze_eeg.spikes.barkmeier.BarkmeierDetector method)</a>
 </li>
+        <li><a href="spikes.html#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector.detect">(brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector method)</a>
+</li>
+        <li><a href="spikes.html#brainmaze_eeg.spikes.janca.JancaDetector.detect">(brainmaze_eeg.spikes.janca.JancaDetector method)</a>
+</li>
+        <li><a href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.detect">(brainmaze_eeg.spikes.janca.SpikeDetectorHilbert method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.detect_flat_line_segments">detect_flat_line_segments() (in module brainmaze_eeg.preprocessing)</a>
 </li>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.detect_outlier_segments">detect_outlier_segments() (in module brainmaze_eeg.preprocessing)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.detect_powerline_segments">detect_powerline_segments() (in module brainmaze_eeg.preprocessing)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.barkmeier.detect_spikes_barkmeier">detect_spikes_barkmeier() (in module brainmaze_eeg.spikes.barkmeier)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.detect_spikes_janca">detect_spikes_janca() (in module brainmaze_eeg.spikes.janca)</a>
 </li>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.detect_stim_segments">detect_stim_segments() (in module brainmaze_eeg.preprocessing)</a>
 </li>
@@ -524,6 +608,8 @@
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.detection_dilatation">detection_dilatation() (in module brainmaze_eeg.preprocessing)</a>
 </li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.do_median_filtration">do_median_filtration() (in module brainmaze_eeg.hypnogram)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._gaps.drop_in_gaps">drop_in_gaps() (in module brainmaze_eeg.spikes._gaps)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -559,6 +645,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="scikit_modules.html#brainmaze_eeg.scikit_modules.FeatureAugmentorModule">FeatureAugmentorModule (class in brainmaze_eeg.scikit_modules)</a>
 </li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._gaps.fill_gaps">fill_gaps() (in module brainmaze_eeg.spikes._gaps)</a>
+</li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.fill_nonrem_voids">fill_nonrem_voids() (in module brainmaze_eeg.hypnogram)</a>
 </li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.fill_same_voids">fill_same_voids() (in module brainmaze_eeg.hypnogram)</a>
@@ -570,6 +658,8 @@
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.filter_powerline">filter_powerline() (in module brainmaze_eeg.preprocessing)</a>
 </li>
       <li><a href="features.utils.html#brainmaze_eeg.features.utils.find_category_outliers">find_category_outliers() (in module brainmaze_eeg.features.utils)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._gaps.find_gaps">find_gaps() (in module brainmaze_eeg.spikes._gaps)</a>
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.KDEBayesianCausalModel.fit">fit() (brainmaze_eeg.classifiers.KDEBayesianCausalModel method)</a>
 
@@ -633,6 +723,10 @@
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._gaps.gap_intervals">gap_intervals() (in module brainmaze_eeg.spikes._gaps)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector">GapAwareSpikeDetector (class in brainmaze_eeg.spikes.gap_aware)</a>
+</li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.get_awakening_time">get_awakening_time() (in module brainmaze_eeg.hypnogram)</a>
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_changing_state_posteriors">get_changing_state_posteriors() (brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter method)</a>
@@ -655,10 +749,10 @@
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.get_prob_to_change">get_prob_to_change() (brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter method)</a>
 </li>
-      <li><a href="classifiers.html#brainmaze_eeg.classifiers.Mapper.get_probabilities">get_probabilities() (brainmaze_eeg.classifiers.Mapper method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="classifiers.html#brainmaze_eeg.classifiers.Mapper.get_probabilities">get_probabilities() (brainmaze_eeg.classifiers.Mapper method)</a>
+</li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.get_rem_latency">get_rem_latency() (in module brainmaze_eeg.hypnogram)</a>
 </li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.get_stage_times">get_stage_times() (in module brainmaze_eeg.hypnogram)</a>
@@ -689,7 +783,29 @@
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.iir_notch_sos">iir_notch_sos() (in module brainmaze_eeg.spikes._filters)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.is_sleep_complete">is_sleep_complete() (in module brainmaze_eeg.hypnogram)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="J">J</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.janca_decimation_factor">janca_decimation_factor() (in module brainmaze_eeg.spikes.janca)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.janca_params">janca_params() (in module brainmaze_eeg.spikes.janca)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.JANCA_PRESETS">JANCA_PRESETS (in module brainmaze_eeg.spikes.janca)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.janca_resampling">janca_resampling() (in module brainmaze_eeg.spikes.janca)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.JancaDetector">JancaDetector (class in brainmaze_eeg.spikes.janca)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -731,7 +847,11 @@
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.Mapper">Mapper (class in brainmaze_eeg.classifiers)</a>
 </li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._gaps.mask_in_gaps">mask_in_gaps() (in module brainmaze_eeg.spikes._gaps)</a>
+</li>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.mask_segments_with_nans">mask_segments_with_nans() (in module brainmaze_eeg.preprocessing)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB">MAX_RESAMPLER_LOSS_DB (in module brainmaze_eeg.spikes.janca)</a>
 </li>
       <li><a href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule.mean">mean (brainmaze_eeg.scikit_modules.ZScoreModule attribute)</a>
 </li>
@@ -768,6 +888,18 @@
         <li><a href="preprocessing.html#module-brainmaze_eeg.preprocessing">brainmaze_eeg.preprocessing</a>
 </li>
         <li><a href="scikit_modules.html#module-brainmaze_eeg.scikit_modules">brainmaze_eeg.scikit_modules</a>
+</li>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes">brainmaze_eeg.spikes</a>
+</li>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes._filters">brainmaze_eeg.spikes._filters</a>
+</li>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes._gaps">brainmaze_eeg.spikes._gaps</a>
+</li>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes.barkmeier">brainmaze_eeg.spikes.barkmeier</a>
+</li>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes.gap_aware">brainmaze_eeg.spikes.gap_aware</a>
+</li>
+        <li><a href="spikes.html#module-brainmaze_eeg.spikes.janca">brainmaze_eeg.spikes.janca</a>
 </li>
       </ul></li>
   </ul></td>
@@ -811,6 +943,8 @@
       <li><a href="scikit_modules.html#brainmaze_eeg.scikit_modules.PCAModuleSVD">PCAModuleSVD (class in brainmaze_eeg.scikit_modules)</a>
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.multivariate_normal_.pdf">pdf() (brainmaze_eeg.classifiers.multivariate_normal_ method)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._gaps.pink_noise">pink_noise() (in module brainmaze_eeg.spikes._gaps)</a>
 </li>
       <li><a href="hypnogram.html#brainmaze_eeg.hypnogram.plot_hypnogram">plot_hypnogram() (in module brainmaze_eeg.hypnogram)</a>
 </li>
@@ -872,15 +1006,19 @@
 </li>
       <li><a href="features.utils.html#brainmaze_eeg.features.utils.remove_features">remove_features() (in module brainmaze_eeg.features.utils)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="features.utils.html#brainmaze_eeg.features.utils.remove_samples">remove_samples() (in module brainmaze_eeg.features.utils)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="features.utils.html#brainmaze_eeg.features.utils.replace_annotations">replace_annotations() (in module brainmaze_eeg.features.utils)</a>
 </li>
       <li><a href="preprocessing.html#brainmaze_eeg.preprocessing.replace_nans_with_median">replace_nans_with_median() (in module brainmaze_eeg.preprocessing)</a>
 </li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.resampler_gain_db">resampler_gain_db() (in module brainmaze_eeg.spikes.janca)</a>
+</li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter.reset_probabilities">reset_probabilities() (brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter method)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.run">run() (brainmaze_eeg.spikes.janca.SpikeDetectorHilbert method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -911,6 +1049,8 @@
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.SleepStageProbabilityMarkovChainFilter">SleepStageProbabilityMarkovChainFilter (class in brainmaze_eeg.classifiers)</a>
 </li>
       <li><a href="classifiers.html#brainmaze_eeg.classifiers.SleepStructureClassifier">SleepStructureClassifier (class in brainmaze_eeg.classifiers)</a>
+</li>
+      <li><a href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert">SpikeDetectorHilbert (class in brainmaze_eeg.spikes.janca)</a>
 </li>
       <li><a href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule.std">std (brainmaze_eeg.scikit_modules.ZScoreModule attribute)</a>
 </li>
@@ -974,10 +1114,12 @@
 <h2 id="Z">Z</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="features.utils.html#brainmaze_eeg.features.utils.zscore">zscore() (in module brainmaze_eeg.features.utils)</a>
+      <li><a href="spikes.html#brainmaze_eeg.spikes._filters.zero_phase_response_db">zero_phase_response_db() (in module brainmaze_eeg.spikes._filters)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="features.utils.html#brainmaze_eeg.features.utils.zscore">zscore() (in module brainmaze_eeg.features.utils)</a>
+</li>
       <li><a href="scikit_modules.html#brainmaze_eeg.scikit_modules.ZScoreModule">ZScoreModule (class in brainmaze_eeg.scikit_modules)</a>
 </li>
   </ul></td>
