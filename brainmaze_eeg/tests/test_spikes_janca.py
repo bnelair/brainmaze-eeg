@@ -99,17 +99,59 @@ def test_pure_noise_low_false_positive_rate():
         assert len(out['pos']) / 30.0 <= 0.1
 
 
-def test_ambiguous_markers_with_k2_above_k1():
-    # k2 > k1 enables the ambiguous (0.5) class; detector must still run and may emit them
-    truth = {0: [5, 12]}
-    X = _recording(20, truth, n_ch=1)
-    out, *_ = SpikeDetectorHilbert(k1=3.65, k2=4.5).run(X, FS)
-    assert set(out['con'].tolist()) <= {1.0, 0.5}
+def _ambiguous_montage():
+    # ch0: clear spikes every 2 s; ch1: small spikes 4 ms later (between the k2 and k1
+    # thresholds), so they can only be reported as ambiguous next to ch0's obvious ones
+    times = np.arange(3, 57, 2.0)
+    X = _recording(60, {0: times}, n_ch=2, seed=3)
+    for t in times:
+        _spike(X[:, 1], int(t * FS) + int(0.004 * FS), 40.0)
+    return X
 
 
-def test_k2_below_k1_raises():
-    with pytest.raises(ValueError):
-        SpikeDetectorHilbert(k1=3.65, k2=3.0)
+def test_ambiguous_class_fires_with_k2_below_k1():
+    # V2: MATLAB v24 requires k1 >= k2 (the ambiguous threshold is the lower one)
+    X = _ambiguous_montage()
+    out, *_ = SpikeDetectorHilbert(k1=3.65, k2=2.0).run(X, FS)
+    amb = (out['chan'] == 1) & (out['con'] == 0.5)
+    assert amb.sum() >= 10
+    assert not ((out['chan'] == 1) & (out['con'] == 1.0)).any()
+    # each ambiguous detection has an obvious one (any channel) within the preceding 10 ms
+    obv = out['pos'][out['con'] == 1.0]
+    for p in out['pos'][amb]:
+        assert np.any((obv <= p + 1e-9) & (obv >= p - 0.01 - 1e-9))
+    # disabled with k2 == k1 (default): obvious only
+    out_d, *_ = SpikeDetectorHilbert(k1=3.65).run(X, FS)
+    assert set(out_d['con'].tolist()) == {1.0}
+
+
+def test_ambiguous_class_needs_the_other_channels():
+    X = _ambiguous_montage()
+    det = SpikeDetectorHilbert(k1=3.65, k2=2.0)
+    alone, *_ = det.run(X[:, 1:2], FS)                  # no obvious detection anywhere
+    assert not (alone['con'] == 0.5).any()
+    # so the detector is not channel-independent, and the gap-aware wrapper must pass the
+    # whole montage: its result equals the raw multichannel result, ambiguous ones included
+    from brainmaze_eeg.spikes import GapAwareSpikeDetector
+    assert det.channel_independent is False
+    assert SpikeDetectorHilbert().channel_independent is True
+    raw = det.detect(X.T, FS)
+    wrapped = GapAwareSpikeDetector(det).detect(X.T, FS)
+    assert raw[1].size >= 10
+    for a, b in zip(raw, wrapped):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_k2_above_k1_raises():
+    with pytest.raises(ValueError, match='k2'):
+        SpikeDetectorHilbert(k1=3.65, k2=4.5)
+    det = SpikeDetectorHilbert(k1=3.65, k2=3.0)        # allowed now
+    assert det.k2 == 3.0
+    det.k2 = 5.0                                       # re-checked at run time
+    with pytest.raises(ValueError, match='k2'):
+        det.run(_recording(10, {}), FS)
+    with pytest.raises(TypeError):
+        SpikeDetectorHilbert(channel_independent=False)
 
 
 def test_beta_detection_not_implemented():

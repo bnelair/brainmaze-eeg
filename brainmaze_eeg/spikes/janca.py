@@ -747,8 +747,16 @@ class SpikeDetectorHilbert:
     k1 : float
         Threshold multiplier for obvious spikes. Default 3.65.
     k2 : float
-        Threshold multiplier for ambiguous spikes (accepted only near an obvious detection).
-        Default equals ``k1`` (ambiguous detection disabled).
+        Threshold multiplier for ambiguous spikes, ``0 < k2 <= k1`` (MATLAB v24 help:
+        "k1 >= k2"). A local maximum above the ``k2`` threshold but not above ``k1`` is
+        reported as ambiguous (``con`` 0.5) only if an obvious detection on **any**
+        channel lies within the preceding 10 ms (``[i - 10 ms, i]``; v24 tests the single
+        sample ``i - 10 ms``, which we read as a typo for this window). Default equals
+        ``k1`` (ambiguous class disabled). With ``k2 < k1`` the result of a channel depends
+        on the other channels, so :attr:`channel_independent` is False and
+        :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` passes the whole
+        montage. (An earlier version enforced ``k2 >= k1``, which inverted the v24
+        constraint; the ambiguous class could then never fire.)
     k3 : float
         Threshold tilt term. Default 0.
     main_hum_freq : float or None
@@ -810,7 +818,8 @@ class SpikeDetectorHilbert:
         self.cheb_transition_hz = (5.0, 10.0)
         self.beta = np.inf
         for key, value in kwargs.items():
-            if key.startswith('_') or not hasattr(self, key) or callable(getattr(self, key)):
+            if (key.startswith('_') or not hasattr(self, key) or callable(getattr(self, key))
+                    or isinstance(getattr(type(self), key, None), property)):
                 raise TypeError(f'unknown parameter {key!r}')
             setattr(self, key, value)
         if 'k2' not in kwargs:
@@ -823,8 +832,10 @@ class SpikeDetectorHilbert:
         self.bandwidth = list(chk.pair('bandwidth', self.bandwidth, gt=0))
         self.k1 = chk.number('k1', self.k1, gt=0)
         self.k2 = chk.number('k2', self.k2, gt=0)
-        if self.k2 < self.k1:
-            raise ValueError('k2 must be >= k1')
+        if self.k2 > self.k1:
+            raise ValueError(f'k2 ({self.k2}) must be <= k1 ({self.k1}): k2 is the lower, '
+                             'ambiguous-spike threshold (MATLAB v24: "k1 >= k2"); '
+                             'k2 = k1 disables the ambiguous class')
         self.k3 = chk.number('k3', self.k3)
         self.main_hum_freq = chk.number('main_hum_freq', self.main_hum_freq, gt=0,
                                         allow_none=True)
@@ -1011,7 +1022,12 @@ class SpikeDetectorHilbert:
         return out, discharges, d_decim, envelope, background, envelope_pdf
 
     output = 'indices'
-    channel_independent = True     # per-channel markers never depend on other channels
+
+    @property
+    def channel_independent(self):
+        """True unless the ambiguous class is enabled (``k2 < k1``): ambiguous detections
+        are accepted only next to an obvious detection on *any* channel."""
+        return self.k2 == self.k1
 
     def detect(self, x, fs):
         """
@@ -1027,7 +1043,7 @@ class SpikeDetectorHilbert:
         -------
         list of np.ndarray
             Per channel, sorted ``int64`` sample indices (input rate) of the detections
-            (obvious and, with ``k2 > k1``, ambiguous ones), ``round(pos * fs)``.
+            (obvious and, with ``k2 < k1``, ambiguous ones), ``round(pos * fs)``.
         """
         x = np.asarray(x, dtype=np.float64)
         if x.ndim != 2:

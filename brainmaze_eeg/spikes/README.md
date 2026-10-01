@@ -234,6 +234,15 @@ and the resampler may lose at most 0.1 dB at `bandwidth[1]`. All parameters are 
 at construction and again by `run` (attributes changed later are checked). Not
 implemented: beta/mu rejection (`beta`) and the `ti_switch == 2` timing mode.
 
+**Ambiguous spikes (`k2`).** `0 < k2 <= k1`, as in v24 ("k1 >= k2"). A maximum above the
+`k2` threshold but not above `k1` is reported with `con` = 0.5 only if an obvious
+detection, on any channel, lies within the preceding 10 ms. v24 tests the single sample
+10 ms earlier; we read that as a typo for the window. `k2 = k1` (default) disables the
+class. An earlier version enforced `k2 >= k1`, the inverse of v24, so the class could never
+fire (verification V2). With `k2 < k1` a channel's result depends on the other channels:
+`channel_independent` is then False, and `GapAwareSpikeDetector` passes the whole montage
+(tested: wrapper = raw, ambiguous detections included).
+
 On the 6.8 h recording v24 finds 2059 detections; 73 % of the eeg_forge detections lie
 within 100 ms of a v24 detection. The two formulations differ in background estimation
 (windowed MLE + interpolation vs. a sliding mean), filters, and peak selection, so they
