@@ -31,20 +31,41 @@ Algorithm
    slope is more than ``artifact_sd`` (10) standard deviations from the mean slope of the
    channels; it is excluded from that block (no detections, not used for scaling).
    **[ours]** Average slope = mean ``|dx/dt|`` of the input signal over the (valid samples
-   of the) block. The mean and SD are computed **leave-one-out** (over the *other* channels, SD with
-   ``ddof=1``): including the tested channel bounds its z-score by ``sqrt(n_channels - 1)``,
-   so the paper's literal rule could never fire with fewer than 102 channels. Needs at least
-   3 usable channels; otherwise no channel is flagged. ``artifact_sd=None`` disables it.
+   of the) block. **[ours: robust formulation]** The literal rule cannot work: with the
+   tested channel included, its z-score is bounded by ``sqrt(n_channels - 1)``, so it could
+   never fire below 102 channels; computed leave-one-out (an earlier version of this module)
+   the reference SD of a homogeneous montage is tiny, so a genuinely spiking channel was
+   excluded (8 equal channels, one with 300 uV IEDs at 1/s: 61 of 598 spikes found) and 3-4
+   channel montages had 1-13 % false flags on pure noise. Here the centre is the
+   **median** slope of the usable channels and the spread is
+   ``max(1.4826 * MAD, artifact_rel_floor * median)``; a channel is flagged when
+   ``|slope - median| > artifact_sd * spread``. The floor (``artifact_rel_floor`` = 0.2)
+   means that, with the default 10 SD, a channel is only flagged when its mean slope exceeds
+   **3x the median channel's** (a low slope can never be flagged). Measured
+   (``brainmaze-work/scratch/eeg-spikes/r2/r2_artifact.py``, 1/f background, 60 s blocks):
+   0 false flags in 3-32 channel montages with 0-50 % amplitude spread (3 x 40 blocks
+   each, one flag in 120 at 3 channels / 50 % spread); a spiking channel (300-1000 uV
+   IEDs at 1-3/s, slope ratio 1.1-2.3) is never flagged; a broadband artifact (white noise
+   at >= 2x the background rms, slope ratio >= 3.6) is flagged in >= 95 % of blocks. The
+   intent of the paper's rule (exclude channels dominated by broadband artifact) is kept;
+   the trade-off is that a channel whose slope is raised less than 3x by an artifact is not
+   excluded. Needs at least 3 usable channels and a positive median slope; otherwise no
+   channel is flagged. ``artifact_sd=None`` disables the rule.
 2. **[paper] Candidates.** Band-pass 20-50 Hz (``narrow_band``); candidates are local maxima
-   of the rectified narrow-band signal exceeding ``mean + std_coeff * std`` (4 SD) of that
-   rectified signal in the block. **[ours]** Filter type/order are not given in the paper:
-   Butterworth, prototype order ``narrow_order`` = 2 (the paper's broad-band design),
-   zero-phase.
+   of the rectified narrow-band signal above a threshold of ``std_coeff`` (4) standard
+   deviations. **[ours: interpretation]** The paper's wording ("four standard deviations of
+   the channel mean amplitude") is ambiguous; the threshold here is ``mean + std_coeff *
+   std`` of the *rectified* narrow-band signal in the block (on Gaussian noise about
+   3.2 SD of the narrow-band signal itself). **[ours]** Filter type/order are not given in
+   the paper: Butterworth, prototype order ``narrow_order`` = 2 (the paper's broad-band
+   design), zero-phase.
 3. **[paper] Morphology band and block scaling.** Band-pass 1-35 Hz, **2nd-order
    Butterworth** (``broad_band``, ``broad_order``). All channels of a block are multiplied by
    one factor that brings the median (across channels) of the channel mean rectified
-   amplitudes to ``scale`` (70 uV). **[ours]** zero-phase application (``sosfiltfilt``;
-   the paper does not say; the effective response is -6 dB at 1 and 35 Hz).
+   amplitudes to ``scale`` (70 uV). **[ours]** zero-phase application (``sosfiltfilt``):
+   the paper only says "second order digital Butterworth". The band edges are design edges
+   (-3 dB single pass); applied forward-backward the attenuation doubles, so the realised
+   response is -6 dB at 1 and 35 Hz.
 4. **[paper]** For each candidate, the broad-band peak (largest ``|x|`` within +/-2 ms
    **[ours]**) and the flanking opposite extrema within ``trough_search`` (50 ms **[ours]**)
    define two half-waves. A spike is accepted iff total amplitude of both half-waves
@@ -88,8 +109,9 @@ Note on false positives
 -----------------------
 Block scaling normalises the median channel to ``scale`` whatever the channel count, so the
 fixed thresholds are relative to the *typical* channel of the montage. On pure 1/f
-background the detector fires at a low but non-zero rate (order 0.05/s per channel with the
-paper's 1-35 Hz band) **independently of the number of channels**; the multichannel design
+background the detector fires at a low but non-zero rate (0.015-0.027/s per channel with
+the paper's 1-35 Hz band; 8 channels of 30 uV 1/f noise) **independently of the number of
+channels**; the multichannel design
 makes the result comparable *between* channels, it does not by itself remove noise
 detections. The earlier statement that this was a single-channel artefact was wrong.
 """
@@ -99,6 +121,7 @@ import warnings
 import numpy as np
 from scipy.signal import find_peaks, sosfiltfilt
 
+from brainmaze_eeg.spikes import _checks as chk
 from brainmaze_eeg.spikes import _filters as flt
 
 __all__ = ['detect_spikes_barkmeier', 'BarkmeierDetector', 'design_barkmeier_filters',
@@ -149,30 +172,64 @@ def _blocks(n, fs, block_s):
     return np.array(list(zip(starts, stops)), dtype=np.int64)
 
 
-def _artifact_channels(slopes, usable, n_sd):
-    """Leave-one-out z-score of each channel's mean slope against the other usable channels."""
+def _artifact_channels(slopes, usable, n_sd, rel_floor=0.2):
+    """
+    Robust artifact-channel rule (see the module docstring, step 1).
+
+    A usable channel is flagged when ``|slope - median| > n_sd * spread`` with ``median``
+    and ``spread = max(1.4826 * MAD, rel_floor * median)`` taken over all usable channels.
+    Needs >= 3 usable channels and a positive median slope; otherwise nothing is flagged.
+    """
     flag = np.zeros(slopes.shape, dtype=bool)
     idx = np.flatnonzero(usable)
     if n_sd is None or idx.size < 3:
         return flag
     s = slopes[idx]
-    for k, c in enumerate(idx):
-        others = np.delete(s, k)
-        sd = others.std(ddof=1)
-        dev = abs(s[k] - others.mean())
-        if sd > 0:
-            flag[c] = dev > n_sd * sd
-        else:
-            # identical reference slopes (e.g. duplicated/flat channels): any real
-            # deviation is infinitely many SDs away
-            flag[c] = dev > 1e-9 * max(abs(others.mean()), np.finfo(float).tiny)
+    centre = np.median(s)
+    if not centre > 0:
+        return flag
+    spread = max(1.4826 * np.median(np.abs(s - centre)), rel_floor * centre)
+    flag[idx] = np.abs(s - centre) > n_sd * spread
     return flag
+
+
+def _check_params(scale, std_coeff, trough_search, thresholds, narrow_band, broad_band,
+                  refractory, narrow_order, broad_order, block_s, artifact_sd,
+                  artifact_rel_floor):
+    """Validate every Barkmeier parameter that does not need ``fs``; return the thresholds."""
+    chk.number('scale', scale, gt=0)
+    chk.number('std_coeff', std_coeff, ge=0)
+    chk.number('trough_search', trough_search, gt=0)
+    chk.number('refractory', refractory, ge=0)
+    chk.pair('narrow_band', narrow_band, gt=0)
+    chk.pair('broad_band', broad_band, gt=0)
+    chk.integer('narrow_order', narrow_order, ge=1, le=20)
+    chk.integer('broad_order', broad_order, ge=1, le=20)
+    if block_s is not None and isinstance(block_s, (int, float)) and np.isinf(block_s):
+        raise ValueError('block_s must be finite; use block_s=None for one block')
+    chk.number('block_s', block_s, ge=1.0, allow_none=True)
+    chk.number('artifact_sd', artifact_sd, gt=0, allow_none=True)
+    chk.number('artifact_rel_floor', artifact_rel_floor, ge=0)
+    if thresholds is None:
+        return dict(DEFAULT_THRESHOLDS)
+    if not isinstance(thresholds, dict):
+        raise TypeError(f'thresholds must be a dict, got {type(thresholds).__name__}')
+    unknown = set(thresholds) - set(DEFAULT_THRESHOLDS)
+    if unknown:
+        raise ValueError(
+            f"unknown threshold key(s) {sorted(unknown)}; "
+            f"expected {sorted(DEFAULT_THRESHOLDS)}.")
+    thr = {**DEFAULT_THRESHOLDS, **thresholds}   # partial dict -> fill from defaults
+    for k, v in thr.items():
+        thr[k] = chk.number(f"thresholds['{k}']", v, ge=0)
+    return thr
 
 
 def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.05,
                             thresholds=None, narrow_band=(20.0, 50.0), broad_band=(1.0, 35.0),
                             refractory=0.0, *, narrow_order=2, broad_order=2, block_s=60.0,
-                            artifact_sd=10.0, valid=None, return_info=False):
+                            artifact_sd=10.0, artifact_rel_floor=0.2, valid=None,
+                            return_info=False):
     """
     Detect interictal spikes with the Barkmeier (2012) multichannel half-wave criteria.
 
@@ -189,26 +246,36 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         Sampling frequency in Hz.
     scale : float
         Block-scaling target for the median channel mean rectified amplitude (paper: 70 uV).
+        Finite, > 0.
     std_coeff : float
-        Candidate threshold in SDs of the rectified narrow-band signal (paper: 4).
+        Candidate threshold in SDs of the rectified narrow-band signal (paper: 4). Finite,
+        >= 0.
     trough_search : float
         Half-window (s) each side of the peak in which to find the flanking troughs, and
-        merge distance of detections (ours: 0.05).
+        merge distance of detections (ours: 0.05). Finite, > 0 and at least 2 samples.
     thresholds : dict, optional
         ``{'total_amp', 'slope', 'half_dur'}`` in the block-scaled domain; partial dicts are
         completed from :data:`DEFAULT_THRESHOLDS` (paper: 600 uV, 7 uV/ms = 7000 uV/s, 10 ms).
+        Each finite, >= 0.
     narrow_band : (float, float)
-        Candidate band (paper: 20-50 Hz).
+        Candidate band design edges (paper: 20-50 Hz); -6 dB realised (zero-phase).
     broad_band : (float, float)
-        Morphology/scaling band (paper: 1-35 Hz).
+        Morphology/scaling band design edges (paper: 1-35 Hz); -6 dB realised.
     refractory : float
         Minimum time (s) between accepted spikes on a channel, after merging (default 0).
+        Finite, >= 0.
     narrow_order, broad_order : int
-        Butterworth prototype orders (broad: paper 2; narrow: ours 2).
+        Butterworth prototype orders (broad: paper 2; narrow: ours 2). 1-20.
     block_s : float or None
-        Block length in seconds (paper: 60). ``None``: one block for the whole record.
+        Block length in seconds (paper: 60), finite and >= 1. ``None``: one block for the
+        whole record.
     artifact_sd : float or None
-        Artifact-channel rule threshold in SDs (paper: 10); ``None`` disables.
+        Artifact-channel rule threshold in robust SDs (paper: 10), finite and > 0; ``None``
+        disables the rule.
+    artifact_rel_floor : float
+        Floor of the artifact rule's spread, relative to the median channel slope (ours:
+        0.2; with ``artifact_sd=10`` a channel is flagged only above 3x the median slope).
+        Finite, >= 0. See the module docstring, step 1.
     valid : np.ndarray of bool, optional
         Same shape as ``sig``; samples that are real data (default: all). Only valid samples
         enter the per-block statistics (scaling factor, candidate threshold, artifact slope);
@@ -234,25 +301,22 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
 
     Raises
     ------
-    ValueError
-        Invalid band/order/thresholds, input not 1-D/2-D, a 2-D input with more rows than
+    ValueError, TypeError
+        Invalid parameter (type, NaN/inf, range), band at/above Nyquist, input not 1-D/2-D, a 2-D input with more rows than
         columns (probably transposed), a record shorter than 1 s, a non-finite value, or a
         ``valid`` mask of the wrong shape.
     """
-    if thresholds is None:
-        thr = dict(DEFAULT_THRESHOLDS)
-    else:
-        unknown = set(thresholds) - set(DEFAULT_THRESHOLDS)
-        if unknown:
-            raise ValueError(
-                f"unknown threshold key(s) {sorted(unknown)}; "
-                f"expected {sorted(DEFAULT_THRESHOLDS)}.")
-        thr = {**DEFAULT_THRESHOLDS, **thresholds}   # partial dict -> fill from defaults
-
-    fs = float(fs)
-    if not fs > 0:
-        raise ValueError(f'fs must be > 0, got {fs}')
-    sig = np.asarray(sig, dtype=np.float64)
+    thr = _check_params(scale, std_coeff, trough_search, thresholds, narrow_band, broad_band,
+                        refractory, narrow_order, broad_order, block_s, artifact_sd,
+                        artifact_rel_floor)
+    fs = chk.number('fs', fs, gt=0)
+    if int(round(fs * trough_search)) < 2:
+        raise ValueError(f'trough_search={trough_search} s is shorter than 2 samples at '
+                         f'fs={fs:g} Hz')
+    sig = np.asarray(sig)
+    if np.iscomplexobj(sig) or not (np.issubdtype(sig.dtype, np.number)
+                                    or np.issubdtype(sig.dtype, np.bool_)):
+        raise TypeError(f"'sig' must be a real numeric array, got dtype {sig.dtype}")
     if sig.ndim == 1:
         x = sig[np.newaxis, :]
     elif sig.ndim == 2:
@@ -273,7 +337,6 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         raise ValueError(f"'sig' contains NaN/inf (channels {ch}). The raw detector needs "
                          'finite input; use brainmaze_eeg.spikes.GapAwareSpikeDetector('
                          'BarkmeierDetector()) to fill gaps and drop detections near them.')
-    y = x
     if valid is None:
         valid = np.ones(x.shape, dtype=bool)
     else:
@@ -282,41 +345,47 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
         if valid.shape != x.shape:
             raise ValueError(f'valid has shape {valid.shape}, expected {sig.shape}')
 
-    fx_narrow = sosfiltfilt(filters['narrow'], y, axis=-1)
-    fx_broad = sosfiltfilt(filters['broad'], y, axis=-1)
-    rect = np.abs(fx_narrow)
-
     blocks = _blocks(n_samples, fs, block_s)
     nb = len(blocks)
     factor = np.zeros(nb)
     artifact = np.zeros((nb, n_ch), dtype=bool)
     slopes = np.full((nb, n_ch), np.nan)
+    amps = np.full((nb, n_ch), np.nan)
     cand_thr = np.full((nb, n_ch), np.inf)
     block_of = np.zeros(n_samples, dtype=np.int64)
-    thr_curve = np.full((n_ch, n_samples), np.inf)
-
     for b, (s, e) in enumerate(blocks):
         block_of[s:e] = b
-        v = valid[:, s:e]
-        amp = np.full(n_ch, np.nan)
-        for c in range(n_ch):
-            if not v[c].any():
+
+    # -- filtering and per-block statistics, one channel at a time (bounded memory) --------
+    fx_broad = np.empty((n_ch, n_samples))
+    rect = np.empty((n_ch, n_samples))
+    for c in range(n_ch):
+        xc = np.asarray(x[c], dtype=np.float64)
+        fx_broad[c] = sosfiltfilt(filters['broad'], xc)
+        rect[c] = np.abs(sosfiltfilt(filters['narrow'], xc))
+        for b, (s, e) in enumerate(blocks):
+            v = valid[c, s:e]
+            if not v.any():
                 continue
-            pair = v[c, 1:] & v[c, :-1]
+            pair = v[1:] & v[:-1]
             if pair.any():
-                slopes[b, c] = np.abs(np.diff(y[c, s:e]))[pair].mean() * fs
-            amp[c] = np.abs(fx_broad[c, s:e][v[c]]).mean()
-            r = rect[c, s:e][v[c]]
+                slopes[b, c] = np.abs(np.diff(xc[s:e]))[pair].mean() * fs
+            amps[b, c] = np.abs(fx_broad[c, s:e][v]).mean()
+            r = rect[c, s:e][v]
             cand_thr[b, c] = r.mean() + std_coeff * r.std()
+
+    # -- cross-channel decisions per block ----------------------------------------------
+    for b in range(nb):
+        amp = amps[b]
         usable = np.isfinite(slopes[b]) & np.isfinite(amp)
-        artifact[b] = _artifact_channels(np.nan_to_num(slopes[b]), usable, artifact_sd)
+        artifact[b] = _artifact_channels(np.nan_to_num(slopes[b]), usable, artifact_sd,
+                                         artifact_rel_floor)
         usable &= ~artifact[b]
         cand_thr[b, ~usable] = np.inf
         med = np.median(amp[usable]) if usable.any() else 0.0
         factor[b] = scale / med if med > 0 else 0.0
         if factor[b] == 0:
             cand_thr[b] = np.inf
-        thr_curve[:, s:e] = cand_thr[b][:, None]
 
     if artifact.any():
         bad = sorted(set(np.nonzero(artifact)[1].tolist()))
@@ -331,7 +400,7 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
     detections = []
     for ch in range(n_ch):
         broad = fx_broad[ch]
-        peak_idx, _ = find_peaks(rect[ch], height=thr_curve[ch])
+        peak_idx, _ = find_peaks(rect[ch], height=cand_thr[block_of, ch])
 
         ch_detections = []
         for pi in peak_idx:
@@ -405,7 +474,9 @@ class BarkmeierDetector:
     the whole montage ``x`` ``(n_channels, n_samples)`` and returns a list with one list of
     detection dicts per channel (same dicts as :func:`detect_spikes_barkmeier`, sorted by
     ``peak_index``). Parameters are those of :func:`detect_spikes_barkmeier` except
-    ``valid`` and ``return_info``.
+    ``valid`` and ``return_info``; they are validated at construction (names, types,
+    finiteness, ranges); the checks that need ``fs`` (band vs Nyquist, ``trough_search`` of
+    at least 2 samples) run in :meth:`detect`.
     """
 
     output = 'records'           # per-channel lists of dicts with a 'peak_index' key
@@ -418,6 +489,9 @@ class BarkmeierDetector:
         unknown = set(params) - allowed
         if unknown:
             raise TypeError(f'unknown BarkmeierDetector parameter(s) {sorted(unknown)}')
+        sig = inspect.signature(detect_spikes_barkmeier).parameters
+        full = {k: params.get(k, sig[k].default) for k in allowed}
+        _check_params(**{k: full[k] for k in inspect.signature(_check_params).parameters})
         self.params = dict(params)
 
     def __repr__(self):
