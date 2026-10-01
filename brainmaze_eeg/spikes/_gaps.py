@@ -13,15 +13,19 @@ Three steps around an unchanged detector:
    signal, as ``[start, stop)`` sample indices.
 2. :func:`fill_gaps` -- make the signal finite so filters/FFT/Hilbert can run:
 
-   - gaps up to ``max_interp_s`` (default 0.1 s) are linearly interpolated;
+   - gaps up to ``max_interp_s`` (default 0.1 s here; the wrapper passes its own
+     ``short_gap_s``, 0.02 s) are linearly interpolated;
    - longer gaps, ``method='pink'``: 1/f noise scaled to the robust amplitude (MAD) of the
      neighbouring ``context_s`` seconds, offset to the local level (bridged linearly between
      the two sides) and cross-faded with a raised-cosine taper of ``taper_s`` seconds into
      the mirror image of the neighbouring signal at each edge (continuous at the edges);
    - longer gaps, ``method='mirror'``: the neighbouring signal mirrored into the gap from both
-     sides, the two images cross-faded over the whole gap (keeps the local spectrum; real
-     events next to the gap are copied into it -- harmless because detections there are
-     removed anyway);
+     sides, the two images cross-faded over the whole gap (keeps the local spectrum). Real
+     events next to the gap are copied into it. Detections inside the gap are removed by
+     the wrapper, but the mirrored copies still compete with real maxima in peak selection
+     (``find_peaks(distance=...)``) just outside the gap: on spike-dense real data the
+     extra/missing detections sit 0.10-0.16 s from the edge, which is why the wrapper's
+     ``edge_margin_s`` default is 0.2 s (independent review of PR #67, R7);
    - ``method='linear'``: straight line for every gap (not recommended for gaps > ~0.1 s
      before a background-modelling detector such as Janca).
 

@@ -147,8 +147,8 @@ def test_custom_detector_protocol():
     x = np.zeros(1000)
     x[[100, 500, 900]] = 10.0
     x[480:495] = np.nan
-    out, info = GapAwareSpikeDetector(Threshold(), fill='linear').detect(x, 100.0,
-                                                                         return_info=True)
+    out, info = GapAwareSpikeDetector(Threshold(), fill='linear', edge_margin_s=0.1,
+                                      flat_as_gap_s=None).detect(x, 100.0, return_info=True)
     np.testing.assert_array_equal(out, [100, 900])        # 500 is 0.05 s after the gap
     assert info['n_removed'] == 1
 
@@ -156,7 +156,8 @@ def test_custom_detector_protocol():
         def detect(self, x, fs):
             return np.zeros(3)
     with pytest.raises(TypeError, match='one entry per channel'):
-        GapAwareSpikeDetector(Broken()).detect(np.zeros((2, 100)), 100.0)
+        GapAwareSpikeDetector(Broken()).detect(np.random.default_rng(0).normal(size=(2, 100)),
+                                               100.0)
 
 
 def test_empty_barkmeier_channel_keeps_record_type():
