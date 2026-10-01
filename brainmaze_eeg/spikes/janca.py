@@ -66,7 +66,7 @@ For each channel (all filters zero-phase, ``sosfiltfilt``, at the **input** rate
    ``decimation='exact'``: ``round(index_a * fs / fs_a)``).
 
 Known differences from the eeg_forge reference (all deliberate fixes)
---------------------------------------------------------------------
+---------------------------------------------------------------------
 - **Filters in ``sos`` form.** The reference designs ``b, a`` transfer functions; at high
   sampling rates these lose precision (max complex response error of the 50 Hz band-stop
   5e-7 at 2 kHz, 5e-5 at 5 kHz, 2e-3 at 8 kHz, 7e-3 at 10 kHz, 6e-2 at 16 kHz) and the
