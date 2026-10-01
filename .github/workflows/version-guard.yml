@@ -1,15 +1,26 @@
 name: Version guard
 
-# Enforces that [project].version is only ever changed by the release flow. The exemption
-# requires all three signals of a genuine release bump -- opened by github-actions[bot],
-# from a release/bump-* branch, targeting main -- so a hand-named branch cannot slip a
-# version edit past the check. This keeps the version line owned solely by the release
-# automation on main and therefore keeps dev -> main merges free of version conflicts
-# under squash merges.
+# Flags pull requests that change [project].version in pyproject.toml outside the release
+# flow. The version line is owned by the release automation on main, which keeps dev -> main
+# merges free of version conflicts under squash merges.
+#
+# Exemption: the release bump PR, recognised by all three signals (opened by
+# github-actions[bot], from a release/bump-* branch, into main). Even then the PR may change
+# nothing but [project].version. Note that a bump PR opened with GITHUB_TOKEN triggers no
+# workflows, so this check only runs on it when someone pushes a commit to the bump branch.
+#
+# This check is ADVISORY unless a ruleset requires it (none does today); see RELEASING.md.
+#
+# The comparison parses pyproject.toml (tomllib) on both sides instead of grepping the diff:
+# it is scoped to [project].version only, and there is no `git diff | grep -q` pipeline that
+# SIGPIPE could turn into a false "no change" under `pipefail`.
 
 on:
   pull_request:
     branches: [main, dev]
+
+permissions:
+  contents: read
 
 jobs:
   guard:
@@ -18,19 +29,50 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Reject version edits outside the release flow
-        shell: bash
+        # PR-controlled values (branch name, login) go through env, never inline into the
+        # script, so a crafted branch name cannot inject code.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: python
         run: |
-          set -euo pipefail
-          if [[ "${{ github.event.pull_request.base.ref }}" == "main" \
-                && "${{ github.head_ref }}" == release/bump-* \
-                && "${{ github.event.pull_request.user.login }}" == "github-actions[bot]" ]]; then
-            echo "Automated release bump PR -- version change allowed."
-            exit 0
-          fi
-          base='${{ github.event.pull_request.base.sha }}'
-          if git diff "$base" HEAD -- pyproject.toml | grep -qE '^[+-][[:space:]]*version[[:space:]]*='; then
-            echo "::error::This PR changes [project].version in pyproject.toml. The version is owned by the release automation on main -- use the 'Prepare release' action instead. See the README 'How to contribute' section."
-            exit 1
-          fi
-          echo "No version change -- OK."
+          import os, subprocess, sys, tomllib
+
+          def git(*args):
+              return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
+
+          base_sha = os.environ["BASE_SHA"]
+          base = tomllib.loads(git("show", f"{base_sha}:pyproject.toml"))
+          with open("pyproject.toml", "rb") as fh:
+              head = tomllib.load(fh)
+          base_version = base.get("project", {}).get("version")
+          head_version = head.get("project", {}).get("version")
+
+          bump_pr = (os.environ["BASE_REF"] == "main"
+                     and os.environ["HEAD_REF"].startswith("release/bump-")
+                     and os.environ["PR_AUTHOR"] == "github-actions[bot]")
+          if bump_pr:
+              changed = git("diff", "--name-only", base_sha, "HEAD").split()
+              base.get("project", {}).pop("version", None)
+              head.get("project", {}).pop("version", None)
+              if changed != ["pyproject.toml"] or base != head:
+                  print("::error::A release bump PR may change only [project].version in "
+                        f"pyproject.toml. Changed files: {changed}; other pyproject.toml "
+                        f"content changed: {base != head}.")
+                  sys.exit(1)
+              print(f"Release bump PR: {base_version} -> {head_version}, nothing else changed -- OK.")
+              sys.exit(0)
+
+          if base_version != head_version:
+              print(f"::error::This PR changes [project].version ({base_version} -> {head_version}). "
+                    "The version is owned by the release automation on main: use the "
+                    "'Prepare release' action instead (see RELEASING.md).")
+              sys.exit(1)
+          print(f"[project].version unchanged ({head_version}) -- OK.")
