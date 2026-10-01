@@ -5,12 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 r"""
-Janca (Hilbert-envelope) interictal spike detector
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Janca (Hilbert-envelope) interictal spike detectors
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Interictal epileptiform discharge (IED) detector based on modelling the distribution of
-the band-passed signal's Hilbert envelope as log-normal, and flagging envelope maxima that
-exceed an adaptive threshold derived from that distribution.
+Interictal epileptiform discharge (IED) detection by modelling the distribution of the
+band-passed signal's Hilbert envelope as log-normal and flagging envelope maxima that exceed
+an adaptive threshold derived from that distribution:
 
     Janca, R., Jezdik, P., Cmejla, R., Tomasek, M., Worrell, G.A., Stead, M., Wagenaar, J.,
     Jefferys, J.G.R., Krsek, P., Komarek, V., Jiruska, P., Marusic, P. (2015). *Detection of
@@ -18,59 +18,351 @@ exceed an adaptive threshold derived from that distribution.
     Application to Epileptic and Non-Epileptic Intracranial Recordings.* Brain Topography
     28(1), 172-183. https://doi.org/10.1007/s10548-014-0379-1
 
-This is an independent implementation written against the paper and the algorithm's public
-MATLAB reference (EpiReC-ISARG/IED_detector ``spike_detector_hilbert_v24.m``, cross-checked
-against Lab-Frauscher/Spike-Gamma ``v25.m``). **No third-party source is vendored** -- see
-``brainmaze_eeg/spikes/README.md`` for the licensing of those repositories.
+Two implementations are provided:
 
-Relationship to the earlier internal Python port
-------------------------------------------------
-An earlier draft translation had two load-bearing defects that this implementation fixes:
+:func:`detect_spikes_janca` (primary)
+    The fast, streamlined formulation of the algorithm from **eeg_forge** by xnejed07
+    (``eeg_forge/detection/spike_detection_janca.py``,
+    https://gitlab.com/xnejed07/eeg_forge), reproduced faithfully (detection indices are
+    identical on the parity data, see the README) with its numerical defects fixed and every
+    frequency parameter made configurable. Multichannel layout ``(n_channels, n_samples)``.
 
-- **Decimation.** The draft resampled with ``scipy.signal.decimate(x, int(q/p), ...)``, where
-  ``int(q/p)`` truncates the non-integer ``fs/decimation`` ratio to an integer, so the target
-  rate was wrong for most input rates (and silently a no-op when ``int(q/p) == 1``). Here the
-  signal is resampled with :func:`scipy.signal.resample_poly` at the exact rational ratio
-  ``decimation/fs`` reduced by its gcd, which handles arbitrary input rates.
-- **Segment overlap.** The draft's boundary-trim conditions were off by one relative to the
-  MATLAB (0- vs 1-based): ``(i > 1)`` should be ``(i > 0)`` ("not the first segment") and the
-  right-margin test ``(i < len(index_stop))`` is always true and should be ``(i < N - 1)``
-  ("not the last segment"). The net effect was duplicated / dropped detections at segment
-  joins. Here buffering uses a core-partition scheme (below) that is overlap-invariant by
-  construction, verified by a whole-vs-buffered test.
+:class:`SpikeDetectorHilbert` (MATLAB-v24 compatible)
+    A port of the published MATLAB ``spike_detector_hilbert_v24.m`` with its full output
+    (per-detection CDF/PDF weights, multichannel discharge grouping, ambiguous ``k2``
+    class, segment buffering). Multichannel layout ``(n_samples, n_channels)`` (MATLAB's
+    ``[samples, channels]``).
 
-Buffering scheme
-----------------
-The record is partitioned into contiguous *core* windows that tile ``[0, N)`` exactly. Each
-core is analysed inside a block extended by ``margin = 3 * winsize`` samples on each side (for
-filter/threshold context), and only detections whose position lands inside the core are kept.
-Because the cores partition the signal, every detection is produced exactly once, with full
-two-sided context except at the true signal ends.
+Algorithm of :func:`detect_spikes_janca`
+----------------------------------------
+For each channel (all filters zero-phase, ``sosfiltfilt``, at the **input** rate ``fs``):
 
-Not implemented
----------------
-Beta/mu-activity rejection (``beta`` parameter) and the ``ti_switch == 2`` timing mode are not
-implemented; both were untested in the source. Requesting beta detection raises.
+1. Band-pass Butterworth, order ``filter_order`` (3), edges ``band`` (10, 60) Hz.
+2. Band-stop Butterworth, order ``notch_order`` (3), ``powerline +/- notch_width/2``
+   (50 +/- 2.5 Hz), optionally also at harmonics (``notch_harmonics``).
+3. If ``target_fs`` is set and ``fs >= 2 * target_fs``: decimate by the **integer** factor
+   ``q = floor(fs / target_fs)`` with :func:`scipy.signal.resample_poly` (its anti-alias
+   FIR runs on the already band-limited signal). The analysis rate is ``fs_a = fs / q``
+   (e.g. 500 Hz -> q=2, 250 Hz; 2048 Hz -> q=10, 204.8 Hz; 256 Hz -> no decimation).
+4. Envelope ``e = |hilbert(x)|``.
+5. Sliding statistics of ``L = log(e + eps)`` over a centred window of
+   ``W = int(window_s * fs_a)`` samples (made odd), ``mode='reflect'`` at the ends::
+
+       mu[n] = mean_{k in win(n)} L[k]
+       sd[n] = sqrt( mean_{k in win(n)} (L[k] - mu[k])**2 )
+
+   Note that ``sd`` subtracts the *per-sample* local mean ``mu[k]`` inside the window, not
+   the window-centre mean ``mu[n]``; this is the reference definition and is kept as is
+   (it is not the textbook moving standard deviation; for a stationary background the two
+   agree to first order).
+6. Log-normal mode and median: ``mode = exp(mu - sd**2)``, ``median = exp(mu)``;
+   threshold ``T = threshold * (mode + median)``.
+7. Detections are the maxima of ``e`` found by :func:`scipy.signal.find_peaks` with
+   ``height=T`` and ``distance=int(min_distance_s * fs_a)`` samples; returned as sample
+   indices of the **input** signal (``index_a * q``; resolution ``q`` input samples).
+
+Known differences from the eeg_forge reference (all deliberate fixes)
+--------------------------------------------------------------------
+- **Filters in ``sos`` form.** The reference designs ``b, a`` transfer functions; at high
+  sampling rates these lose precision (response error ~2.5e-5 at 5 kHz, ~5e-3 at 10 kHz)
+  and the 50 Hz band-stop becomes **unstable** (pole radius 1.0006 at 32 kHz) -> NaN ->
+  silently no detections. Where the ``b, a`` filter is accurate the ``sos`` response is
+  identical (max difference < 1e-8 up to 2048 Hz) and the detection indices match exactly.
+- **Scale-invariant epsilon.** The reference adds an absolute ``1e-6`` to the envelope
+  before the log. For data in volts (envelope ~1e-5..1e-8) that constant dominates the
+  background, the threshold no longer adapts, and the detector returns nothing. Here
+  ``eps = eps_rel * median(e)`` (``eps_rel = 1e-6``), so the result does not depend on the
+  unit; at uV scale detections are unchanged.
+- **Validation.** Band edges, notch frequencies and the analysis Nyquist are validated
+  (``ValueError``); a power-line notch that does not fit below Nyquist is skipped with a
+  ``UserWarning`` (``powerline=None`` disables it silently).
+- **Multichannel input** ``(n_channels, n_samples)`` (the reference is 1-D only).
+- **NaN gaps** are filled before and detections in/near gaps removed after (``nan_policy``);
+  the reference returns zero detections for a channel with a single NaN.
+- ``min_distance_s * fs_a < 1`` is clamped to 1 sample (the reference would raise).
 """
 
 import warnings
 from math import gcd
 
 import numpy as np
-from scipy.signal import (butter, cheby2, cheb2ord, filtfilt, firwin, hilbert,
-                          resample_poly)
 from scipy.interpolate import interp1d
+from scipy.ndimage import uniform_filter1d
+from scipy.signal import find_peaks, firwin, hilbert, resample_poly, sosfiltfilt, filtfilt
 from scipy.special import erf
 
-__all__ = ['SpikeDetectorHilbert', 'spike_detector_hilbert_v24']
+from brainmaze_eeg.spikes import _filters as flt
+from brainmaze_eeg.spikes._gaps import in_gap_mask, prepare_signal
+
+__all__ = ['detect_spikes_janca', 'design_janca_filters', 'janca_decimation_factor',
+           'SpikeDetectorHilbert', 'spike_detector_hilbert_v24']
 
 
+# ============================================================================ primary detector
+def janca_decimation_factor(fs, target_fs=200.0):
+    """
+    Integer decimation factor used by :func:`detect_spikes_janca`.
+
+    ``floor(fs / target_fs)`` when ``target_fs`` is set and ``fs >= 2 * target_fs``,
+    otherwise 1 (no decimation). With the default ``target_fs=200`` this is the reference's
+    rule (decimate only when ``fs >= 400``).
+    """
+    if target_fs is None:
+        return 1
+    if not target_fs > 0:
+        raise ValueError(f'target_fs must be > 0 Hz or None, got {target_fs}')
+    if fs >= 2 * target_fs:
+        return int(np.floor(fs / target_fs))
+    return 1
+
+
+def design_janca_filters(fs, band=(10.0, 60.0), filter_order=3, powerline=50.0,
+                         notch_width=5.0, notch_order=3, notch_harmonics=1):
+    """
+    Design the filters :func:`detect_spikes_janca` applies at the input rate ``fs``.
+
+    Parameters are those of :func:`detect_spikes_janca`.
+
+    Returns
+    -------
+    dict
+        ``'bandpass'``: ``sos`` of the band-pass; ``'notches'``: list of
+        ``(centre_hz, sos)`` band-stops actually applied; ``'skipped_notches'``: centres
+        (Hz) that did not fit below Nyquist and were skipped (a ``UserWarning`` is issued).
+
+    Raises
+    ------
+    ValueError
+        Invalid band, order, notch width or harmonic count.
+    """
+    fs = float(fs)
+    if not fs > 0:
+        raise ValueError(f'fs must be > 0, got {fs}')
+    out = {'bandpass': flt.butter_bandpass(band, fs, filter_order), 'notches': [],
+           'skipped_notches': []}
+    if powerline is None:
+        return out
+    if not powerline > 0:
+        raise ValueError(f'powerline must be > 0 Hz or None, got {powerline}')
+    if not 0 < notch_width < 2 * powerline:
+        raise ValueError(f'notch_width must be in (0, 2*powerline), got {notch_width}')
+    if int(notch_harmonics) != notch_harmonics or notch_harmonics < 1:
+        raise ValueError(f'notch_harmonics must be a positive integer, got {notch_harmonics}')
+    for k in range(1, int(notch_harmonics) + 1):
+        f0 = k * powerline
+        stop = (f0 - notch_width / 2.0, f0 + notch_width / 2.0)
+        if stop[1] >= fs / 2:
+            out['skipped_notches'].append(f0)
+            continue
+        out['notches'].append((f0, flt.butter_bandstop(stop, fs, notch_order)))
+    if out['skipped_notches']:
+        warnings.warn(f'power-line notch(es) at {out["skipped_notches"]} Hz (width '
+                      f'{notch_width} Hz) do not fit below Nyquist ({fs / 2} Hz) and were '
+                      'skipped', UserWarning, stacklevel=2)
+    return out
+
+
+def _as_channels_first(x, name='x'):
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim == 1:
+        return x[np.newaxis, :], True
+    if x.ndim != 2:
+        raise ValueError(f"'{name}' must be 1-D (n_samples,) or 2-D (n_channels, n_samples), "
+                         f'got {x.ndim}-D')
+    if x.shape[0] > x.shape[1]:
+        raise ValueError(f"'{name}' has shape {x.shape}: more channels than samples. The "
+                         'layout is (n_channels, n_samples); transpose your array (x.T).')
+    return x, False
+
+
+def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=50.0,
+                        notch_width=5.0, notch_order=3, notch_harmonics=1, target_fs=200.0,
+                        window_s=5.0, threshold=3.65, min_distance_s=0.1, eps_rel=1e-6,
+                        nan_policy='fill', gap_margin_s=0.1, fill_kwargs=None,
+                        return_details=False):
+    """
+    Janca envelope-distribution spike detector (eeg_forge formulation, fixed).
+
+    See the module docstring for the algorithm and the differences from the reference.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Signal, ``(n_samples,)`` or ``(n_channels, n_samples)``. Any amplitude unit
+        (the detector is scale-invariant). NaN marks missing data (see ``nan_policy``).
+    fs : float
+        Sampling frequency of ``x`` (Hz).
+    band : (float, float)
+        Band-pass edges in Hz (reference: 10, 60). Must satisfy ``0 < low < high`` and
+        ``high`` < Nyquist of both ``fs`` and the analysis rate ``fs / q``.
+    filter_order : int
+        Butterworth prototype order of the band-pass (reference: 3). Zero-phase: the
+        effective response is -6 dB at both edges.
+    powerline : float or None
+        Power-line frequency in Hz (reference: 50). **Set 60 for North-American data.**
+        ``None`` disables the notch.
+    notch_width : float
+        Total width (Hz) of the band-stop, centred on ``powerline`` (reference: 5, i.e.
+        +/-2.5 Hz; -6 dB at the edges after zero-phase filtering).
+    notch_order : int
+        Butterworth prototype order of the band-stop (reference: 3).
+    notch_harmonics : int
+        Number of notches at ``k * powerline``, ``k = 1..notch_harmonics`` (reference: 1).
+        Notches not fitting below Nyquist are skipped with a warning.
+    target_fs : float or None
+        Decimation target (Hz). Decimate by ``floor(fs / target_fs)`` when
+        ``fs >= 2 * target_fs`` (reference: 200). ``None`` keeps the input rate.
+    window_s : float
+        Length (s) of the sliding window of the log-envelope statistics (reference ``w``: 5).
+    threshold : float
+        Threshold multiplier on ``mode + median`` of the local log-normal model
+        (reference ``thr``: 3.65, the paper's ``k1``).
+    min_distance_s : float
+        Minimum distance between detections in seconds (reference: 0.1). Of two close
+        maxima the larger is kept.
+    eps_rel : float
+        Envelope offset before the log, relative to the channel's median envelope
+        (our choice, replaces the reference's absolute 1e-6; see module docstring).
+    nan_policy : {'fill', 'raise'}
+        ``'fill'`` (default): NaN gaps are filled with
+        :func:`brainmaze_utils.gaps.fill_gaps` before detection and detections inside a gap
+        or within ``gap_margin_s`` of it are dropped. ``'raise'``: ``ValueError`` on NaN.
+    gap_margin_s : float
+        Exclusion margin around each gap in seconds (default 0.1).
+    fill_kwargs : dict, optional
+        Passed to :func:`brainmaze_utils.gaps.fill_gaps` (e.g. ``{'method': 'mirror'}``).
+    return_details : bool
+        Also return per-channel diagnostics (see Returns).
+
+    Returns
+    -------
+    detections : np.ndarray or list of np.ndarray
+        For 1-D input: ``int64`` array of detection **sample indices into x** (input rate),
+        sorted. For 2-D input: a list with one such array per channel (row of ``x``).
+        Convert to seconds with ``detections / fs``.
+    details : dict or list of dict
+        Only with ``return_details=True`` (one dict per channel for 2-D input):
+        ``fs_analysis`` (Hz), ``down_factor`` ``q``, ``envelope`` and ``threshold`` (at the
+        analysis rate; sample ``i`` corresponds to input sample ``i * q``), ``filters``
+        (output of :func:`design_janca_filters`), ``gaps`` (``[start, stop)`` input samples).
+
+    Raises
+    ------
+    ValueError
+        Invalid parameters, a band edge at/above the analysis Nyquist, a 2-D array with more
+        rows than columns (probably transposed), ``+/-inf`` in ``x``, or NaN with
+        ``nan_policy='raise'``.
+    """
+    fs = float(fs)
+    if not fs > 0:
+        raise ValueError(f'fs must be > 0, got {fs}')
+    X, one_d = _as_channels_first(x)
+    if not window_s > 0:
+        raise ValueError(f'window_s must be > 0, got {window_s}')
+    if not threshold > 0:
+        raise ValueError(f'threshold must be > 0, got {threshold}')
+    if not min_distance_s >= 0:
+        raise ValueError(f'min_distance_s must be >= 0, got {min_distance_s}')
+    if not eps_rel >= 0:
+        raise ValueError(f'eps_rel must be >= 0, got {eps_rel}')
+    if not gap_margin_s >= 0:
+        raise ValueError(f'gap_margin_s must be >= 0, got {gap_margin_s}')
+
+    filters = design_janca_filters(fs, band, filter_order, powerline, notch_width,
+                                   notch_order, notch_harmonics)
+    q = janca_decimation_factor(fs, target_fs)
+    fs_a = fs / q
+    if band[1] >= fs_a / 2:
+        raise ValueError(f'band high edge ({band[1]} Hz) must be < Nyquist of the analysis '
+                         f'rate ({fs_a / 2} Hz; fs={fs} Hz decimated by {q}). Raise '
+                         'target_fs or set target_fs=None.')
+    win = int(window_s * fs_a)
+    if win % 2 == 0:
+        win += 1
+    dist = max(int(min_distance_s * fs_a), 1)
+
+    Y, gaps, dead = prepare_signal(X, fs, nan_policy, fill_kwargs)
+
+    # -- preprocessing (all channels at once, time on the last axis) ----------------------
+    y = sosfiltfilt(filters['bandpass'], Y, axis=-1)
+    for _, sos in filters['notches']:
+        y = sosfiltfilt(sos, y, axis=-1)
+    if q > 1:
+        y = resample_poly(y, 1, q, axis=-1)
+    env = np.abs(hilbert(y, axis=-1))
+
+    results, details = [], []
+    for c in range(X.shape[0]):
+        e = env[c]
+        idx = np.zeros(0, dtype=np.int64)
+        thr_curve = np.full(e.shape, np.nan)
+        scale = np.median(e)
+        if not scale > 0:
+            scale = e.mean()
+        if not dead[c] and scale > 0:
+            log_e = np.log(e + eps_rel * scale)
+            mu = uniform_filter1d(log_e, win, mode='reflect')
+            sd = np.sqrt(uniform_filter1d((log_e - mu) ** 2, win, mode='reflect'))
+            thr_curve = threshold * (np.exp(mu - sd ** 2) + np.exp(mu))
+            pk = find_peaks(e, height=thr_curve, distance=dist)[0]
+            idx = pk.astype(np.int64) * q
+            if len(gaps[c]):
+                idx = idx[~in_gap_mask(idx / fs, gaps[c], fs, gap_margin_s)]
+        results.append(idx)
+        if return_details:
+            details.append({'fs_analysis': fs_a, 'down_factor': q, 'envelope': e,
+                            'threshold': thr_curve, 'filters': filters, 'gaps': gaps[c]})
+
+    if one_d:
+        results = results[0]
+        details = details[0] if details else details
+    return (results, details) if return_details else results
+
+
+# ===================================================================== MATLAB-v24 port
 class SpikeDetectorHilbert:
     """
-    Janca envelope-distribution IED detector.
+    Janca envelope-distribution IED detector, port of MATLAB ``spike_detector_hilbert_v24``.
 
-    Parameters (defaults follow the reference implementation)
-    ---------------------------------------------------------
+    Use this when you need v24's full output (detection CDF/PDF weights, multichannel
+    discharge grouping, the ambiguous ``k2`` class) or comparability with MATLAB v24
+    results; otherwise prefer :func:`detect_spikes_janca`. **Input layout is
+    (n_samples, n_channels)** (MATLAB convention), the opposite of the rest of the package.
+
+    Pipeline (v24): resample to ``decimation`` Hz -> power-line notch comb -> 1 Hz
+    high-pass (Butterworth order 2) -> per segment: band-pass ``bandwidth`` -> Hilbert
+    envelope -> per-window (``winsize``/``noverlap``) log-normal MLE, smoothed and
+    interpolated -> threshold ``k1*(mode+median) - k3*(mean-mode)`` -> local maxima,
+    poly-spike union -> output.
+
+    Filters (all zero-phase, ``sos``; verified by the test-suite):
+
+    - **Power-line notch comb**: 2nd-order IIR notches at ``main_hum_freq`` and harmonics
+      up to ``1.1 * bandwidth[1]``, unit gain away from the notch. v24 uses a fixed pole
+      radius 0.985, which gives a ~1 Hz wide notch at 200 Hz but widens proportionally
+      with the rate (~24 Hz at 5 kHz with ``decimation=0``). Here the radius is
+      ``1 - 0.015 * 200 / fs`` so the width stays ~1 Hz (identical to v24 at 200 Hz).
+    - **High-pass** 1 Hz Butterworth order 2.
+    - **Band-pass** ``f_type``:
+
+      1. Chebyshev-II (default): minimum-order low-pass and high-pass meeting
+         ``cheb_rp`` dB (6) max loss at the band edges and ``cheb_rs`` dB (60) stop-band
+         attenuation ``cheb_transition_hz`` = (5, 10) Hz beyond the low/high edge, i.e. the
+         v24 spec (normalised 0.05/0.1 at 200 Hz) expressed in Hz so it is valid at any
+         rate. **Effective zero-phase response: about -12 dB at the band edges (v24's 6 dB
+         single-pass spec), < -120 dB in the stop bands.**
+         *Fixed defect:* the earlier port passed the **pass-band** edge as ``cheby2``'s
+         ``Wn`` (which is the **stop-band** edge) and discarded the order-design ``Wn``,
+         shrinking the effective band to ~18-48 Hz (15 Hz attenuated to 0.03, 50 Hz to
+         0.15 of the input power).
+      2. Butterworth order 4 high-pass + order 4 low-pass (-6 dB at the edges).
+      3. FIR (``firwin``, ``fs/2`` taps, odd) high-pass + low-pass (-12 dB at the edges).
+
+      As in v24, Chebyshev is replaced by Butterworth (with a warning) when ``decimation``
+      is set to a rate other than 200 Hz.
+
+    Parameters (defaults follow v24)
+    --------------------------------
     bandwidth : (float, float)
         Band-pass edges [low, high] in Hz. Default [10, 60].
     k1 : float
@@ -80,8 +372,9 @@ class SpikeDetectorHilbert:
         Default equals ``k1`` (ambiguous detection disabled).
     k3 : float
         Threshold tilt term. Default 0.
-    main_hum_freq : float
-        Mains frequency to notch (Hz). Default 50.
+    main_hum_freq : float or None
+        Mains frequency to notch (Hz). Default 50 (**use 60 for North-American data**).
+        ``None`` disables the notch.
     decimation : float
         Target analysis sampling rate (Hz). Default 200. Set 0 to keep the input rate.
     buffering : float
@@ -94,10 +387,33 @@ class SpikeDetectorHilbert:
         Grouping tolerance for multichannel events (seconds). Default 0.005.
     f_type : int
         Band-pass family: 1 = Chebyshev-II (default), 2 = Butterworth, 3 = FIR.
+    cheb_rp, cheb_rs : float
+        Chebyshev-II max pass-band loss / min stop-band attenuation, single pass, dB.
+        Defaults 6 and 60 (v24).
+    cheb_transition_hz : (float, float)
+        Chebyshev-II transition widths (Hz) below the low and above the high edge.
+        Default (5, 10) (= v24 at 200 Hz).
     beta : float
         Low edge (Hz) of beta rejection. ``inf`` (default) disables it; any finite value
         raises ``NotImplementedError``.
+    nan_policy : {'fill', 'raise'}
+        NaN handling, as in :func:`detect_spikes_janca`. With ``'fill'`` the returned
+        signals (``d_decim``, ``envelope``, ...) are those of the filled signal, and
+        detections in/near gaps are removed before discharge grouping.
+    gap_margin_s : float
+        Exclusion margin around gaps (seconds). Default 0.1.
+
+    Buffering scheme
+    ----------------
+    The record is partitioned into contiguous *core* windows that tile ``[0, N)`` exactly.
+    Each core is analysed inside a block extended by ``margin = 3 * winsize`` samples on each
+    side, and only detections inside the core are kept, so every detection is produced
+    exactly once (verified by a whole-vs-buffered test).
+
+    Not implemented: beta/mu-activity rejection and the ``ti_switch == 2`` timing mode.
     """
+
+    _CHEB_HUM_R_AT_200 = 0.985
 
     def __init__(self, **kwargs):
         self.bandwidth = [10.0, 60.0]
@@ -112,13 +428,77 @@ class SpikeDetectorHilbert:
         self.polyspike_union_time = 0.12
         self.discharge_tol = 0.005
         self.f_type = 1
+        self.cheb_rp = 6.0
+        self.cheb_rs = 60.0
+        self.cheb_transition_hz = (5.0, 10.0)
         self.beta = np.inf
+        self.nan_policy = 'fill'
+        self.gap_margin_s = 0.1
+        self.fill_kwargs = None
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise TypeError(f'unknown parameter {key!r}')
             setattr(self, key, value)
+        if 'k2' not in kwargs:
+            self.k2 = self.k1
         if self.k2 < self.k1:
             raise ValueError('k2 must be >= k1')
+        if self.f_type not in (1, 2, 3):
+            raise ValueError(f'f_type must be 1 (Chebyshev-II), 2 (Butterworth) or 3 (FIR), '
+                             f'got {self.f_type!r}')
+
+    # ------------------------------------------------------------------ filter design
+    def _effective_f_type(self):
+        if self.f_type == 1 and self.decimation not in (0, None) and self.decimation != 200:
+            warnings.warn('f_type switched to Butterworth for non-200 Hz decimation (as v24)')
+            return 2
+        return self.f_type
+
+    def design_filters(self, fs):
+        """
+        Design the filters applied at the analysis rate ``fs`` (i.e. after decimation).
+
+        Returns
+        -------
+        dict
+            ``'notches'``: list of ``(centre_hz, sos)``; ``'highpass'``: 1 Hz ``sos``;
+            ``'bandpass'``: list of filters applied in sequence, each ``sos`` (IIR) or
+            ``('fir', taps)``; ``'f_type'``: family actually used.
+        """
+        fs = float(fs)
+        lo, hi = flt.check_band(self.bandwidth, fs, name='bandwidth')
+        out = {'notches': [], 'highpass': flt.butter_highpass(1.0, fs, 2)}
+        if self.main_hum_freq is not None:
+            r = 1.0 - (1.0 - self._CHEB_HUM_R_AT_200) * 200.0 / fs
+            f = float(self.main_hum_freq)
+            while f <= 1.1 * hi and f < fs / 2:
+                out['notches'].append((f, flt.iir_notch_sos(f, fs, r)))
+                f += self.main_hum_freq
+        ftype = self._effective_f_type()
+        out['f_type'] = ftype
+        if ftype == 1:
+            t_lo, t_hi = self.cheb_transition_hz
+            if lo - t_lo <= 0 or hi + t_hi >= fs / 2:
+                raise ValueError(
+                    f'Chebyshev-II band-pass needs bandwidth[0] - {t_lo} Hz > 0 and '
+                    f'bandwidth[1] + {t_hi} Hz < Nyquist ({fs / 2} Hz); got {self.bandwidth}. '
+                    'Adjust cheb_transition_hz or use f_type=2 (Butterworth).')
+            out['bandpass'] = [
+                flt.cheby2_highpass(lo, lo - t_lo, fs, self.cheb_rp, self.cheb_rs),
+                flt.cheby2_lowpass(hi, hi + t_hi, fs, self.cheb_rp, self.cheb_rs)]
+        elif ftype == 2:
+            out['bandpass'] = [flt.butter_highpass(lo, fs, 4), flt.butter_lowpass(hi, fs, 4)]
+        else:
+            n = int(fs / 2) | 1
+            out['bandpass'] = [('fir', firwin(n, lo, pass_zero='highpass', fs=fs)),
+                               ('fir', firwin(n, hi, fs=fs))]
+        return out
+
+    @staticmethod
+    def _apply(filt, d):
+        if isinstance(filt, tuple) and filt[0] == 'fir':
+            return filtfilt(filt[1], 1.0, d, axis=0)
+        return sosfiltfilt(filt, d, axis=0)
 
     # ------------------------------------------------------------------ public
     def run(self, d, fs):
@@ -142,7 +522,7 @@ class SpikeDetectorHilbert:
             above background, ``MP`` start position (s), ``MD`` duration (s), ``MW`` CDF weight,
             ``MPDF`` pdf.
         d_decim : np.ndarray
-            Decimated, hum-notched signal ``(n_samples_dec, n_chan)``.
+            Decimated, hum-notched, 1 Hz high-passed signal ``(n_samples_dec, n_chan)``.
         envelope : np.ndarray
             Hilbert envelope of the band-passed signal ``(n_samples_dec, n_chan)``.
         background : np.ndarray
@@ -159,17 +539,25 @@ class SpikeDetectorHilbert:
             d = d[:, None]
         elif d.ndim != 2:
             raise ValueError("'d' must be 1-D or 2-D (n_samples, n_channels)")
+        if d.shape[1] > d.shape[0]:
+            raise ValueError(f"'d' has shape {d.shape}: more channels than samples. "
+                             'SpikeDetectorHilbert expects (n_samples, n_channels); transpose '
+                             'your array (d.T).')
 
         target = fs if self.decimation in (0, None) else float(self.decimation)
         if self.bandwidth[1] >= target / 2:
             raise ValueError(f'bandwidth high edge {self.bandwidth[1]} >= target Nyquist {target/2}')
+        filters = self.design_filters(target)
+
+        filled, gaps, _ = prepare_signal(d.T, fs, self.nan_policy, self.fill_kwargs)
+        d = filled.T
 
         # -- decimate (per channel), then notch mains + 1 Hz high-pass -----------
         d_dec = self._resample(d, fs, target)
         fsd = target
-        d_dec = self._filt_hum(d_dec, fsd)
-        bb, aa = butter(2, 2 * 1.0 / fsd, 'highpass')
-        d_decim = filtfilt(bb, aa, d_dec, axis=0)
+        for _, sos in filters['notches']:
+            d_dec = sosfiltfilt(sos, d_dec, axis=0)
+        d_decim = sosfiltfilt(filters['highpass'], d_dec, axis=0)
 
         n = d_decim.shape[0]
         winsize = int(round(self.winsize * fsd))
@@ -177,7 +565,6 @@ class SpikeDetectorHilbert:
         core = max(int(round(self.buffering * fsd)), winsize)
 
         # -- core-partition buffering (overlap-invariant) ------------------------
-        out = _empty_out()
         markers_high = np.zeros((n, d_decim.shape[1]), dtype=bool)
         markers_low = np.zeros((n, d_decim.shape[1]), dtype=bool)
         envelope = np.zeros_like(d_decim)
@@ -191,7 +578,7 @@ class SpikeDetectorHilbert:
             bs = max(a - margin, 0)
             be = min(b + margin, n)
             blk = d_decim[bs:be]
-            env, mh, ml, bg, cdf, pdf = self._detect_block(blk, fsd, winsize)
+            env, mh, ml, bg, cdf, pdf = self._detect_block(blk, fsd, winsize, filters)
 
             # write back the core slice [a, b) from block-local coords
             lo, hi = a - bs, b - bs
@@ -209,14 +596,27 @@ class SpikeDetectorHilbert:
             markers_low[:edge] = markers_low[-edge:] = False
 
         out = self._markers_to_out(markers_high, markers_low, envelope_cdf, envelope_pdf, fsd)
+        out = self._drop_in_gaps(out, gaps, fs)
         discharges = self._group_discharges(out, envelope, background, envelope_cdf,
                                             envelope_pdf, d_decim, fsd)
         return out, discharges, d_decim, envelope, background, envelope_pdf
 
+    def _drop_in_gaps(self, out, gaps, fs):
+        if not len(out['pos']) or not any(len(g) for g in gaps):
+            return out
+        keep = np.ones(len(out['pos']), dtype=bool)
+        for ch, g in enumerate(gaps):
+            if len(g):
+                sel = out['chan'] == ch
+                keep[sel] = ~in_gap_mask(out['pos'][sel], g, fs, self.gap_margin_s)
+        return {k: v[keep] for k, v in out.items()}
+
     # ------------------------------------------------------------- core science
-    def _detect_block(self, d, fs, winsize):
+    def _detect_block(self, d, fs, winsize, filters):
         """Band-pass, envelope, threshold and mark one block of shape (n_samples, n_chan)."""
-        d_bp = self._bandpass(d, fs)
+        d_bp = d
+        for filt in filters['bandpass']:
+            d_bp = self._apply(filt, d_bp)
         n, nch = d_bp.shape
         envelope = np.zeros((n, nch))
         markers_high = np.zeros((n, nch), dtype=bool)
@@ -428,49 +828,13 @@ class SpikeDetectorHilbert:
             disc['MD'].append(np.full(nch, (e - s) / fs))
         return {k: np.array(v) for k, v in disc.items()}
 
-    # ---------------------------------------------------------------- filtering
+    # ---------------------------------------------------------------- resampling
     def _resample(self, d, fs, target):
         if target == fs:
             return d.copy()
         g = gcd(int(round(target)), int(round(fs)))
         up, down = int(round(target)) // g, int(round(fs)) // g
         return resample_poly(d, up, down, axis=0)
-
-    def _filt_hum(self, d, fs):
-        """Comb of 2nd-order notches at the mains frequency and harmonics up to ~1.1*high."""
-        R, r = 1.0, 0.985
-        f = self.main_hum_freq
-        while f <= 1.1 * self.bandwidth[1] and f < fs / 2:
-            w = 2 * np.pi * f / fs
-            b = np.array([1.0, -2 * R * np.cos(w), R * R])
-            a = np.array([1.0, -2 * r * np.cos(w), r * r])
-            d = filtfilt(b, a, d, axis=0)
-            f += self.main_hum_freq
-        return d
-
-    def _bandpass(self, d, fs):
-        ftype = self.f_type
-        if ftype == 1 and self.decimation not in (0, None) and self.decimation != 200:
-            warnings.warn('f_type switched to Butterworth for non-200 Hz decimation')
-            ftype = 2
-        lo, hi = self.bandwidth
-        if ftype == 1:      # Chebyshev-II
-            n, _ = cheb2ord(2 * hi / fs, 2 * hi / fs + 0.1, 6, 60)
-            bl, al = cheby2(n, 60, 2 * hi / fs)
-            n, _ = cheb2ord(2 * lo / fs, 2 * lo / fs - 0.05, 6, 60)
-            bh, ah = cheby2(n, 60, 2 * lo / fs, 'highpass')
-        elif ftype == 2:    # Butterworth
-            bh, ah = butter(4, 2 * lo / fs, 'highpass')
-            bl, al = butter(4, 2 * hi / fs, 'lowpass')
-        else:               # FIR
-            bh = firwin(int(fs / 2) | 1, 2 * lo / fs, pass_zero='highpass')
-            ah = 1.0
-            bl = firwin(int(fs / 2) | 1, 2 * hi / fs)
-            al = 1.0
-        d = filtfilt(bh, ah, d, axis=0)
-        if hi < fs / 2:
-            d = filtfilt(bl, al, d, axis=0)
-        return d
 
 
 # Backwards-compatible alias for the name used by the original port.

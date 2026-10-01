@@ -8,7 +8,7 @@ r"""
 Barkmeier interictal spike detector
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Amplitude/slope/duration half-wave spike detector after:
+Multichannel amplitude/slope/duration half-wave spike detector after:
 
     Barkmeier, D.T., Shah, A.K., Flanagan, D., Atkinson, M.D., Agarwal, R.,
     Fuerst, D.R., Jafari-Khouzani, K., Loeb, J.A. (2012). *High inter-reviewer
@@ -16,61 +16,94 @@ Amplitude/slope/duration half-wave spike detector after:
     multi-channel algorithm.* Clinical Neurophysiology 123(6), 1088-1095.
     https://doi.org/10.1016/j.clinph.2011.09.023  (PMC3277646)
 
-This is a from-scratch implementation written against the paper's Methods. It is not
-a copy of any third-party source. It supersedes an earlier internal port that carried
-several defects relative to the paper; see the module notes below and the accompanying
-PR for the point-by-point differences.
+Written from the paper's Methods ("Spike detection algorithm"); no third-party code.
+Each step below is marked **[paper]** when it is specified by the paper and **[ours]** when
+the paper leaves it open and this implementation makes a documented choice.
 
-Algorithm (per the paper)
--------------------------
-1. Band-pass the signal 20-50 Hz (``narrow_band``). Candidate spike times are samples
-   where the **absolute** narrow-band amplitude exceeds ``mean(|x|) + std_coeff*std(|x|)``
-   (the paper: "absolute amplitudes of peaks greater than four standard deviations").
-2. Band-pass the signal 1-80 Hz (``broad_band``) for morphology, then **block-scale**:
-   divide by the median across channels of each channel's mean absolute amplitude and
-   multiply by ``scale`` (default 70), bringing the median channel amplitude to a fixed
-   value while preserving relative differences between channels. Thresholds are therefore
-   evaluated in this scaled domain.
-3. For each candidate, locate the broad-band peak, then the flanking troughs within
-   ``trough_search`` seconds. Compute each half-wave's amplitude, duration and slope.
-4. Accept the candidate as a spike iff **all** of: total amplitude of both half-waves
-   ``> total_amp``, each half-wave slope ``> slope``, and each half-wave duration
-   ``> half_dur``. (Conjunctive; the paper excludes candidates falling below threshold.)
+Algorithm
+---------
+0. **[paper] One-minute blocks.** The record is processed in successive blocks of
+   ``block_s`` seconds (60). The scaling factor, the artifact-channel rule and the candidate
+   threshold are computed **per block**. **[ours]** Filtering is done once on the whole
+   record (no block-edge transients); a trailing remainder shorter than half a block is
+   merged into the previous block; ``block_s=None`` treats the whole record as one block.
+1. **[paper] Artifact channels.** In each block a channel is artifactual if its average
+   slope is more than ``artifact_sd`` (10) standard deviations from the mean slope of the
+   channels; it is excluded from that block (no detections, not used for scaling).
+   **[ours]** Average slope = mean ``|dx/dt|`` of the (gap-filled) input signal over the
+   block. The mean and SD are computed **leave-one-out** (over the *other* channels, SD with
+   ``ddof=1``): including the tested channel bounds its z-score by ``sqrt(n_channels - 1)``,
+   so the paper's literal rule could never fire with fewer than 102 channels. Needs at least
+   3 usable channels; otherwise no channel is flagged. ``artifact_sd=None`` disables it.
+2. **[paper] Candidates.** Band-pass 20-50 Hz (``narrow_band``); candidates are local maxima
+   of the rectified narrow-band signal exceeding ``mean + std_coeff * std`` (4 SD) of that
+   rectified signal in the block. **[ours]** Filter type/order are not given in the paper:
+   Butterworth, prototype order ``narrow_order`` = 2 (the paper's broad-band design),
+   zero-phase.
+3. **[paper] Morphology band and block scaling.** Band-pass 1-35 Hz, **2nd-order
+   Butterworth** (``broad_band``, ``broad_order``). All channels of a block are multiplied by
+   one factor that brings the median (across channels) of the channel mean rectified
+   amplitudes to ``scale`` (70 uV). **[ours]** zero-phase application (``sosfiltfilt``;
+   the paper does not say; the effective response is -6 dB at 1 and 35 Hz).
+4. **[paper]** For each candidate, the broad-band peak (largest ``|x|`` within +/-2 ms
+   **[ours]**) and the flanking opposite extrema within ``trough_search`` (50 ms **[ours]**)
+   define two half-waves. A spike is accepted iff total amplitude of both half-waves
+   ``> 600``, each half-wave slope ``> 7 uV/ms`` and each half-wave duration ``> 10 ms``,
+   in the block-scaled domain (:data:`DEFAULT_THRESHOLDS`).
+5. **[ours]** Accepted detections on a channel closer than ``trough_search`` are merged
+   (largest total amplitude kept; one discharge produces several narrow-band maxima); then
+   the optional ``refractory`` (s) is applied to the merged list (default 0, the paper
+   defines none).
 
-Differences from the earlier internal port (all verified against the paper)
----------------------------------------------------------------------------
-- Candidate detection used ``x > thresh`` (positive only); the paper uses ``|x| > thresh``,
-  so negative-dominant spikes were missed. Fixed.
-- The acceptance test had a second branch accepting candidates with **all metrics below**
-  the thresholds, contradicting the paper (which excludes sub-threshold candidates). Removed.
-- The refractory test ``spike_i - last_idx > 0.005`` compared a **sample count** to
-  ``0.005`` seconds, so at any realistic ``fs`` it never rejected anything. Reimplemented
-  as a correctly-united, optional refractory (``refractory`` seconds; the paper defines
-  none, so the default is 0).
-- Block-scaling was applied per channel using that channel's own mean, which destroys the
-  cross-channel amplitude relationships the paper's block-scaling exists to preserve. This
-  implementation scales all channels by a single median-based factor.
-- Peak picking ran ``find_peaks`` on the gappy supra-threshold subsequence (indices are not
-  contiguous in time), which can invent maxima. It now runs on the continuous rectified band.
+Filters (verified by the test-suite at 200-32000 Hz)
+----------------------------------------------------
+=========  ======================  =====  ==========================================
+signal     type                    order  zero-phase response
+=========  ======================  =====  ==========================================
+narrow     Butterworth band-pass   2      -6 dB at 20 / 50 Hz, ~0 dB at 30-35 Hz,
+                                          -15 dB at 60 Hz
+broad      Butterworth band-pass   2      -6 dB at 1 / 35 Hz, ~0 dB at 5-10 Hz
+=========  ======================  =====  ==========================================
 
-Caveat: block-scaling is inherently multi-channel
---------------------------------------------------
-The paper's block-scaling brings the **median across channels** of the channel amplitudes
-to ``scale``, which is what makes the amplitude thresholds comparable across a montage. On a
-single isolated channel the median degenerates to that channel's own amplitude, so the noise
-floor is normalised to ``scale`` and the fixed thresholds fire on noise at a low but non-zero
-rate (order 0.3/s on pure noise at the defaults). Pass the full ``(n_channels, n_samples)``
-montage so the population median does the scaling; interpret single-channel output with this
-in mind. This is a property of the method, not of this implementation.
+Differences from the earlier version of this module
+---------------------------------------------------
+- Broad band was 1-80 Hz (2nd-order high-pass + 4th-order low-pass) and its docstring
+  claimed "per the paper"; the paper specifies 1-35 Hz 2nd-order Butterworth. The 80 Hz
+  band admits sharper noise transients: on 1/f noise the false-positive rate drops ~5x with
+  the paper's band (see the README for numbers).
+- No blocks: one scaling factor and one threshold per channel for the whole record. Now per
+  ``block_s`` (paper: one minute).
+- No artifact-channel rule. Now implemented (see step 1).
+- The refractory period was applied before the 50 ms merge, so a merge could pick a
+  detection the refractory had already used to suppress its neighbour. Now merge first.
+- A single NaN anywhere made the median scaling factor NaN for **every** channel. Gaps are
+  now filled before and detections in/near them removed after (``nan_policy``), and block
+  statistics use only non-gap samples.
+- A transposed ``(n_samples, n_channels)`` array was silently accepted. A 2-D input with
+  more rows than columns, or shorter than 1 s, now raises ``ValueError``.
+
+Note on false positives
+-----------------------
+Block scaling normalises the median channel to ``scale`` whatever the channel count, so the
+fixed thresholds are relative to the *typical* channel of the montage. On pure 1/f
+background the detector fires at a low but non-zero rate (order 0.05/s per channel with the
+paper's 1-35 Hz band) **independently of the number of channels**; the multichannel design
+makes the result comparable *between* channels, it does not by itself remove noise
+detections. The earlier statement that this was a single-channel artefact was wrong.
 """
 
-import numpy as np
-from scipy.signal import butter, filtfilt, find_peaks
+import warnings
 
-__all__ = ['detect_spikes_barkmeier', 'DEFAULT_THRESHOLDS']
+import numpy as np
+from scipy.signal import find_peaks, sosfiltfilt
+
+from brainmaze_eeg.spikes import _filters as flt
+from brainmaze_eeg.spikes._gaps import gap_sample_mask, in_gap_mask, prepare_signal
+
+__all__ = ['detect_spikes_barkmeier', 'design_barkmeier_filters', 'DEFAULT_THRESHOLDS']
 
 # Thresholds are evaluated in the block-scaled domain (median channel amplitude -> `scale`).
-# total_amp and slope track the paper's 600 uV and 7 uV/ms (= 7000 uV/s); half_dur is the
+# total_amp and slope are the paper's 600 uV and 7 uV/ms (= 7000 uV/s); half_dur is the
 # physical 10 ms half-wave duration.
 DEFAULT_THRESHOLDS = {
     'total_amp': 600.0,   # total amplitude of both half-waves (scaled units)
@@ -79,59 +112,126 @@ DEFAULT_THRESHOLDS = {
 }
 
 
-def _bandpass(x, fs, band, axis=-1):
-    """Zero-phase band-pass: 2nd-order high-pass then 4th-order low-pass, per the paper."""
-    bh, ah = butter(2, band[0] / (fs / 2), 'highpass')
-    bl, al = butter(4, band[1] / (fs / 2), 'lowpass')
-    x = filtfilt(bh, ah, x, axis=axis)
-    x = filtfilt(bl, al, x, axis=axis)
-    return x
-
-
-def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.05,
-                            thresholds=None, narrow_band=(20, 50), broad_band=(1, 80),
-                            refractory=0.0):
+def design_barkmeier_filters(fs, narrow_band=(20.0, 50.0), broad_band=(1.0, 35.0),
+                             narrow_order=2, broad_order=2):
     """
-    Detect interictal spikes with the Barkmeier (2012) half-wave criteria.
-
-    Parameters
-    ----------
-    sig : np.ndarray
-        EEG signal, ``(n_samples,)`` or ``(n_channels, n_samples)``. Amplitudes in uV.
-    fs : float
-        Sampling frequency in Hz.
-    scale : float
-        Block-scaling target: the median channel amplitude is scaled to this value
-        (default 70, per the paper).
-    std_coeff : float
-        Candidate threshold in standard deviations of the rectified narrow-band signal
-        (default 4).
-    trough_search : float
-        Half-window (seconds) each side of the peak in which to find the flanking troughs.
-    thresholds : dict, optional
-        Acceptance thresholds ``{'total_amp', 'slope', 'half_dur'}`` in the block-scaled
-        domain. Defaults to :data:`DEFAULT_THRESHOLDS`.
-    narrow_band, broad_band : tuple(float, float)
-        Band-pass edges (Hz) for candidate detection and morphology, respectively.
-    refractory : float
-        Minimum time (seconds) between accepted spikes on a channel. The paper defines no
-        refractory; default 0 disables it.
+    Design the band-pass filters used by :func:`detect_spikes_barkmeier`.
 
     Returns
     -------
-    list of dict
-        One dict per detected spike, sorted by time, with keys:
-        ``channel, peak_index, peak_time, peak_amp, left_amp, left_dur, left_slope,
-        right_amp, right_dur, right_slope, total_amp``. Indices/times are into ``sig``.
-        The amplitude and slope fields (``peak_amp``, ``*_amp``, ``*_slope``,
-        ``total_amp``) are in the **block-scaled domain** (see ``scale``), not the input's
-        uV; only the duration fields are physical seconds.
+    dict
+        ``{'narrow': sos, 'broad': sos}`` (Butterworth band-passes; applied zero-phase).
 
     Raises
     ------
     ValueError
-        If ``sig`` is not 1-D or 2-D, a band edge is at/above Nyquist, or ``thresholds``
-        contains an unknown key.
+        Unless ``0 < low < high < fs/2`` for both bands and the orders are positive integers.
+    """
+    fs = float(fs)
+    flt.check_band(narrow_band, fs, name='narrow_band')
+    flt.check_band(broad_band, fs, name='broad_band')
+    return {'narrow': flt.butter_bandpass(narrow_band, fs, narrow_order),
+            'broad': flt.butter_bandpass(broad_band, fs, broad_order)}
+
+
+def _blocks(n, fs, block_s):
+    if block_s is None:
+        return np.array([[0, n]])
+    if not block_s > 0:
+        raise ValueError(f'block_s must be > 0 seconds or None, got {block_s}')
+    bn = max(int(round(block_s * fs)), 1)
+    starts = list(range(0, n, bn))
+    if len(starts) > 1 and n - starts[-1] < bn / 2:
+        starts.pop()                       # merge a short tail into the previous block
+    stops = starts[1:] + [n]
+    return np.array(list(zip(starts, stops)), dtype=np.int64)
+
+
+def _artifact_channels(slopes, usable, n_sd):
+    """Leave-one-out z-score of each channel's mean slope against the other usable channels."""
+    flag = np.zeros(slopes.shape, dtype=bool)
+    idx = np.flatnonzero(usable)
+    if n_sd is None or idx.size < 3:
+        return flag
+    s = slopes[idx]
+    for k, c in enumerate(idx):
+        others = np.delete(s, k)
+        sd = others.std(ddof=1)
+        if sd > 0 and abs(s[k] - others.mean()) > n_sd * sd:
+            flag[c] = True
+    return flag
+
+
+def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.05,
+                            thresholds=None, narrow_band=(20.0, 50.0), broad_band=(1.0, 35.0),
+                            refractory=0.0, *, narrow_order=2, broad_order=2, block_s=60.0,
+                            artifact_sd=10.0, nan_policy='fill', gap_margin_s=0.1,
+                            fill_kwargs=None, return_info=False):
+    """
+    Detect interictal spikes with the Barkmeier (2012) multichannel half-wave criteria.
+
+    See the module docstring for the algorithm and which choices are the paper's.
+
+    Parameters
+    ----------
+    sig : np.ndarray
+        iEEG in **uV**, ``(n_samples,)`` or ``(n_channels, n_samples)`` -- pass the whole
+        montage: scaling and the artifact rule are across channels. NaN marks missing data.
+    fs : float
+        Sampling frequency in Hz.
+    scale : float
+        Block-scaling target for the median channel mean rectified amplitude (paper: 70 uV).
+    std_coeff : float
+        Candidate threshold in SDs of the rectified narrow-band signal (paper: 4).
+    trough_search : float
+        Half-window (s) each side of the peak in which to find the flanking troughs, and
+        merge distance of detections (ours: 0.05).
+    thresholds : dict, optional
+        ``{'total_amp', 'slope', 'half_dur'}`` in the block-scaled domain; partial dicts are
+        completed from :data:`DEFAULT_THRESHOLDS` (paper: 600 uV, 7 uV/ms = 7000 uV/s, 10 ms).
+    narrow_band : (float, float)
+        Candidate band (paper: 20-50 Hz).
+    broad_band : (float, float)
+        Morphology/scaling band (paper: 1-35 Hz).
+    refractory : float
+        Minimum time (s) between accepted spikes on a channel, after merging (default 0).
+    narrow_order, broad_order : int
+        Butterworth prototype orders (broad: paper 2; narrow: ours 2).
+    block_s : float or None
+        Block length in seconds (paper: 60). ``None``: one block for the whole record.
+    artifact_sd : float or None
+        Artifact-channel rule threshold in SDs (paper: 10); ``None`` disables.
+    nan_policy : {'fill', 'raise'}
+        ``'fill'`` (default): fill NaN gaps with :func:`brainmaze_utils.gaps.fill_gaps`, use
+        only non-gap samples for block statistics, drop detections in/within
+        ``gap_margin_s`` of a gap. ``'raise'``: ``ValueError`` on NaN.
+    gap_margin_s : float
+        Exclusion margin around gaps (s), default 0.1.
+    fill_kwargs : dict, optional
+        Passed to :func:`brainmaze_utils.gaps.fill_gaps`.
+    return_info : bool
+        Also return a dict with per-block diagnostics (see Returns).
+
+    Returns
+    -------
+    detections : list of dict
+        One dict per spike, sorted by (channel, time): ``channel, peak_index, peak_time,
+        block, peak_amp, left_amp, left_dur, left_slope, right_amp, right_dur, right_slope,
+        total_amp``. Index/time refer to ``sig`` (samples / seconds). Amplitudes and slopes
+        are in the **block-scaled domain** (multiply by ``1/info['scale_factor'][block]`` for
+        input units); durations are seconds.
+    info : dict
+        Only with ``return_info=True``: ``blocks`` ``(n_blocks, 2)`` ``[start, stop)``
+        samples; ``scale_factor`` ``(n_blocks,)``; ``artifact`` ``(n_blocks, n_channels)``
+        bool; ``channel_slope`` and ``candidate_threshold`` ``(n_blocks, n_channels)`` in
+        input units; ``gaps`` per channel; ``filters``.
+
+    Raises
+    ------
+    ValueError
+        Invalid band/order/thresholds, input not 1-D/2-D, a 2-D input with more rows than
+        columns (probably transposed), a record shorter than 1 s, ``+/-inf``, or NaN with
+        ``nan_policy='raise'``.
     """
     if thresholds is None:
         thr = dict(DEFAULT_THRESHOLDS)
@@ -143,45 +243,84 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
                 f"expected {sorted(DEFAULT_THRESHOLDS)}.")
         thr = {**DEFAULT_THRESHOLDS, **thresholds}   # partial dict -> fill from defaults
 
+    fs = float(fs)
+    if not fs > 0:
+        raise ValueError(f'fs must be > 0, got {fs}')
     sig = np.asarray(sig, dtype=np.float64)
     if sig.ndim == 1:
         x = sig[np.newaxis, :]
     elif sig.ndim == 2:
         x = sig
+        if x.shape[0] > x.shape[1]:
+            raise ValueError(f"'sig' has shape {x.shape}: more channels than samples. The "
+                             'layout is (n_channels, n_samples); transpose your array (sig.T).')
     else:
         raise ValueError(f"'sig' must be 1-D or 2-D, got {sig.ndim}-D.")
+    n_ch, n_samples = x.shape
+    if n_samples < fs:
+        raise ValueError(f'record has {n_samples} samples (< 1 s at fs={fs} Hz); check fs and '
+                         'the array layout (n_channels, n_samples).')
+    if not gap_margin_s >= 0:
+        raise ValueError(f'gap_margin_s must be >= 0, got {gap_margin_s}')
 
-    nyq = fs / 2
-    for band in (narrow_band, broad_band):
-        if not (0 < band[0] < band[1] < nyq):
-            raise ValueError(f"band {band} must satisfy 0 < low < high < fs/2 ({nyq}).")
+    filters = design_barkmeier_filters(fs, narrow_band, broad_band, narrow_order, broad_order)
+    y, gaps, dead = prepare_signal(x, fs, nan_policy, fill_kwargs)
+    valid = np.ones(x.shape, dtype=bool)
+    for c, g in enumerate(gaps):
+        if len(g):
+            valid[c] = ~gap_sample_mask(g, n_samples)
 
-    fx_narrow = _bandpass(x, fs, narrow_band, axis=-1)
-    fx_broad = _bandpass(x, fs, broad_band, axis=-1)
+    fx_narrow = sosfiltfilt(filters['narrow'], y, axis=-1)
+    fx_broad = sosfiltfilt(filters['broad'], y, axis=-1)
+    rect = np.abs(fx_narrow)
 
-    # Block-scaling: one factor for the whole array, from the median (across channels) of
-    # each channel's mean absolute broad-band amplitude. Preserves inter-channel ratios.
-    chan_mean_amp = np.mean(np.abs(fx_broad), axis=-1)
-    denom = np.median(chan_mean_amp)
-    if denom > 0:
-        fx_broad = fx_broad * (scale / denom)
+    blocks = _blocks(n_samples, fs, block_s)
+    nb = len(blocks)
+    factor = np.zeros(nb)
+    artifact = np.zeros((nb, n_ch), dtype=bool)
+    slopes = np.full((nb, n_ch), np.nan)
+    cand_thr = np.full((nb, n_ch), np.inf)
+    block_of = np.zeros(n_samples, dtype=np.int64)
+    thr_curve = np.full((n_ch, n_samples), np.inf)
 
-    n_samples = x.shape[-1]
+    for b, (s, e) in enumerate(blocks):
+        block_of[s:e] = b
+        v = valid[:, s:e]
+        amp = np.full(n_ch, np.nan)
+        for c in range(n_ch):
+            if dead[c] or not v[c].any():
+                continue
+            pair = v[c, 1:] & v[c, :-1]
+            if pair.any():
+                slopes[b, c] = np.abs(np.diff(y[c, s:e]))[pair].mean() * fs
+            amp[c] = np.abs(fx_broad[c, s:e][v[c]]).mean()
+            r = rect[c, s:e][v[c]]
+            cand_thr[b, c] = r.mean() + std_coeff * r.std()
+        usable = np.isfinite(slopes[b]) & np.isfinite(amp)
+        artifact[b] = _artifact_channels(np.nan_to_num(slopes[b]), usable, artifact_sd)
+        usable &= ~artifact[b]
+        cand_thr[b, ~usable] = np.inf
+        med = np.median(amp[usable]) if usable.any() else 0.0
+        factor[b] = scale / med if med > 0 else 0.0
+        if factor[b] == 0:
+            cand_thr[b] = np.inf
+        thr_curve[:, s:e] = cand_thr[b][:, None]
+
+    if artifact.any():
+        bad = sorted(set(np.nonzero(artifact)[1].tolist()))
+        warnings.warn(f'Barkmeier artifact-channel rule excluded {int(artifact.sum())} '
+                      f'channel-block(s) (channels {bad}); use return_info=True for details',
+                      UserWarning, stacklevel=2)
+
     half_peak = int(round(fs * 0.002))            # +/- 2 ms search for the broad-band peak
     n_trough = int(round(fs * trough_search))
     refractory_n = int(round(fs * refractory))
 
     detections = []
-    for ch in range(x.shape[0]):
-        narrow = fx_narrow[ch]
+    for ch in range(n_ch):
         broad = fx_broad[ch]
-        rect = np.abs(narrow)
+        peak_idx, _ = find_peaks(rect[ch], height=thr_curve[ch])
 
-        thresh = rect.mean() + std_coeff * rect.std()
-        # candidate peaks: local maxima of the rectified narrow band that clear threshold
-        peak_idx, _ = find_peaks(rect, height=thresh)
-
-        last_idx = -np.inf
         ch_detections = []
         for pi in peak_idx:
             l = max(pi - half_peak, 0)
@@ -189,8 +328,11 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
             # spike polarity from the broad band: whichever extreme is larger in magnitude
             seg = broad[l:r]
             spike_i = l + int(np.argmax(np.abs(seg)))
-            spike_V = broad[spike_i]
-            sign = np.sign(spike_V) or 1.0
+            sign = np.sign(broad[spike_i]) or 1.0
+            b = block_of[spike_i]
+            k = factor[b]
+            if k == 0 or artifact[b, ch]:
+                continue
 
             # flanking troughs (opposite extreme) within trough_search on each side
             ll = max(spike_i - n_trough, 0)
@@ -200,8 +342,9 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
             left_i = ll + int(np.argmin(sign * broad[ll:spike_i]))
             right_i = spike_i + int(np.argmin(sign * broad[spike_i:rr]))
 
-            left_amp = abs(spike_V - broad[left_i])
-            right_amp = abs(spike_V - broad[right_i])
+            spike_V = k * broad[spike_i]
+            left_amp = k * abs(broad[spike_i] - broad[left_i])
+            right_amp = k * abs(broad[spike_i] - broad[right_i])
             left_dur = (spike_i - left_i) / fs
             right_dur = (right_i - spike_i) / fs
             if left_dur <= 0 or right_dur <= 0:
@@ -215,14 +358,11 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
                       left_dur > thr['half_dur'] and right_dur > thr['half_dur'])
             if not accept:
                 continue
-            if spike_i - last_idx < refractory_n:
-                continue
-            last_idx = spike_i
-
             ch_detections.append({
                 'channel': ch,
                 'peak_index': int(spike_i),
                 'peak_time': spike_i / fs,
+                'block': int(b),
                 'peak_amp': float(spike_V),
                 'left_amp': float(left_amp), 'left_dur': float(left_dur),
                 'left_slope': float(left_slope),
@@ -231,12 +371,21 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
                 'total_amp': float(total_amp),
             })
 
-        # One epileptiform discharge produces a cluster of supra-threshold narrow-band
-        # maxima; collapse detections whose peaks fall within `trough_search` of each
-        # other, keeping the largest-amplitude one, so a discharge yields a single spike.
-        detections.extend(_merge_close(ch_detections, n_trough))
+        # One discharge produces a cluster of supra-threshold narrow-band maxima: merge
+        # detections closer than `trough_search` (keep the largest), THEN apply refractory.
+        merged = _apply_refractory(_merge_close(ch_detections, n_trough), refractory_n)
+        if len(gaps[ch]) and merged:
+            t = np.array([d['peak_time'] for d in merged])
+            drop = in_gap_mask(t, gaps[ch], fs, gap_margin_s)
+            merged = [d for d, m in zip(merged, drop) if not m]
+        detections.extend(merged)
 
     detections.sort(key=lambda d: (d['channel'], d['peak_index']))
+    if return_info:
+        info = {'blocks': blocks, 'scale_factor': factor, 'artifact': artifact,
+                'channel_slope': slopes, 'candidate_threshold': cand_thr, 'gaps': gaps,
+                'filters': filters}
+        return detections, info
     return detections
 
 
@@ -255,3 +404,14 @@ def _merge_close(dets, min_gap):
             cluster = [d]
     merged.append(max(cluster, key=lambda c: c['total_amp']))
     return merged
+
+
+def _apply_refractory(dets, refractory_n):
+    """Drop detections closer than `refractory_n` samples to the previous kept one."""
+    if refractory_n <= 0 or not dets:
+        return dets
+    out = [dets[0]]
+    for d in dets[1:]:
+        if d['peak_index'] - out[-1]['peak_index'] >= refractory_n:
+            out.append(d)
+    return out
