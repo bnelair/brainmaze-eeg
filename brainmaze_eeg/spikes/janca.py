@@ -68,10 +68,12 @@ For each channel (all filters zero-phase, ``sosfiltfilt``, at the **input** rate
 Known differences from the eeg_forge reference (all deliberate fixes)
 --------------------------------------------------------------------
 - **Filters in ``sos`` form.** The reference designs ``b, a`` transfer functions; at high
-  sampling rates these lose precision (response error ~2.5e-5 at 5 kHz, ~5e-3 at 10 kHz)
-  and the 50 Hz band-stop becomes **unstable** (pole radius 1.0006 at 32 kHz) -> NaN ->
-  silently no detections. Where the ``b, a`` filter is accurate the ``sos`` response is
-  identical (max difference < 1e-8 up to 2048 Hz) and the detection indices match exactly.
+  sampling rates these lose precision (max complex response error of the 50 Hz band-stop
+  5e-7 at 2 kHz, 5e-5 at 5 kHz, 2e-3 at 8 kHz, 7e-3 at 10 kHz, 6e-2 at 16 kHz) and the
+  band-stop becomes **unstable** at 32 kHz (pole radius 1.0006) -> NaN -> silently no
+  detections. The ``sos`` design has the same response where the ``b, a`` one is accurate:
+  on the parity data the detection indices are identical at 200-10000 Hz; at 16 kHz one
+  detection of 23 moves by one analysis sample; at 32 kHz the reference finds nothing.
 - **Scale-invariant epsilon.** The reference adds an absolute ``1e-6`` to the envelope
   before the log. For data in volts (envelope ~1e-5..1e-8) that constant dominates the
   background, the threshold no longer adapts, and the detector returns nothing. Here
@@ -283,12 +285,12 @@ def detect_spikes_janca(x, fs, *, band=(10.0, 60.0), filter_order=3, powerline=5
         (our choice, replaces the reference's absolute 1e-6; see module docstring).
     nan_policy : {'fill', 'raise'}
         ``'fill'`` (default): NaN gaps are filled with
-        :func:`brainmaze_utils.gaps.fill_gaps` before detection and detections inside a gap
+        :func:`brainmaze_eeg.spikes._gaps.fill_gaps` before detection and detections inside a gap
         or within ``gap_margin_s`` of it are dropped. ``'raise'``: ``ValueError`` on NaN.
     gap_margin_s : float
         Exclusion margin around each gap in seconds (default 0.1).
     fill_kwargs : dict, optional
-        Passed to :func:`brainmaze_utils.gaps.fill_gaps` (e.g. ``{'method': 'mirror'}``).
+        Passed to :func:`brainmaze_eeg.spikes._gaps.fill_gaps` (e.g. ``{'max_interp_s': 0.2}``; see the README, "Gaps").
     return_details : bool
         Also return per-channel diagnostics (see Returns).
 

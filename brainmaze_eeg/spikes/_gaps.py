@@ -41,7 +41,8 @@ The canonical gap helpers of the BrainMaze family are being added to brainmaze-u
 deliberately thin, self-contained stand-in with **the same function names and semantics**
 (``find_gaps`` -> ``(n_gaps, 2)`` ``[start, stop)`` samples; ``fill_gaps(x, fs,
 max_interp_s=0.1, method='pink', context_s=10, taper_s=0.5, beta=1, seed=0)``;
-``mask_in_gaps``/``drop_in_gaps(times_s, gaps, fs, margin_s=0.1)``) so that the switch is a
+``mask_in_gaps``/``drop_in_gaps(times_s, gaps_samples, fs, margin_s=0.1)`` with explicit
+units) so that the switch is a
 one-line import change once brainmaze-utils with ``gaps`` is released. Only the ``'pink'``
 and ``'linear'`` fills are provided here (the ``'mirror'`` fill will come with the switch).
 Fills are seeded (``seed=0``) and therefore reproducible.
@@ -105,7 +106,7 @@ def _raised_cosine(n):
     return 0.5 * (1 + np.cos(np.pi * np.arange(1, n + 1) / (n + 1)))
 
 
-def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, rng):
+def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, seed, stream):
     y = np.array(x, dtype=np.float64, copy=True)
     gaps = find_gaps(y)
     n_total = y.size
@@ -131,6 +132,8 @@ def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, rng):
         sd = _robust_sd(np.concatenate([left, right]))
         lvl_a = np.median(left[-near:]) if left.size else np.median(right[:near])
         lvl_b = np.median(right[:near]) if right.size else np.median(left[-near:])
+        # independent, reproducible noise stream per (seed, channel/stream, gap start)
+        rng = np.random.default_rng(None if seed is None else [int(seed), int(stream), int(s)])
         fill = lvl_a + (lvl_b - lvl_a) * r + sd * pink_noise(n, beta, rng)
         # raised-cosine cross-fade into the mirrored neighbouring signal at each edge
         t = min(taper, n // 2) if (has_l and has_r) else min(taper, n)
@@ -147,7 +150,7 @@ def _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, rng):
 
 
 def fill_gaps(x, fs, max_interp_s=0.1, method='pink', context_s=10.0, taper_s=0.5,
-              beta=1.0, seed=0):
+              beta=1.0, seed=0, stream=0):
     """
     Fill NaN gaps of a 1-D signal so a detector can run on it (see module docstring).
 
@@ -170,6 +173,10 @@ def fill_gaps(x, fs, max_interp_s=0.1, method='pink', context_s=10.0, taper_s=0.
         Spectral exponent of the noise, ``P(f) ~ 1/f**beta`` (default 1, pink).
     seed : int or None
         Noise seed (default 0: reproducible). ``None`` = random.
+    stream : int
+        Stream index (e.g. the channel number). Each gap is filled from its own generator
+        seeded with ``(seed, stream, gap_start)``, so channels get independent noise even
+        where their gaps coincide, and a gap's fill does not depend on other gaps.
 
     Returns
     -------
@@ -186,20 +193,24 @@ def fill_gaps(x, fs, max_interp_s=0.1, method='pink', context_s=10.0, taper_s=0.
     x = np.asarray(x, dtype=np.float64)
     if x.ndim != 1:
         raise ValueError(f'fill_gaps expects a 1-D signal, got shape {x.shape}')
-    return _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta,
-                    np.random.default_rng(seed))
+    return _fill_1d(x, fs, max_interp_s, method, context_s, taper_s, beta, seed, stream)
 
 
-def mask_in_gaps(start_s, gaps, fs=None, margin_s=0.1):
+def mask_in_gaps(times_s, gaps_samples, fs, margin_s=0.1):
     """
-    Boolean mask of detection times (s) that fall in a gap widened by ``margin_s`` on each
-    side. ``gaps`` are ``[start, stop)`` sample indices (pass ``fs``) or seconds (``fs=None``).
-    A detection at time ``t`` is masked iff ``start - margin_s <= t < stop + margin_s``.
+    Boolean mask of detections that fall in a gap widened by ``margin_s`` on each side.
+
+    Units are explicit (no inference): ``times_s`` in **seconds**, ``gaps_samples`` as
+    returned by :func:`find_gaps` (``[start, stop)`` **sample indices**), ``fs`` in Hz
+    (required). A detection at time ``t`` is masked iff
+    ``start/fs - margin_s <= t < stop/fs + margin_s``.
     """
-    t = np.atleast_1d(np.asarray(start_s, dtype=float))
-    g = np.asarray(gaps, dtype=float).reshape(-1, 2)
-    if fs is not None:
-        g = g / float(fs)
+    if fs is None or not fs > 0:
+        raise ValueError(f'fs must be > 0 Hz (gaps are sample indices), got {fs!r}')
+    if not margin_s >= 0:
+        raise ValueError(f'margin_s must be >= 0, got {margin_s}')
+    t = np.atleast_1d(np.asarray(times_s, dtype=float))
+    g = np.asarray(gaps_samples, dtype=float).reshape(-1, 2) / float(fs)
     if g.size == 0 or t.size == 0:
         return np.zeros(t.shape, dtype=bool)
     lo = g[:, 0] - margin_s
@@ -212,10 +223,10 @@ def mask_in_gaps(start_s, gaps, fs=None, margin_s=0.1):
     return out
 
 
-def drop_in_gaps(start_s, gaps, fs=None, margin_s=0.1):
-    """``start_s`` without the detections flagged by :func:`mask_in_gaps`."""
-    t = np.atleast_1d(np.asarray(start_s, dtype=float))
-    return t[~mask_in_gaps(t, gaps, fs=fs, margin_s=margin_s)]
+def drop_in_gaps(times_s, gaps_samples, fs, margin_s=0.1):
+    """``times_s`` (seconds) without the detections flagged by :func:`mask_in_gaps`."""
+    t = np.atleast_1d(np.asarray(times_s, dtype=float))
+    return t[~mask_in_gaps(t, gaps_samples, fs, margin_s)]
 
 
 # ---------------------------------------------------------------- detector-facing helpers
@@ -233,7 +244,8 @@ def prepare_signal(x, fs, nan_policy='fill', fill_kwargs=None):
         See module docstring.
     fill_kwargs : dict, optional
         Keyword arguments for :func:`fill_gaps` (``max_interp_s``, ``method``,
-        ``context_s``, ``taper_s``, ``beta``, ``seed``).
+        ``context_s``, ``taper_s``, ``beta``, ``seed``); ``stream`` is set to the channel
+        index so channels are filled with independent noise.
 
     Returns
     -------
@@ -261,11 +273,12 @@ def prepare_signal(x, fs, nan_policy='fill', fill_kwargs=None):
         raise ValueError(f"signal contains NaN (channels {bad}); use nan_policy='fill' or "
                          'remove the gaps first')
     kw = dict(fill_kwargs or {})
+    kw.pop("stream", None)                  # set per channel below
     dead = nan.all(axis=1)
     y = np.array(x, dtype=np.float64, copy=True)
     for c in np.flatnonzero(nan.any(axis=1)):
         gaps[c] = find_gaps(x[c])
-        y[c] = 0.0 if dead[c] else fill_gaps(x[c], fs, **kw)
+        y[c] = 0.0 if dead[c] else fill_gaps(x[c], fs, stream=c, **kw)
     if dead.any():
         warnings.warn(f'channel(s) {np.flatnonzero(dead).tolist()} are entirely NaN; '
                       'no detections are reported for them', RuntimeWarning, stacklevel=3)
@@ -277,7 +290,7 @@ def in_gap_mask(times_s, gaps, fs, margin_s):
     times_s = np.atleast_1d(np.asarray(times_s, dtype=float))
     if gaps is None or len(gaps) == 0 or times_s.size == 0:
         return np.zeros(times_s.shape, dtype=bool)
-    return mask_in_gaps(times_s, gaps, fs=fs, margin_s=margin_s)
+    return mask_in_gaps(times_s, gaps, fs, margin_s)
 
 
 def gap_sample_mask(gaps, n_samples):

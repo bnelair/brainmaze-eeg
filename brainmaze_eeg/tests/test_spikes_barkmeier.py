@@ -136,3 +136,176 @@ def test_partial_thresholds_dict_merges_with_defaults():
 def test_unknown_threshold_key_raises():
     with pytest.raises(ValueError):
         detect_spikes_barkmeier(_noise(2 * FS), FS, thresholds={'TAMP': 600})  # wrong key name
+
+
+# =========================================================================================
+# Paper conformance (Barkmeier 2012), blocks, artifact channels, gaps, validation
+# =========================================================================================
+import warnings
+
+from brainmaze_eeg.spikes import design_barkmeier_filters
+from brainmaze_eeg.tests.spike_synth import pink_background, synth_ieeg
+
+
+def _peaks(dets, ch=None):
+    return np.array([d['peak_index'] for d in dets if ch is None or d['channel'] == ch])
+
+
+def _hits(det, truth, tol):
+    return sum(bool(np.any(np.abs(det - t) <= tol)) for t in truth)
+
+
+def test_default_bands_are_the_papers():
+    import inspect
+    sig = inspect.signature(detect_spikes_barkmeier).parameters
+    assert sig['broad_band'].default == (1.0, 35.0)
+    assert sig['broad_order'].default == 2
+    assert sig['narrow_band'].default == (20.0, 50.0)
+    assert sig['block_s'].default == 60.0
+    assert sig['artifact_sd'].default == 10.0
+    assert sig['scale'].default == 70.0 and sig['std_coeff'].default == 4.0
+    assert DEFAULT_THRESHOLDS == {'total_amp': 600.0, 'slope': 7000.0, 'half_dur': 0.010}
+
+
+@pytest.mark.parametrize('fs', [200, 500, 2048])
+def test_sensitivity_and_noise_rate_on_synthetic_ieeg(fs):
+    x, truth = synth_ieeg(fs, dur=120.0, seed=2, n_spikes=40, amp_range=(300, 500),
+                          mains_hz=None)
+    det = _peaks(detect_spikes_barkmeier(x, fs))
+    assert _hits(det, truth, 0.03 * fs) >= 0.9 * truth.size
+    # pure 1/f background: ~0.02 false positives / s with the paper's 1-35 Hz band
+    noise = pink_background(int(120 * fs), fs, 30.0, np.random.default_rng(9))
+    assert len(detect_spikes_barkmeier(noise, fs)) / 120.0 < 0.08
+
+
+def test_one_nan_in_one_channel_does_not_disable_scaling_for_the_others():
+    # regression: a NaN made the median scaling factor NaN -> no channel was scaled
+    fs = 500
+    rng = np.random.default_rng(0)
+    X = np.vstack([pink_background(60 * fs, fs, 40.0, rng) for _ in range(6)])
+    for t in (10, 25, 40):
+        _biphasic(X[0], int(t * fs), amp=600.0)
+    clean, ic = detect_spikes_barkmeier(X, fs, return_info=True)
+    Xn = X.copy()
+    Xn[3, 1234] = np.nan
+    gappy, ig = detect_spikes_barkmeier(Xn, fs, return_info=True)
+    assert np.isfinite(ig['scale_factor']).all() and (ig['scale_factor'] > 0).all()
+    np.testing.assert_allclose(ig['scale_factor'], ic['scale_factor'], rtol=0.02)
+    np.testing.assert_array_equal(_peaks(gappy, 0), _peaks(clean, 0))
+    assert len(_peaks(gappy, 0)) >= 3
+
+
+def test_nan_gap_detections_dropped_and_all_nan_channel():
+    fs = 500
+    x, truth = synth_ieeg(fs, dur=60.0, seed=4, amp_range=(300, 500), mains_hz=None)
+    x[20 * fs:23 * fs] = np.nan
+    det = _peaks(detect_spikes_barkmeier(x, fs))
+    assert not np.any((det >= 20 * fs - 0.1 * fs) & (det < 23 * fs + 0.1 * fs))
+    X = np.vstack([x, np.full_like(x, np.nan)])
+    with pytest.warns(RuntimeWarning, match='entirely NaN'):
+        out = detect_spikes_barkmeier(X, fs)
+    assert all(d['channel'] == 0 for d in out)
+    with pytest.raises(ValueError, match='NaN'):
+        detect_spikes_barkmeier(x, fs, nan_policy='raise')
+
+
+def test_inf_raises():
+    x = _noise(4 * FS)
+    x[100] = -np.inf
+    with pytest.raises(ValueError, match='inf'):
+        detect_spikes_barkmeier(x, FS)
+
+
+@pytest.mark.parametrize('shape', [(5000, 4), (5000, 40)])
+def test_transposed_input_raises(shape):
+    with pytest.raises(ValueError, match='transpose'):
+        detect_spikes_barkmeier(np.zeros(shape), 500)
+
+
+def test_record_shorter_than_one_second_raises():
+    with pytest.raises(ValueError, match='< 1 s'):
+        detect_spikes_barkmeier(np.zeros(100), 500)
+
+
+@pytest.mark.parametrize('dur,expect', [(170, [[0, 60], [60, 120], [120, 170]]),
+                                        (140, [[0, 60], [60, 140]]),
+                                        (45, [[0, 45]])])
+def test_one_minute_blocks(dur, expect):
+    fs = 200
+    _, info = detect_spikes_barkmeier(_noise(dur * fs, seed=1), fs, return_info=True)
+    np.testing.assert_array_equal(info['blocks'], np.array(expect) * fs)
+    assert info['scale_factor'].shape == (len(expect),)
+    _, info = detect_spikes_barkmeier(_noise(dur * fs, seed=1), fs, block_s=None,
+                                      return_info=True)
+    np.testing.assert_array_equal(info['blocks'], [[0, dur * fs]])
+
+
+def test_blocks_adapt_to_a_change_of_background_amplitude():
+    # 2 min quiet (30 uV) then 2 min loud (90 uV): with one-minute blocks the scaling follows
+    # the background, so the noise detection rate is similar in both halves; with one
+    # whole-record block the loud half is over-scaled and floods with false positives.
+    fs = 500
+    rng = np.random.default_rng(3)
+    X = np.vstack([pink_background(240 * fs, fs, 1.0, rng) for _ in range(8)])
+    X[:, :120 * fs] *= 30.0
+    X[:, 120 * fs:] *= 90.0
+    half = 120 * fs
+
+    def rates(dets):
+        p = _peaks(dets)
+        return np.sum(p < half) / (8 * 120.0), np.sum(p >= half) / (8 * 120.0)
+
+    q_b, l_b = rates(detect_spikes_barkmeier(X, fs))
+    q_w, l_w = rates(detect_spikes_barkmeier(X, fs, block_s=None))
+    assert l_b < 0.1 and q_b < 0.1
+    assert l_w > 5 * max(l_b, 0.01)
+
+
+def test_artifact_channel_rule():
+    fs = 500
+    rng = np.random.default_rng(4)
+    X = np.vstack([pink_background(120 * fs, fs, 40.0, rng) for _ in range(8)])
+    X[5, 60 * fs:] += rng.normal(0, 2000.0, 60 * fs)          # artifact in minute 2 only
+    with pytest.warns(UserWarning, match='artifact'):
+        dets, info = detect_spikes_barkmeier(X, fs, return_info=True)
+    np.testing.assert_array_equal(info['artifact'][:, 5], [False, True])
+    assert info['artifact'].sum() == 1
+    assert not any(d['channel'] == 5 and d['block'] == 1 for d in dets)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        _, info = detect_spikes_barkmeier(X, fs, artifact_sd=None, return_info=True)
+    assert not info['artifact'].any()
+
+
+def test_scale_invariance():
+    fs = 500
+    x, _ = synth_ieeg(fs, dur=60.0, seed=4, amp_range=(300, 500), mains_hz=None)
+    a = _peaks(detect_spikes_barkmeier(x, fs))
+    b = _peaks(detect_spikes_barkmeier(x * 1e-6, fs))
+    np.testing.assert_array_equal(a, b)
+
+
+def test_merge_happens_before_refractory():
+    # two candidates 40 ms apart (merged: largest kept) and a third 100 ms later; with a
+    # 60 ms refractory the merge must pick the largest of the cluster first
+    x = _noise(4 * FS, seed=12, sd=5.0)
+    _biphasic(x, int(1.0 * FS), amp=500.0)
+    _biphasic(x, int(1.04 * FS), amp=900.0)
+    dets = detect_spikes_barkmeier(x, FS, refractory=0.06)
+    big = max(dets, key=lambda d: d['total_amp'])
+    assert abs(big['peak_index'] - int(1.04 * FS)) <= 0.005 * FS
+
+
+@pytest.mark.parametrize('kw', [dict(broad_band=(1, 300)), dict(narrow_band=(50, 20)),
+                                dict(narrow_order=0), dict(block_s=0), dict(block_s=-60),
+                                dict(gap_margin_s=-1), dict(nan_policy='omit')])
+def test_invalid_parameters_raise(kw):
+    with pytest.raises(ValueError):
+        detect_spikes_barkmeier(_noise(4 * FS), FS, **kw)
+
+
+def test_info_filters_are_the_designed_ones():
+    _, info = detect_spikes_barkmeier(_noise(4 * FS), FS, return_info=True)
+    ref = design_barkmeier_filters(FS)
+    np.testing.assert_array_equal(info['filters']['broad'], ref['broad'])
+    np.testing.assert_array_equal(info['filters']['narrow'], ref['narrow'])

@@ -202,13 +202,13 @@ def detect_spikes_barkmeier(sig, fs, scale=70.0, std_coeff=4.0, trough_search=0.
     artifact_sd : float or None
         Artifact-channel rule threshold in SDs (paper: 10); ``None`` disables.
     nan_policy : {'fill', 'raise'}
-        ``'fill'`` (default): fill NaN gaps with :func:`brainmaze_utils.gaps.fill_gaps`, use
+        ``'fill'`` (default): fill NaN gaps with :func:`brainmaze_eeg.spikes._gaps.fill_gaps`, use
         only non-gap samples for block statistics, drop detections in/within
         ``gap_margin_s`` of a gap. ``'raise'``: ``ValueError`` on NaN.
     gap_margin_s : float
         Exclusion margin around gaps (s), default 0.1.
     fill_kwargs : dict, optional
-        Passed to :func:`brainmaze_utils.gaps.fill_gaps`.
+        Passed to :func:`brainmaze_eeg.spikes._gaps.fill_gaps`.
     return_info : bool
         Also return a dict with per-block diagnostics (see Returns).
 
