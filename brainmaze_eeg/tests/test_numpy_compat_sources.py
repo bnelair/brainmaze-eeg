@@ -12,6 +12,17 @@ numpy version (``numpy>=1.24``, including 2.x).
 
 Only code is inspected (comments, docstrings and other strings are not). The checks are a
 cheap tripwire; the lowest-bounds and newest-stack test runs remain the real guard.
+
+Known limits (none of these patterns occurs in the package; review of eeg#73, V9):
+
+* Not detected (false negatives): ``np.typing`` used at module level *before* the import
+  statement; an import under ``if False:`` (counted as a runtime import); numpy reached
+  through an alias made by assignment (``xp = np``) or through ``getattr(np, 'typing')``;
+  ``from numpy import *``; removed *methods* (``ndarray.ptp``, ``ndarray.newbyteorder``),
+  because only module attributes are checked.
+* Reported although harmless (false positives): an ``import numpy.typing`` inside a
+  ``for``/``while``/``match`` block or a class body at module level is not recognised as
+  a module-level import.
 """
 import ast
 from pathlib import Path

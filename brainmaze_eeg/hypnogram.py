@@ -11,7 +11,7 @@ Plotting (:func:`plot_hypnogram`, ``score_night(..., plot=True)``) needs matplot
 optional dependency: ``pip install "brainmaze-eeg[plot]"``. Everything else in this
 module works without it.
 
-**Input conventions** (since 2.0.1):
+**Input conventions** (since 3.0.0):
 
 A hypnogram is a :class:`pandas.DataFrame` with one row per scored epoch and the columns
 ``annotation`` (sleep-state label), ``start`` and ``end``, optionally ``duration``.
@@ -21,20 +21,35 @@ A hypnogram is a :class:`pandas.DataFrame` with one row per scored epoch and the
   timestamps in seconds**. Naive datetimes raise ``TypeError`` (elapsed time across a DST
   change would be wrong; localize them first). Numeric values whose magnitude exceeds
   ``1e11`` (the year 5138 in seconds) raise ``ValueError``, because they are almost
-  certainly milliseconds or finer.
-* ``duration``, if present, must equal ``end - start`` in seconds (to 1 ms), otherwise
-  ``ValueError`` is raised. This also catches millisecond timestamps with durations in
-  seconds. Where a function needs durations it uses ``end - start``.
+  certainly milliseconds or finer. Numbers are not checked further: *relative* times in
+  milliseconds (small numbers) without a ``duration`` column pass as seconds, so pass
+  seconds.
+* ``duration``, if present, is numeric seconds or a timedelta column (e.g.
+  ``df.end - df.start``) and must equal ``end - start`` (to 1 ms), otherwise ``ValueError``
+  is raised. This also catches millisecond timestamps with durations in seconds. Every
+  function that validates the input (all functions that read ``start``/``end``) uses
+  ``end - start``. :func:`get_time_by_key`, :func:`get_stage_times`,
+  :func:`get_stage_times_dataset` and :func:`valid_dataset_index_by_duration` need only
+  ``annotation`` and ``duration`` and sum the ``duration`` column as given (not
+  validated; a timedelta column gives a :class:`pandas.Timedelta`).
 * Rows may come in any order; functions sort by ``start`` (stable) and never modify the
   caller's frame.
+* Labels: ``'WAKE'`` (the label written by ``brainmaze_utils.annotations.load_NSRR``) is
+  an alias of ``'AWAKE'`` everywhere in this module, in the data and in tag arguments.
+  Functions that return a hypnogram (the ``fill_*``/``correct_*`` functions and
+  :func:`do_median_filtration`) return it as ``'AWAKE'``.
 * Arousals are events, not states: rows labelled ``'Arousal'`` (the label written by
   :mod:`brainmaze_utils`) or ``'Arrousal'`` (the legacy spelling of older data) are removed
-  before scoring.
-* The scoring functions (:func:`get_fell_asleep_time`, :func:`get_awakening_time`,
-  :func:`get_rem_latency`, :func:`score_night`) need a valid hypnogram: after arousals are
-  removed, epochs must not overlap (``ValueError`` otherwise). They first merge touching
-  epochs with the same label into **bouts** (one row per continuous period), so a hypnogram
-  tiled into 30-s epochs and the same hypnogram with merged rows give the same results.
+  before scoring and never relabelled.
+* After arousals are removed, epochs must not overlap (``ValueError`` otherwise) in the
+  scoring functions (:func:`get_fell_asleep_time`, :func:`get_awakening_time`,
+  :func:`get_rem_latency`, :func:`score_night`) and in :func:`get_hypnogram_datarate`,
+  :func:`is_sleep_complete`, and in :func:`get_number_of_awakenings` and
+  :func:`get_transition_counts` when the frame has ``start``/``end`` columns.
+* The scoring functions first merge touching epochs with the same label into **bouts**
+  (one row per continuous period), so a hypnogram tiled into 30-s epochs and the same
+  hypnogram with merged rows give the same results. Their time windows (sleep onset,
+  awakening) count only the part of each bout that lies inside the window.
 """
 
 
@@ -53,6 +68,12 @@ AROUSAL_TAGS = ('Arousal', 'Arrousal')
 """Labels treated as arousal events: ``'Arousal'`` (brainmaze-utils) and the legacy
 spelling ``'Arrousal'``."""
 
+LABEL_ALIASES = {'WAKE': 'AWAKE'}
+"""Alternative labels and the label they stand for: ``'WAKE'`` (written by
+``brainmaze_utils.annotations.load_NSRR``) means ``'AWAKE'``."""
+
+_N1 = 'N1'
+_SLEEP_STAGES = ('N1', 'N2', 'N3', 'REM')
 _NUMERIC_TIMESTAMP_LIMIT = 1e11  # seconds; larger values are taken for ms/us/ns
 _DURATION_TOL = 1e-3  # s, tolerance of the duration == end - start check
 _TOL = 1e-6  # s, tolerance for "touching" epochs and time comparisons
@@ -79,6 +100,44 @@ def _delta_seconds(delta):
     if isinstance(delta, (int, float, np.integer, np.floating)):
         return float(delta)
     return pd.Timedelta(delta).total_seconds()
+
+
+def _canon(label):
+    """The canonical label (``'WAKE'`` -> ``'AWAKE'``); other labels unchanged."""
+    try:
+        return LABEL_ALIASES.get(label, label)
+    except TypeError:  # unhashable
+        return label
+
+
+def _canon_tags(tags):
+    return [_canon(t) for t in _tag_list(tags)]
+
+
+def _canon_series(ann):
+    """Annotation column with aliases replaced (keeps the index and dtype)."""
+    ann = pd.Series(ann)
+    if isinstance(ann.dtype, pd.CategoricalDtype):
+        ann = ann.astype(object)
+    for alias, label in LABEL_ALIASES.items():
+        ann = ann.where(ann != alias, label)
+    return ann
+
+
+def _duration_seconds(values, where):
+    """A ``duration`` column as float seconds: numeric seconds or timedeltas."""
+    d = pd.Series(values).reset_index(drop=True)
+    if pd.api.types.is_timedelta64_dtype(d.dtype):
+        return d.dt.total_seconds().to_numpy(dtype=float)
+    if pd.api.types.is_numeric_dtype(d.dtype) and not pd.api.types.is_bool_dtype(d.dtype):
+        return d.to_numpy(dtype=float)
+    vals = list(d)
+    if vals and all(isinstance(v, (datetime.timedelta, np.timedelta64)) for v in vals):
+        return pd.to_timedelta(pd.Series(vals)).dt.total_seconds().to_numpy(dtype=float)
+    if all(_is_real_number(v) for v in vals):
+        return np.array(vals, dtype=float)
+    raise TypeError(f'{where}: "duration" must hold numbers (seconds) or timedeltas, '
+                    f'got dtype {d.dtype}.')
 
 
 def _is_real_number(v):
@@ -139,6 +198,7 @@ def _hypnogram(df, where, drop_arousals=True, allow_overlap=False):
     if missing:
         raise ValueError(f'{where}: the hypnogram has no column(s) {missing}.')
     h = df.copy()
+    h['annotation'] = _canon_series(h['annotation'])
     if drop_arousals:
         h = h.loc[~h['annotation'].isin(AROUSAL_TAGS)]
     h = h.reset_index(drop=True)
@@ -151,14 +211,14 @@ def _hypnogram(df, where, drop_arousals=True, allow_overlap=False):
         i = int(np.flatnonzero(dur < -_TOL)[0])
         raise ValueError(f'{where}: an epoch ends before it starts (start={h["start"].iloc[i]}).')
     if 'duration' in h.columns and len(h):
-        d = pd.to_numeric(h['duration'], errors='coerce').to_numpy(dtype=float)
+        d = _duration_seconds(h['duration'], where)
         bad = ~(np.abs(d - dur) <= _DURATION_TOL)
         if bad.any():
             i = int(np.flatnonzero(bad)[0])
             raise ValueError(
-                f'{where}: "duration" does not equal end - start in seconds for {int(bad.sum())} '
-                f'epoch(s) (first: duration={d[i]!r}, end - start={dur[i]!r} s). Timestamps and '
-                'durations must both be in seconds.')
+                f'{where}: "duration" does not equal end - start for {int(bad.sum())} epoch(s) '
+                f'(first: duration={h["duration"].iloc[i]!r}, read as {float(d[i])!r} s; end - start='
+                f'{float(dur[i])!r} s). Numeric durations and numeric timestamps must be in seconds.')
     h['duration'] = dur
     order = np.argsort(s, kind='mergesort')
     h = h.iloc[order].reset_index(drop=True)
@@ -203,50 +263,71 @@ def _tag_list(tags):
     return [tags] if isinstance(tags, str) else list(tags)
 
 
+def _in_window(s, e, lo, hi):
+    """Seconds of each bout ``[s, e)`` that lie inside the window ``[lo, hi)``."""
+    return np.clip(np.minimum(e, hi) - np.maximum(s, lo), 0.0, None)
+
+
 def _fell_asleep_index(b, t_sleep_check, t_awake_threshold, awake_tag, sleep_cycle_tags, where):
     if len(b) == 0:
         raise ValueError(f'{where}: the hypnogram is empty (after removing arousals).')
+    awake_tag = _canon(awake_tag)
+    sleep_tags = _canon_tags(sleep_cycle_tags)
     ann = b['annotation'].to_numpy()
     s = b['_s'].to_numpy()
-    dur = b['duration'].to_numpy()
-    sleep = np.isin(ann, _tag_list(sleep_cycle_tags))
+    e = b['_e'].to_numpy()
+    sleep = np.isin(ann, sleep_tags)
     awake = ann == awake_tag
     candidates = ([0] if sleep[0] else []) + list(np.flatnonzero(awake[:-1] & sleep[1:]) + 1)
     window = t_sleep_check * 60.0
     limit = t_awake_threshold * 60.0
     for k in candidates:
-        in_window = (s >= s[k]) & (s < s[k] + window)
-        if dur[in_window & awake].sum() < limit:
+        if _in_window(s, e, s[k], s[k] + window)[awake].sum() < limit:
             return int(k)
     raise ValueError(
-        f'{where}: no sleep onset found: no transition into {_tag_list(sleep_cycle_tags)} is '
-        f'followed by less than {t_awake_threshold} min of {awake_tag!r} within {t_sleep_check} min.')
+        f'{where}: no sleep onset found: no transition into {sleep_tags} is followed by less '
+        f'than {t_awake_threshold} min of {awake_tag!r} within {t_sleep_check} min.')
+
+
+def _awakening_candidates(ann, awake_tag, sleep_tags):
+    """Indices of the ``awake_tag`` bouts that follow a ``sleep_tags`` bout directly or
+    through N1 bouts only (N2 -> N1 -> AWAKE)."""
+    out = []
+    for k in np.flatnonzero(ann == awake_tag):
+        j = k - 1
+        while j >= 0 and ann[j] == _N1 and _N1 not in sleep_tags:
+            j -= 1
+        if j >= 0 and ann[j] in sleep_tags:
+            out.append(k)
+    return np.array(out, dtype=int)
 
 
 def _awakening(b, t_awake_threshold, t_sleep_threshold, awake_tag, sleep_cycle_tags, after_s, where):
     """Returns ``(time, seconds)`` of the awakening."""
     if len(b) == 0:
         raise ValueError(f'{where}: the hypnogram is empty (after removing arousals).')
+    awake_tag = _canon(awake_tag)
+    sleep_tags = _canon_tags(sleep_cycle_tags)
     ann = b['annotation'].to_numpy()
     s = b['_s'].to_numpy()
-    dur = b['duration'].to_numpy()
-    sleep_tags = _tag_list(sleep_cycle_tags)
-    sleep = np.isin(ann, sleep_tags)
-    asleep = np.isin(ann, list(dict.fromkeys(['N1', 'N2', 'N3', 'REM'] + sleep_tags)))
+    e = b['_e'].to_numpy()
+    asleep = np.isin(ann, list(dict.fromkeys(list(_SLEEP_STAGES) + sleep_tags)))
     awake = ann == awake_tag
-    candidates = np.flatnonzero(sleep[:-1] & awake[1:]) + 1
+    candidates = _awakening_candidates(ann, awake_tag, sleep_tags)
     if after_s is not None:
         candidates = candidates[s[candidates] >= after_s - _TOL]
-    window = t_awake_threshold * 60.0
+    need_awake = t_awake_threshold * 60.0
+    max_sleep = t_sleep_threshold * 60.0
+    window = need_awake + max_sleep
     for k in candidates:
-        in_window = (s >= s[k]) & (s < s[k] + window)
-        if dur[in_window & awake].sum() >= window - _TOL and dur[in_window & asleep].sum() <= t_sleep_threshold * 60.0 + _TOL:
+        inside = _in_window(s, e, s[k], s[k] + window)
+        if inside[awake].sum() >= need_awake - _TOL and inside[asleep].sum() <= max_sleep + _TOL:
             return b['start'].iloc[k], s[k]
     if awake[-1]:
         if candidates.size == 0:
             raise ValueError(f'{where}: no awakening found: the hypnogram ends {awake_tag!r} but has no '
-                             f'transition from {sleep_tags} to {awake_tag!r}'
-                             + ('' if after_s is None else ' after the given time') + '.')
+                             f'transition from {sleep_tags} (directly or through {_N1!r}) to '
+                             f'{awake_tag!r}' + ('' if after_s is None else ' after the given time') + '.')
         k = candidates[-1]
         return b['start'].iloc[k], s[k]
     return b['end'].iloc[-1], b['_e'].iloc[-1]
@@ -275,7 +356,7 @@ def get_hypnogram_datarate(df):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        The span used ``timedelta.seconds``, which drops whole days: a fully scored 25 h
        hypnogram returned 25.0 instead of 1.0. Numeric timestamps (seconds) now work (they
        raised ``AttributeError``), arousal rows are no longer counted as scored time, the
@@ -297,10 +378,15 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
 
     Touching epochs with the same label are merged into bouts first (module docstring).
     Candidates are the first bout, if it is a sleep stage, and every sleep-stage bout that
-    directly follows an ``awake_tag`` bout, in time order. The first candidate for which
-    the ``awake_tag`` bouts starting within ``[candidate start, candidate start +
-    t_sleep_check)`` last less than ``t_awake_threshold`` in total is the sleep onset. A
-    bout that starts inside the window counts in full.
+    directly follows an ``awake_tag`` bout, in time order. The sleep onset is the first
+    candidate for which less than ``t_awake_threshold`` minutes of ``awake_tag`` lie in the
+    window ``[candidate start, candidate start + t_sleep_check)``. Only the part of each
+    bout inside the window counts (a bout reaching past the window end is clipped to it).
+    Unscored time (gaps, or after the end of the recording) is not awake time.
+
+    Example (defaults): AWAKE 30 min, N2 55, AWAKE 15, N2 200: the window after the N2 at
+    30 min holds 5 min of AWAKE (the AWAKE bout from 85 to 100 min is clipped at 90), so
+    the onset is at 30 min.
 
     Parameters
     ----------
@@ -309,9 +395,9 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
     t_sleep_check : int, optional
         Time window in minutes to check for sustained sleep. Default is 60.
     t_awake_threshold : int, optional
-        Awake time in minutes within the window must be below this. Default is 10.
+        The awake time in minutes inside the window must be below this. Default is 10.
     awake_tag : str, optional
-        Tag for awake state. Default is 'AWAKE'.
+        Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
     sleep_cycle_tags : list, optional
         List of tags indicating sleep states. Default is ['REM', 'N1', 'N2', 'N3'].
 
@@ -327,13 +413,16 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        If no candidate qualified, v1.0.0 returned the start of the recording, which looks
        like a valid onset; it now raises ``ValueError``. Rows labelled ``'Arousal'`` are
        removed like ``'Arrousal'`` (only the latter was, so an ``'Arousal'`` epoch between
        AWAKE and sleep hid the onset). Epochs are sorted and merged into bouts, so tiled and
-       merged hypnograms agree. ``awake_tag`` is compared for equality (it was a substring
-       test). Numeric timestamps (seconds) work.
+       merged hypnograms agree. The window counts only the part of each bout inside it
+       (v1.0.0 counted every epoch that started inside it in full, so on merged bouts an
+       AWAKE bout starting 5 min before the window end counted with its whole length).
+       ``awake_tag`` is compared for equality (it was a substring test); ``'WAKE'`` is
+       read as ``'AWAKE'``. Numeric timestamps (seconds) work.
     """
     where = 'get_fell_asleep_time'
     b = _bouts(df, where)
@@ -341,21 +430,29 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
     return b['start'].iloc[k]
 
 
-def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N2', 'N3'], after=None):
+def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N1', 'N2', 'N3'], after=None):
     """
     Determine when the subject woke up based on hypnogram data.
 
     Touching epochs with the same label are merged into bouts first (module docstring).
-    Candidates are the ``awake_tag`` bouts that directly follow a ``sleep_cycle_tags``
-    bout (and start at or after ``after``, if given), in time order. Of the bouts that
-    start within ``[candidate start, candidate start + t_awake_threshold)`` (counted in
-    full), the first candidate whose ``awake_tag`` bouts last at least
-    ``t_awake_threshold`` and whose sleep bouts (N1, N2, N3, REM and ``sleep_cycle_tags``)
-    last at most ``t_sleep_threshold`` is the awakening.
 
-    If no candidate qualifies: when the hypnogram ends with ``awake_tag`` the last
-    candidate is returned (``ValueError`` if there is none); otherwise the end of the
-    recording is returned (the subject was still asleep when it ended).
+    - **Candidates** are the ``awake_tag`` bouts that follow a ``sleep_cycle_tags`` bout,
+      either directly or through ``'N1'`` bouts only (N2 -> N1 -> AWAKE is a candidate even
+      if ``'N1'`` is not in ``sleep_cycle_tags``), and start at or after ``after`` if given.
+    - **Sustained wake:** a candidate qualifies if, in the window ``[candidate start,
+      candidate start + t_awake_threshold + t_sleep_threshold)``, at least
+      ``t_awake_threshold`` minutes are ``awake_tag`` and at most ``t_sleep_threshold``
+      minutes are sleep (N1, N2, N3, REM and ``sleep_cycle_tags``). Only the part of each
+      bout inside the window counts.
+    - The awakening is the start of the **first** qualifying candidate.
+    - If none qualifies: when the hypnogram ends with ``awake_tag``, the start of the
+      **last** candidate (the final transition from sleep to wake; ``ValueError`` if there
+      is none); otherwise the end of the recording (the subject was still asleep when it
+      ended).
+
+    Example (defaults): AWAKE 30 min, N2 60, REM 20, AWAKE 5, N2 120, N1 5, AWAKE 120 gives
+    the start of the last AWAKE bout (at 240 min): the brief AWAKE at 110 min holds 95 min
+    of sleep in its window.
 
     Parameters
     ----------
@@ -366,33 +463,55 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
     t_sleep_threshold : int, optional
         Maximum sleep time in minutes allowed in the awakening window. Default is 10.
     awake_tag : str, optional
-        Tag for awake state. Default is 'AWAKE'.
+        Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
     sleep_cycle_tags : list, optional
-        List of tags indicating sleep states. Default is ['REM', 'N2', 'N3'].
+        List of tags indicating sleep states. Default is ['REM', 'N1', 'N2', 'N3'].
     after : datetime or float, optional
-        Only consider awakenings starting at or after this time (same type as ``start``).
-        :func:`score_night` passes the sleep onset. New in 2.0.1.
+        Only consider awakenings starting at or after this time. It must be of the same
+        kind as ``start`` (a timezone-aware datetime for datetime input, a number of
+        seconds for numeric input), otherwise ``TypeError`` is raised.
+        :func:`score_night` passes the sleep onset. New in 3.0.0.
 
     Returns
     -------
     datetime or float
         Time of the awakening, in the type of the ``start`` column.
 
+    Raises
+    ------
+    TypeError
+        If ``after`` is not of the same kind as ``start``, or the input is invalid
+        (module docstring).
+    ValueError
+        If the hypnogram is empty or invalid, or it ends awake without a candidate.
+
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        ``t_sleep_threshold`` (minutes) was compared with the sleep time in seconds, so
-       10 meant 10 s: one minute of N2 in the window rejected an awakening. A first epoch
-       in a sleep stage is no longer a candidate (it returned the start of that sleep
-       epoch), ``'Arousal'`` rows are removed like ``'Arrousal'``, epochs are sorted and
-       merged into bouts, and ``ValueError`` replaces an ``IndexError`` when no
+       10 meant 10 s: one minute of N2 in the window rejected an awakening. The default
+       ``sleep_cycle_tags`` now include ``'N1'``, and a path through N1 bouts counts in
+       any case: v1.0.0 missed an awakening reached through N1 (N2 -> N1 -> AWAKE, the
+       usual way to wake up) and then returned an earlier brief awakening, which
+       truncated the sleep period. The window counts only the part of each bout inside it
+       and is ``t_awake_threshold + t_sleep_threshold`` long (v1.0.0 counted the
+       ``t_awake_threshold`` window's epochs in full). A first epoch in a sleep stage is no
+       longer a candidate (it returned the start of that sleep epoch), ``'Arousal'`` rows
+       are removed like ``'Arrousal'``, ``'WAKE'`` is read as ``'AWAKE'``, epochs are
+       sorted and merged into bouts, and ``ValueError`` replaces an ``IndexError`` when no
        transition exists. Numeric timestamps (seconds) work.
     """
     where = 'get_awakening_time'
     h = _hypnogram(df, where)
     after_s = None
     if after is not None:
-        after_s = _to_seconds([after], 'after', where)[0][0]
+        after_s, after_kind = _to_seconds([after], 'after', where)
+        after_s = after_s[0]
+        if len(h):
+            kind = _to_seconds(h['start'].iloc[:1], 'start', where)[1]
+            if after_kind != kind:
+                raise TypeError(f'{where}: "after" is a {after_kind} time but "start" is {kind}; '
+                                'pass "after" in the same kind as the hypnogram times.')
     return _awakening(_merge_bouts(h), t_awake_threshold, t_sleep_threshold, awake_tag,
                       sleep_cycle_tags, after_s, where)[0]
 
@@ -406,27 +525,41 @@ def is_sleep_complete(df, awake_tag='AWAKE'):
     df : pd.DataFrame
         Hypnogram with ``annotation``, ``start``, ``end`` (optionally ``duration``).
     awake_tag : str, optional
-        Tag for awake state. Default is 'AWAKE'.
+        Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
 
     Returns
     -------
     bool
         True if the earliest and the latest epoch (arousals excluded) are ``awake_tag``.
 
+    Raises
+    ------
+    TypeError
+        On naive datetimes or other invalid time columns (module docstring).
+    ValueError
+        If the hypnogram is empty, epochs overlap (after removing arousals), or
+        ``duration`` does not equal ``end - start``.
+
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Uses the earliest and latest epoch by ``start`` (it used the first and last rows),
-       ignores arousal rows, and raises ``ValueError`` on an empty hypnogram.
+       ignores arousal rows, reads ``'WAKE'`` as ``'AWAKE'``, and raises ``ValueError`` on
+       an empty hypnogram. The input is now validated like everywhere else in the module
+       (v1.0.0 ignored the times): naive datetimes raise ``TypeError``; overlapping states
+       (e.g. a frame that also holds channel annotations) and a ``duration`` that differs
+       from ``end - start`` raise ``ValueError``.
     """
     where = 'is_sleep_complete'
     h = _hypnogram(df, where)
     if len(h) == 0:
         raise ValueError(f'{where}: the hypnogram is empty (after removing arousals).')
+    awake_tag = _canon(awake_tag)
     return bool(h['annotation'].iloc[0] == awake_tag == h['annotation'].iloc[-1])
 
 
 def _rem_latency(b, k_onset, rem_tag, awake_tag, where):
+    rem_tag, awake_tag = _canon(rem_tag), _canon(awake_tag)
     ann = b['annotation'].to_numpy()
     rem = np.flatnonzero(ann == rem_tag)
     if rem.size == 0:
@@ -450,7 +583,7 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
     rem_tag : str, optional
         Tag for REM sleep state. Default is 'REM'.
     awake_tag : str, optional
-        Tag for awake state. Default is 'AWAKE'.
+        Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
 
     Returns
     -------
@@ -469,9 +602,9 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
-       Sorted, validated input; arousal rows (both spellings) removed; ``ValueError``
-       instead of ``IndexError`` without REM. The values themselves are computed as before.
+    .. note:: **Changed in 3.0.0:**
+       Sorted, validated input; arousal rows (both spellings) removed; ``'WAKE'`` read
+       as ``'AWAKE'``; ``ValueError`` instead of ``IndexError`` without REM. The values themselves are computed as before.
     """
     where = 'get_rem_latency'
     b = _bouts(df, where)
@@ -514,9 +647,9 @@ def get_number_of_sleep_stages(df, tags='REM', delay=30):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        v1.0.0 always raised under pandas >= 2 (it used ``DataFrame.append``). Its results
-       under pandas < 2 differ from 2.0.1 as follows:
+       under pandas < 2 differ from 3.0.0 as follows:
 
        - It worked **per epoch**: the delay was measured from the end of the single epoch
          that started the last counted occurrence, so on a hypnogram tiled into 30-s epochs
@@ -537,7 +670,7 @@ def get_number_of_sleep_stages(df, tags='REM', delay=30):
          ``TypeError``.
     """
     where = 'get_number_of_sleep_stages'
-    tags = _tag_list(tags)
+    tags = _canon_tags(tags)
     if not delay >= 0:
         raise ValueError(f'{where}: delay must be >= 0 minutes, got {delay!r}.')
     delay_s = float(delay) * 60.0
@@ -565,7 +698,8 @@ def _count_awakenings(ann, awake_tag, n1_tag, sleep_tags):
     n_awakenings = 0
     sleep_happened = False
     awake_happened = False
-    sleep_tags = set(_tag_list(sleep_tags))
+    awake_tag, n1_tag = _canon(awake_tag), _canon(n1_tag)
+    sleep_tags = set(_canon_tags(sleep_tags))
     for a in ann:
         if a in sleep_tags:
             sleep_happened = True
@@ -594,7 +728,7 @@ def get_number_of_awakenings(df, awake_tag='AWAKE', n1_tag='N1', sleep_tags=['N2
         Hypnogram with an ``annotation`` column. With ``start``/``end`` columns the input
         is validated and sorted by ``start``; without them the row order is used.
     awake_tag : str, optional
-        Tag for awake state. Default is 'AWAKE'.
+        Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
     n1_tag : str, optional
         Tag for N1 sleep stage. Default is 'N1'.
     sleep_tags : list, optional
@@ -605,18 +739,33 @@ def get_number_of_awakenings(df, awake_tag='AWAKE', n1_tag='N1', sleep_tags=['N2
     int
         Number of awakenings.
 
+    Raises
+    ------
+    TypeError
+        With ``start``/``end`` columns: on naive datetimes or other invalid time columns
+        (module docstring).
+    ValueError
+        With ``start``/``end`` columns: if epochs overlap (after removing arousals) or
+        ``duration`` does not equal ``end - start``.
+
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Sorted by ``start`` when available (it used the row order and label-based
-       indexing, which broke on a non-default index) and arousal rows (both spellings)
-       are ignored (an arousal epoch between sleep and AWAKE hid the awakening).
+       indexing, which broke on a non-default index), and ``'WAKE'`` is read as
+       ``'AWAKE'``. Arousal rows (both spellings) are ignored; this does not change the
+       count (an arousal never reset the state machine between sleep and AWAKE). With
+       ``start``/``end`` columns the input is now validated (v1.0.0 ignored the times):
+       naive datetimes raise ``TypeError``; overlapping states (e.g. a frame that also
+       holds channel annotations) and a ``duration`` that differs from ``end - start``
+       raise ``ValueError``.
     """
     where = 'get_number_of_awakenings'
     if 'start' in df.columns and 'end' in df.columns:
         ann = _hypnogram(df, where)['annotation'].to_numpy()
     else:
-        ann = df['annotation'].loc[~df['annotation'].isin(AROUSAL_TAGS)].to_numpy()
+        ann = _canon_series(df['annotation'])
+        ann = ann.loc[~ann.isin(AROUSAL_TAGS)].to_numpy()
     return _count_awakenings(ann, awake_tag, n1_tag, sleep_tags)
 
 
@@ -634,15 +783,19 @@ def get_time_by_key(df, key):
     Returns
     -------
     float
-        Total duration in the unit of the ``duration`` column (seconds by convention).
+        Total duration in the unit of the ``duration`` column (seconds by convention; a
+        timedelta column gives a :class:`pandas.Timedelta`). The ``duration`` column is
+        summed as given, not checked against ``start``/``end``. ``'WAKE'`` and
+        ``'AWAKE'`` are the same state, in ``df`` and in ``key``.
     """
+    ann = _canon_series(df['annotation'])
     if isinstance(key, (list, tuple)):
         value = 0
         for single_key in key:
-            value += (df.duration[(df.annotation == single_key)]).sum()
+            value += (df.duration[(ann == _canon(single_key)).to_numpy()]).sum()
         return value
     else:
-        return (df.duration[(df.annotation == key)]).sum()
+        return (df.duration[(ann == _canon(key)).to_numpy()]).sum()
 
 
 def get_stage_times(df, keys):
@@ -692,8 +845,8 @@ def score_night(df, plot=False):
     Compute comprehensive sleep metrics for a night's hypnogram.
 
     The hypnogram is validated, sorted, arousal rows (``'Arousal'``/``'Arrousal'``) are
-    removed and touching epochs with the same label are merged into bouts (module
-    docstring). Then, with the defaults of the individual functions:
+    removed, ``'WAKE'`` is read as ``'AWAKE'``, and touching epochs with the same label are
+    merged into bouts (module docstring). Then, with the defaults of the individual functions:
 
     - ``fell_asleep_time``: :func:`get_fell_asleep_time`.
     - ``awakening_time``: :func:`get_awakening_time` with ``after=fell_asleep_time``.
@@ -733,15 +886,18 @@ def score_night(df, plot=False):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        v1.0.0 raised with brainmaze-utils 3 (its ``merge_annotations`` accepts only
        numeric timestamps, while the rest of the function needed datetimes). Now datetime
        and numeric input both work. Numbers that v1.0.0 would have got wrong are fixed:
        REM latencies used ``timedelta.seconds`` (a latency of -23 min became 85020 s; now
        negative values stay negative), the awakening ignored ``t_sleep_threshold`` units
-       (see :func:`get_awakening_time`) and could be found before the sleep onset (now
-       only after it), ``'Arousal'`` rows were not removed, and a night without REM raised
-       ``IndexError`` (now the latencies are NaN).
+       (see :func:`get_awakening_time`), it missed a final awakening reached through N1
+       (N2 -> N1 -> AWAKE) and then cut the sleep period at an earlier brief awakening,
+       and it could be found before the sleep onset (now only after it). The onset and
+       awakening windows count only the part of each bout inside them. ``'Arousal'``
+       rows were not removed, ``'WAKE'`` (NSRR) was not recognised as ``'AWAKE'``, and a
+       night without REM raised ``IndexError`` (now the latencies are NaN).
     """
     where = 'score_night'
     h = _hypnogram(df, where)
@@ -752,7 +908,7 @@ def score_night(df, plot=False):
     k_onset = _fell_asleep_index(b, 60, 10, 'AWAKE', ['REM', 'N1', 'N2', 'N3'], where)
     fell_asleep_time = b['start'].iloc[k_onset]
     fell_s = b['_s'].iloc[k_onset]
-    awakening_time, awake_s = _awakening(b, 90, 10, 'AWAKE', ['REM', 'N2', 'N3'], fell_s, where)
+    awakening_time, awake_s = _awakening(b, 90, 10, 'AWAKE', ['REM', 'N1', 'N2', 'N3'], fell_s, where)
     sleep_complete = bool(b['annotation'].iloc[0] == 'AWAKE' == b['annotation'].iloc[-1])
 
     sleep_df = b.loc[(b['_s'] >= fell_s - _TOL) & (b['_s'] < awake_s - _TOL)].reset_index(drop=True)
@@ -817,7 +973,7 @@ def print_sleep_score(score):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Works with the floats that :func:`score_night` returns (it called ``.seconds`` on
        them). Durations keep whole days and negative latencies keep their sign. The
        relative times are fractions of the sleep period (sleep onset to awakening), which
@@ -869,25 +1025,44 @@ def get_transition_counts(hyp, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
     np.ndarray
         Matrix of transition counts where [i,j] is count of transitions from state i to state j.
 
+    Raises
+    ------
+    TypeError
+        With ``start``/``end`` columns: on naive datetimes or other invalid time columns
+        (module docstring).
+    ValueError
+        With ``start``/``end`` columns: if epochs overlap (after removing arousals, unless
+        they are listed in ``states``) or ``duration`` does not equal ``end - start``; or if
+        ``states`` lists the same state twice.
+
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are sorted by ``start`` (it used label-based indexing on the row order, which
        broke on a non-default index), and arousal rows (``'Arousal'``/``'Arrousal'``) are
        ignored unless listed in ``states`` (an arousal between two epochs hid their
-       transition).
+       transition). ``'WAKE'`` is read as ``'AWAKE'`` in ``hyp`` and in ``states`` (the
+       matrix keeps the order and names of ``states``). With ``start``/``end`` columns the
+       input is now validated (v1.0.0 ignored the times): naive datetimes raise
+       ``TypeError``; overlapping states (e.g. a frame that also holds channel
+       annotations) and a ``duration`` that differs from ``end - start`` raise
+       ``ValueError``.
     """
     where = 'get_transition_counts'
     states = np.array(states)
+    canon_states = _canon_tags(list(states))
+    if len(set(canon_states)) != len(canon_states):
+        raise ValueError(f'{where}: states {list(states)} name the same state twice '
+                         f"('WAKE' is an alias of 'AWAKE').")
     drop_arousals = not np.isin(AROUSAL_TAGS, states).any()
     if 'start' in hyp.columns and 'end' in hyp.columns:
         ann = _hypnogram(hyp, where, drop_arousals=drop_arousals)['annotation'].to_numpy()
     else:
-        ann = hyp['annotation']
+        ann = _canon_series(hyp['annotation'])
         if drop_arousals:
             ann = ann.loc[~ann.isin(AROUSAL_TAGS)]
         ann = ann.to_numpy()
-    index = {s: i for i, s in enumerate(states)}
+    index = {s: i for i, s in enumerate(canon_states)}
     matrix = np.zeros((states.__len__(), states.__len__()))
     for s1, s2 in zip(ann[:-1], ann[1:]):
         if s1 in index and s2 in index:
@@ -977,7 +1152,8 @@ def valid_dataset_index_by_duration(hypnograms:list, filt_dict:dict):
         List of hypnogram dataframes.
     filt_dict : dict
         Dictionary mapping stage names to minimum total duration (unit of the ``duration``
-        column, seconds by convention). A stage that does not occur has duration 0.
+        column, seconds by convention). A stage that does not occur has duration 0, so a
+        threshold of 0 accepts a hypnogram without that stage.
 
     Returns
     -------
@@ -986,10 +1162,12 @@ def valid_dataset_index_by_duration(hypnograms:list, filt_dict:dict):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        v1.0.0 compared the total duration of the **whole** hypnogram (all stages) with
        each stage's threshold, so e.g. ``{'REM': 3600}`` accepted any night longer than
-       1 h that contained any REM.
+       1 h that contained any REM. v1.0.0 also rejected a hypnogram in which a listed stage
+       does not occur, whatever its threshold; now an absent stage has duration 0, so it
+       passes a threshold of 0 (and fails any positive one).
     """
     return [idx for idx, hyp in enumerate(hypnograms)
             if all(get_time_by_key(hyp, k) >= v for k, v in filt_dict.items())]
@@ -1012,7 +1190,9 @@ def do_median_filtration(df):
     Apply median filtering to remove isolated 30-second stage annotations.
 
     An epoch of 30 s whose neighbours (in ``start`` order, after earlier replacements)
-    have the same label takes that label.
+    have the same label takes that label. Arousal rows (``'Arousal'``/``'Arrousal'``) are
+    events, not stages: they are returned unchanged and are skipped when looking for
+    neighbours.
 
     Parameters
     ----------
@@ -1022,26 +1202,35 @@ def do_median_filtration(df):
     Returns
     -------
     pd.DataFrame
-        Filtered copy of the hypnogram. The input is not modified.
+        Filtered copy of the hypnogram, ``'WAKE'`` returned as ``'AWAKE'``. The input is
+        not modified.
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        It assigned through chained indexing (``df.iloc[k]['annotation'] = ...``), which
        does not write into the frame, so it returned the input unchanged. It now returns a
-       filtered copy, in ``start`` order.
+       filtered copy, in ``start`` order, in which arousal rows are unchanged and are not
+       neighbours (a legacy 30-s ``'Arrousal'`` epoch between two N2 epochs stays an
+       arousal).
     """
     where = 'do_median_filtration'
     if 'start' in df.columns and 'end' in df.columns:
         h = _correction_input(df, where).drop(columns=['_s', '_e'])
+        dur_all = h['duration'].to_numpy(dtype=float)
     else:
         h = df.copy().reset_index(drop=True)
-    ann = h['annotation'].to_numpy(dtype=object).copy()
-    dur = h['duration'].to_numpy(dtype=float)
-    for k in range(1, len(h) - 1):
+        h['annotation'] = _canon_series(h['annotation'])
+        dur_all = _duration_seconds(h['duration'], where)
+    ann_all = h['annotation'].to_numpy(dtype=object).copy()
+    stages = np.flatnonzero(~h['annotation'].isin(AROUSAL_TAGS).to_numpy())
+    ann = ann_all[stages]
+    dur = dur_all[stages]
+    for k in range(1, len(ann) - 1):
         if ann[k - 1] == ann[k + 1] and abs(dur[k] - 30) <= _DURATION_TOL:
             ann[k] = ann[k - 1]
-    h['annotation'] = ann
+    ann_all[stages] = ann
+    h['annotation'] = ann_all
     return h
 
 
@@ -1065,7 +1254,7 @@ def fill_same_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are processed in ``start`` order (input may be unsorted), datetime input works
        (comparing a timedelta with a number of seconds raised ``TypeError``), the input is
        validated (module docstring) and ``duration`` is returned as ``end - start`` in
@@ -1073,7 +1262,7 @@ def fill_same_voids(df, time_threshold=5*60, initial_state='AWAKE'):
     """
     h = _correction_input(df, 'fill_same_voids')
     rows = []
-    current_state = initial_state
+    current_state = _canon(initial_state)
     last_end, last_end_s = (h['start'].iloc[0], h['_s'].iloc[0]) if len(h) else (None, None)
     for idx in range(len(h)):
         crow = h.iloc[idx].copy()
@@ -1091,7 +1280,7 @@ def fill_same_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 def _fill_voids_with(df, where, time_threshold, initial_state, condition, label):
     h = _correction_input(df, where)
     rows = []
-    current_state = initial_state
+    current_state = _canon(initial_state)
     last_end, last_end_s = (h['start'].iloc[0], h['_s'].iloc[0]) if len(h) else (None, None)
     for idx in range(len(h)):
         crow = h.iloc[idx].copy()
@@ -1131,7 +1320,7 @@ def fill_wakerem_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are processed in ``start`` order (input may be unsorted), datetime input works
        (comparing a timedelta with a number of seconds raised ``TypeError``), the input is
        validated (module docstring) and ``duration`` is returned as ``end - start`` in
@@ -1163,7 +1352,7 @@ def fill_nonrem_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are processed in ``start`` order (input may be unsorted), datetime input works
        (comparing a timedelta with a number of seconds raised ``TypeError``), the input is
        validated (module docstring) and ``duration`` is returned as ``end - start`` in
@@ -1196,7 +1385,7 @@ def fill_sleep_voids(df, time_threshold=5*60, initial_state='AWAKE'):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are processed in ``start`` order (input may be unsorted), datetime input works
        (comparing a timedelta with a number of seconds raised ``TypeError``), the input is
        validated (module docstring) and ``duration`` is returned as ``end - start`` in
@@ -1231,7 +1420,7 @@ def correct_rem(df, time_threshold=5*60, initial_state='AWAKE'):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are processed in ``start`` order (input may be unsorted), datetime input works
        (comparing a timedelta with a number of seconds raised ``TypeError``), the input is
        validated (module docstring) and ``duration`` is returned as ``end - start`` in
@@ -1239,7 +1428,7 @@ def correct_rem(df, time_threshold=5*60, initial_state='AWAKE'):
     """
     h = _correction_input(df, 'correct_rem')
     rows = []
-    current_state = initial_state
+    current_state = _canon(initial_state)
     awake_duration = time_threshold
     last_end_s = h['_s'].iloc[0] if len(h) else None
     for idx in range(len(h)):
@@ -1278,7 +1467,7 @@ def correct_hypnogram(df, time_threshold=60):
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Rows are processed in ``start`` order (input may be unsorted), datetime input works
        (comparing a timedelta with a number of seconds raised ``TypeError``), the input is
        validated (module docstring) and ``duration`` is returned as ``end - start`` in
@@ -1325,9 +1514,13 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
         row order (it is sorted by ``start``). Arousal rows (``'Arousal'``, or the legacy
         ``'Arrousal'``) are drawn as events, not as states. The frame is not modified.
     hypnogram_values : dict
-        dict of a y-axis values for each hypnogram state
+        dict of a y-axis values for each hypnogram state. The default covers ``'AWAKE'``
+        (``'WAKE'`` is drawn as ``'AWAKE'`` unless the dict has a ``'WAKE'`` key),
+        ``'Arousal'``, ``'SLP'`` and ``'N'`` (inserted by :func:`fill_sleep_voids` and
+        :func:`fill_nonrem_voids`), ``'REM'``, ``'N1'``, ``'N2'``, ``'N3'`` and
+        ``'UNKNOWN'`` (CyberPSG's unscored label, drawn at 0).
     hypnogram_colors : dict
-        dict of color hex codes for each hypnogram state
+        dict of color hex codes for each hypnogram state (default: the same labels)
     fontsize : int
         Fontsize
     fig : figure
@@ -1352,7 +1545,7 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
 
     Notes
     -----
-    .. note:: **Changed in 2.0.1:**
+    .. note:: **Changed in 3.0.0:**
        Works with pandas 2 (it used ``DataFrame.append``, removed in pandas 2, and
        called the ``datetime`` module instead of ``datetime.datetime``, so it always
        raised). It no longer adds ``state_id``/``state_color`` columns to the input
@@ -1362,7 +1555,9 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
        several days, lost its night shading); a ``day`` column is no longer used.
        Arousals are recognised as ``'Arousal'`` (the brainmaze-utils label, which was drawn
        as a sleep state) and ``'Arrousal'`` (which raised ``KeyError`` with the default
-       maps). Unknown labels raise ``ValueError`` naming them.
+       maps). The default maps also cover ``'N'``, ``'UNKNOWN'`` and ``'WAKE'``, so the
+       output of :func:`correct_hypnogram` and of the brainmaze-utils loaders can be
+       plotted. Other labels missing from the maps raise ``ValueError`` naming them.
     """
     plt = _pyplot()
     import matplotlib.dates as mdates
@@ -1374,7 +1569,9 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
         'REM': 4,
         'N1': 3,
         'N2': 2,
+        'N': 1.5,
         'N3': 1,
+        'UNKNOWN': 0,
     }
 
     _hypnogram_colors = {
@@ -1384,7 +1581,9 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
         'REM': '#3500d3',
         'N1': '#2bc7c4',  # 2b7cc7
         'N2': '#2b5dc7',
+        'N': '#1a3a80',
         'N3': '#000000',
+        'UNKNOWN': '#9e9e9e',
     }
 
     if isinstance(hypnogram_colors, type(None)):
@@ -1408,6 +1607,8 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
 
     # sorted copy: the caller's frame is not modified
     orig_df = orig_df.iloc[np.argsort(secs['start'], kind='mergesort')].reset_index(drop=True)
+    if 'WAKE' not in hypnogram_values:
+        orig_df['annotation'] = _canon_series(orig_df['annotation'])
     is_arousal = orig_df['annotation'].isin(AROUSAL_TAGS)
     if is_arousal.any():
         arousal_key = next((k for k in AROUSAL_TAGS if k in hypnogram_values), None)

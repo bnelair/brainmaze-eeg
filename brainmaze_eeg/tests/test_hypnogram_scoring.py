@@ -1,4 +1,4 @@
-"""Correct numbers (or an error) from the hypnogram scoring functions (2.0.1).
+"""Correct numbers (or an error) from the hypnogram scoring functions (3.0.0).
 
 Expected values are computed by hand in the comments. ``tile`` builds a hypnogram of 30-s
 epochs, ``bouts`` the same hypnogram with one row per bout; both must give the same result.
@@ -210,7 +210,12 @@ def test_awakening_is_searched_after_onset():
 
 def test_awakening_without_transition_raises_and_still_asleep_returns_end():
     with pytest.raises(ValueError, match='no awakening'):
-        H.get_awakening_time(bouts([('AWAKE', 30), ('N1', 10), ('AWAKE', 100)]))
+        H.get_awakening_time(bouts([('AWAKE', 30), ('UNKNOWN', 10), ('AWAKE', 100)]))
+    with pytest.raises(ValueError, match='no awakening'):   # N1 not a sleep tag, no N2 before it
+        H.get_awakening_time(bouts([('AWAKE', 30), ('N1', 10), ('AWAKE', 100)]),
+                             sleep_cycle_tags=['REM', 'N2', 'N3'])
+    # N1 is a sleep stage by default (3.0.0): N1 -> AWAKE is a transition
+    assert H.get_awakening_time(bouts([('AWAKE', 30), ('N1', 10), ('AWAKE', 100)])) == at(40)
     assert H.get_awakening_time(bouts([('AWAKE', 30), ('N2', 300)])) == at(330)
 
 
@@ -455,8 +460,8 @@ def test_plot_arousal_is_an_event_not_a_state(plt, label):
 
 
 def test_plot_unknown_label_raises(plt):
-    df = tile([('N2', 30), ('UNKNOWN', 1)])
-    with pytest.raises(ValueError, match='UNKNOWN'):
+    df = tile([('N2', 30), ('IED', 1)])
+    with pytest.raises(ValueError, match='IED'):
         H.plot_hypnogram(df)
 
 
@@ -464,3 +469,221 @@ def test_score_night_plot(plt):
     score = H.score_night(tile(NIGHTS), plot=True)
     assert score['n_complete_sleep_cycles'] == 2
     plt.gcf().canvas.draw()
+
+
+# ---------------------------------------------------------------- round 3 (V1-V8)
+
+# V1: the final awakening reached through N1. Minutes from 22:00:
+# AWAKE 0-30, N2 30-90, REM 90-110, AWAKE 110-115, N2 115-235, N1 235-240, AWAKE 240-360.
+N1_EXIT = [('AWAKE', 30), ('N2', 60), ('REM', 20), ('AWAKE', 5), ('N2', 120), ('N1', 5), ('AWAKE', 120)]
+
+
+@pytest.mark.parametrize('build', BUILDERS)
+def test_final_awakening_through_n1(build):
+    df = build(N1_EXIT)
+    # the AWAKE at 110 holds 95 min of sleep in its window -> rejected; the AWAKE at 240
+    # (N2 -> N1 -> AWAKE) has 100 min awake -> 02:00. 6589abb: 23:50 (t=110).
+    assert H.get_awakening_time(df) == _t(df, 240)
+    # the v1.0.0 default tags (no N1) still find it: N1 bouts are passed through
+    assert H.get_awakening_time(df, sleep_cycle_tags=['REM', 'N2', 'N3']) == _t(df, 240)
+    score = H.score_night(df)
+    assert score['fell_asleep_time'] == _t(df, 30)
+    assert score['awakening_time'] == _t(df, 240)
+    assert score['n2_sleep_time'] == (60 + 120) * 60.0     # 10800 s (6589abb: 3600)
+    assert score['n1_sleep_time'] == 5 * 60.0
+    assert score['rem_sleep_time'] == 20 * 60.0
+    assert score['awake_sleep_time'] == 5 * 60.0
+    assert score['n_awakenings'] == 1                      # 6589abb: 0
+
+
+@pytest.mark.parametrize('build', BUILDERS)
+def test_final_awakening_through_n1_fallback_and_rem(build):
+    # the night ends N2 -> N1 -> AWAKE 60 (shorter than 90 min): no candidate qualifies,
+    # the night ends awake -> the last sleep->wake transition (t=340), not the brief
+    # awakening at t=230 (6589abb).
+    df = build([('AWAKE', 30), ('N2', 200), ('AWAKE', 5), ('N2', 100), ('N1', 5), ('AWAKE', 60)])
+    assert H.get_awakening_time(df) == _t(df, 340)
+    assert H.score_night(df)['n2_sleep_time'] == 300 * 60.0
+    # REM -> N1 -> N1 (two bouts: a gap of 30 s splits them) -> AWAKE
+    df = build([('AWAKE', 30), ('N2', 200), ('REM', 20), ('N1', 3), ('AWAKE', 100)])
+    assert H.get_awakening_time(df, sleep_cycle_tags=['REM', 'N2', 'N3']) == _t(df, 253)
+
+
+@pytest.mark.parametrize('build', BUILDERS)
+def test_onset_window_clips_bouts(build):
+    # V7: AWAKE 0-30, N2 30-85, AWAKE 85-100, N2 100-300. Only 85-90 (5 min) of the AWAKE
+    # bout lies in the 60-min window after 30 -> onset 22:30 (6589abb: 23:40).
+    df = build([('AWAKE', 30), ('N2', 55), ('AWAKE', 15), ('N2', 200)])
+    assert H.get_fell_asleep_time(df) == _t(df, 30)
+    # 59 min of N2, then AWAKE: 1 min of AWAKE in the window -> onset (6589abb: raised)
+    df = build([('N2', 59), ('AWAKE', 120)])
+    assert H.get_fell_asleep_time(df) == _t(df, 0)
+    # 11 min of AWAKE inside the window still rejects the candidate
+    df = build([('AWAKE', 30), ('N2', 49), ('AWAKE', 15), ('N2', 200)])
+    assert H.get_fell_asleep_time(df) == _t(df, 94)
+
+
+def test_awakening_window_clips_bouts():
+    # AWAKE 0-30, N2 30-330, AWAKE 330-360, gap (unscored) 360-410, AWAKE 410-470.
+    # The 100-min window after 330 holds 30 + 20 = 50 min of AWAKE -> not sustained; the
+    # night ends awake and the AWAKE at 410 follows a gap, not sleep -> the last candidate.
+    # 6589abb counted the AWAKE bout starting at 410 in full (30 + 60 = 90) -> also 330, but
+    # via the window; check the window directly with a later sleep candidate:
+    df = pd.concat([bouts([('AWAKE', 30), ('N2', 300), ('AWAKE', 30)]),
+                    bouts([('AWAKE', 60), ('N2', 30), ('AWAKE', 100)], t0=at(410))], ignore_index=True)
+    # candidates: 330 (50 min awake in its window) and 500 (100 min awake) -> 500
+    assert H.get_awakening_time(df) == at(500)
+
+
+def test_after_must_match_the_time_kind():
+    df = bouts([('AWAKE', 30), ('N2', 60), ('AWAKE', 100)])
+    num = numeric(df)
+    # V2: a datetime `after` on numeric times filtered out every candidate (-> end of the
+    # recording); a number on datetime times was ignored. Both raise now.
+    with pytest.raises(TypeError, match='after'):
+        H.get_awakening_time(num, after=pd.Timestamp(at(10)))
+    with pytest.raises(TypeError, match='after'):
+        H.get_awakening_time(df, after=at(10).timestamp())
+    with pytest.raises(TypeError, match='naive'):
+        H.get_awakening_time(df, after=pd.Timestamp('2024-01-01 22:10'))
+    assert H.get_awakening_time(num, after=at(10).timestamp()) == at(90).timestamp()
+    assert H.get_awakening_time(df, after=pd.Timestamp(at(10))) == at(90)
+    assert H.get_awakening_time(df, after=at(10).astimezone(dt.timezone.utc)) == at(90)
+
+
+# V3: 'WAKE' (brainmaze_utils load_NSRR) is 'AWAKE'. Relative seconds from 0:
+# AWAKE 0-30, N1 30-35, N2 35-95, N3 95-125, REM 125-145, AWAKE 145-150, N2 150-240,
+# N1 240-245, AWAKE 245-365 (minutes).
+NSRR_NIGHT = [('AWAKE', 30), ('N1', 5), ('N2', 60), ('N3', 30), ('REM', 20), ('AWAKE', 5),
+              ('N2', 90), ('N1', 5), ('AWAKE', 120)]
+NSRR_EXPECTED = {
+    'sleep_complete': True,
+    'fell_asleep_time': 30 * 60.0,
+    'awakening_time': 245 * 60.0,           # N2 -> N1 -> AWAKE at 245
+    'rem_latency_fell_asleep': 95 * 60.0,   # REM at 125 - onset 30
+    'rem_latency_last_awake': 95 * 60.0,    # REM at 125 - end of the AWAKE at 30
+    'n_complete_sleep_cycles': 1,
+    'n_awakenings': 1,                      # REM -> AWAKE at 145
+    'n1_sleep_time': 10 * 60.0,
+    'n2_sleep_time': 150 * 60.0,
+    'n3_sleep_time': 30 * 60.0,
+    'rem_sleep_time': 20 * 60.0,
+    'awake_sleep_time': 5 * 60.0,
+}
+
+
+def _nsrr_file(path, spec):
+    concept = {'AWAKE': 'Wake|0', 'N1': 'Stage 1 sleep|1', 'N2': 'Stage 2 sleep|2',
+               'N3': 'Stage 3 sleep|3', 'REM': 'REM sleep|5'}
+    events, t = [], 0.0
+    for lab, minutes in spec:
+        events.append(f'<ScoredEvent><EventType>Stages|Stages</EventType><EventConcept>{concept[lab]}'
+                      f'</EventConcept><Start>{t}</Start><Duration>{minutes * 60.0}</Duration></ScoredEvent>')
+        t += minutes * 60
+    path.write_text('<?xml version="1.0" encoding="UTF-8"?><PSGAnnotation><SoftwareVersion>Compumedics'
+                    '</SoftwareVersion><EpochLength>30</EpochLength><ScoredEvents>' + ''.join(events)
+                    + '</ScoredEvents></PSGAnnotation>')
+    return str(path)
+
+
+def test_wake_alias_with_load_nsrr(tmp_path):
+    from brainmaze_utils.annotations import load_NSRR
+    ns = load_NSRR(_nsrr_file(tmp_path / 'night.xml', NSRR_NIGHT))
+    assert 'WAKE' in set(ns.annotation) and 'AWAKE' not in set(ns.annotation)
+    before = ns.copy()
+    # 6589abb: no sleep onset (ValueError); awakening = end of the recording; is_sleep_complete
+    # False; 0 awakenings; no W transitions.
+    assert H.score_night(ns) == NSRR_EXPECTED
+    assert H.get_fell_asleep_time(ns) == 30 * 60.0
+    assert H.get_awakening_time(ns) == 245 * 60.0
+    assert H.is_sleep_complete(ns) is True
+    assert H.get_number_of_awakenings(ns) == 2
+    assert H.get_number_of_awakenings(ns[['annotation']]) == 2
+    assert H.get_rem_latency(ns) == {'last_awake': 95 * 60.0, 'fall_asleep': 95 * 60.0}
+    assert H.get_time_by_key(ns, 'AWAKE') == 155 * 60.0
+    assert H.get_time_by_key(ns, ['WAKE', 'N1']) == 165 * 60.0
+    assert H.valid_dataset_index_by_duration([ns], {'AWAKE': 155 * 60}) == [0]
+    m = H.get_transition_counts(ns)
+    awake, n1, n2, n3, rem = range(5)
+    assert m[awake, n1] == 1 and m[rem, awake] == 1 and m[n1, awake] == 1 and m[awake, n2] == 1
+    assert m.sum() == len(NSRR_NIGHT) - 1
+    np.testing.assert_array_equal(H.get_transition_counts(ns, ['WAKE', 'N1', 'N2', 'N3', 'REM']), m)
+    with pytest.raises(ValueError, match='twice'):
+        H.get_transition_counts(ns, ['WAKE', 'AWAKE', 'N2'])
+    # 'WAKE' as a tag argument is the same as 'AWAKE'
+    same = ns.assign(annotation=ns.annotation.replace({'WAKE': 'AWAKE'}))
+    assert H.score_night(same) == NSRR_EXPECTED
+    assert H.get_awakening_time(same, awake_tag='WAKE') == 245 * 60.0
+    assert H.is_sleep_complete(same, awake_tag='WAKE') is True
+    # functions returning a hypnogram return 'AWAKE'
+    assert 'WAKE' not in set(H.correct_hypnogram(ns).annotation)
+    assert 'WAKE' not in set(H.do_median_filtration(ns).annotation)
+    pd.testing.assert_frame_equal(ns, before)
+
+
+def test_wake_alias_in_tiled_epochs_and_corrections():
+    df = tile([('WAKE', 30), ('REM', 10), ('N2', 70), ('AWAKE', 100)])
+    # WAKE and AWAKE epochs are one state; REM right after 30 min of WAKE -> AWAKE
+    assert list(H.correct_hypnogram(df).annotation.unique()) == ['AWAKE', 'N2']
+    assert H.get_fell_asleep_time(df) == at(30)
+    assert H.get_awakening_time(df) == at(110)
+    assert H.is_sleep_complete(df) is True
+
+
+# V4: a timedelta duration column (df.end - df.start)
+@pytest.mark.parametrize('to_td', [lambda d: d.end - d.start,
+                                   lambda d: [x.to_pytimedelta() for x in pd.to_datetime(d.end, utc=True) - pd.to_datetime(d.start, utc=True)]],
+                         ids=['timedelta64', 'python-timedelta'])
+def test_timedelta_duration_is_accepted(to_td):
+    df = tile(NIGHTS)
+    td = df.assign(duration=to_td(df))
+    assert H.score_night(td) == H.score_night(df)
+    assert H.is_sleep_complete(td) is True
+    assert H.get_number_of_awakenings(td) == H.get_number_of_awakenings(df)
+    np.testing.assert_array_equal(H.get_transition_counts(td), H.get_transition_counts(df))
+    assert H.get_number_of_sleep_stages(td) == H.get_number_of_sleep_stages(df)
+    assert H.get_hypnogram_datarate(td) == 1.0
+    small = bouts(NIGHTS)   # the correction functions loop per row; keep it small
+    pd.testing.assert_frame_equal(H.correct_hypnogram(small.assign(duration=to_td(small))),
+                                  H.correct_hypnogram(small))
+    # without start/end the timedelta durations are read in seconds (the column is kept)
+    assert list(H.do_median_filtration(td.drop(columns=['start', 'end'])).annotation) == \
+        list(H.do_median_filtration(df.drop(columns=['start', 'end'])).annotation)
+
+
+def test_duration_errors_name_the_problem():
+    df = bouts([('AWAKE', 30), ('N2', 60)])
+    wrong = df.assign(duration=pd.to_timedelta([30, 61], unit='min'))
+    with pytest.raises(ValueError, match=r'read as 3660\.0 s'):
+        H.is_sleep_complete(wrong)
+    with pytest.raises(TypeError, match='numbers .seconds. or timedeltas'):
+        H.score_night(df.assign(duration=['30 min', '60 min']))
+
+
+# V6: arousal rows are events for the median filter
+def test_median_filtration_leaves_arousals_alone():
+    for label in ('Arousal', 'Arrousal'):
+        df = tile([('N2', 1), (label, 0.5), ('N2', 1)])
+        out = H.do_median_filtration(df)
+        assert list(out.annotation) == ['N2', 'N2', label, 'N2', 'N2']   # 6589abb: all N2
+    # an overlapping arousal event (starts inside the REM epoch) is not a neighbour
+    df = tile([('N2', 1), ('REM', 0.5), ('N2', 1)])
+    df.loc[len(df)] = dict(annotation='Arousal', start=at(1) + dt.timedelta(seconds=10),
+                           end=at(1) + dt.timedelta(seconds=20), duration=10.0)
+    out = H.do_median_filtration(df)
+    assert list(out.annotation) == ['N2', 'N2', 'N2', 'Arousal', 'N2', 'N2']  # 6589abb: REM kept
+
+
+# V8: the default plot maps cover the module's own output and CyberPSG/NSRR labels
+def test_plot_default_maps_cover_n_unknown_and_wake(plt):
+    df = bouts([('AWAKE', 30), ('N2', 20), ('N3', 20), ('N2', 20), ('AWAKE', 30)])
+    gap = df.copy()
+    gap.loc[2, 'start'] = at(51)              # 1-min void between N2 and N3 -> 'N'
+    gap.loc[2, 'duration'] = 19 * 60.0
+    corrected = H.correct_hypnogram(gap)
+    assert 'N' in set(corrected.annotation)
+    H.plot_hypnogram(corrected)               # 6589abb: ValueError ['N']
+    plt.close('all')
+    H.plot_hypnogram(tile([('WAKE', 30), ('N2', 30), ('UNKNOWN', 5), ('N2', 30)]))
+    labels = [t.get_text() for t in plt.gca().get_yticklabels()]
+    assert {'N', 'UNKNOWN', 'AWAKE'} <= set(labels) and 'WAKE' not in labels

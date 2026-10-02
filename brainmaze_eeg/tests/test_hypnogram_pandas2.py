@@ -69,7 +69,7 @@ def test_number_of_sleep_stages_delay_is_measured_from_the_counted_bout():
 
 
 def test_number_of_sleep_stages_several_tags():
-    # Before 2.0.1 several tags were AND-ed (an epoch had to equal all of them): always 0.
+    # Before 3.0.0 several tags were AND-ed (an epoch had to equal all of them): always 0.
     df = epochs([('N3', 0, 5), ('REM', 60, 5), ('N2', 120, 5), ('N3', 180, 5)])
     assert H.get_number_of_sleep_stages(df, ['REM', 'N3'], delay=30) == 3
     assert H.get_number_of_sleep_stages(df, ['REM'], delay=30) == 1
@@ -117,7 +117,7 @@ def test_plot_hypnogram_draws_merged_segments(plt, with_day):
     assert lo == pytest.approx(mdates.date2num(df.start.iloc[0]))
     assert hi == pytest.approx(mdates.date2num(df.end.iloc[-1]))
     labels = [t.get_text() for t in ax.get_yticklabels()]
-    assert labels == ['AWAKE', 'Arousal', 'SLP', 'REM', 'N1', 'N2', 'N3']
+    assert labels == ['AWAKE', 'Arousal', 'SLP', 'REM', 'N1', 'N2', 'N', 'N3', 'UNKNOWN']
     # the night shading (22:00 + 12 h) is drawn once for the single day
     spans = [p for p in ax.patches if p.get_facecolor()[:3] == pytest.approx((0.5, 0.5, 0.5), abs=0.01)]
     assert len(spans) == 1
