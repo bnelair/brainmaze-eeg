@@ -50,12 +50,21 @@ A hypnogram is a :class:`pandas.DataFrame` with one row per scored epoch and the
   (one row per continuous period), so a hypnogram tiled into 30-s epochs and the same
   hypnogram with merged rows give the same results. Their time windows (sleep onset,
   awakening) count only the part of each bout that lies inside the window.
+* **Unscored epochs** (``'UNKNOWN'`` or any label that is neither a sleep stage nor the
+  awake tag) between the last sleep epoch and the final wake (awakening), or between the
+  wake and the first sleep (sleep onset), make that time ambiguous: the wake may have
+  begun anywhere in the unscored span. Such a night never silently returns a shifted time.
+  :func:`get_awakening_time`, :func:`get_fell_asleep_time`, :func:`get_rem_latency` and
+  :func:`score_night` take ``on_unscored='warn'`` (default: a :class:`UserWarning` naming
+  the span, and ``NaT``/``NaN`` is returned for the ambiguous time and everything computed
+  from it) or ``'raise'`` (``ValueError``). New in 3.0.0.
 """
 
 
 import numpy as np
 import pandas as pd
 import datetime
+import warnings
 from copy import deepcopy
 from tqdm import tqdm
 
@@ -268,7 +277,51 @@ def _in_window(s, e, lo, hi):
     return np.clip(np.minimum(e, hi) - np.maximum(s, lo), 0.0, None)
 
 
-def _fell_asleep_index(b, t_sleep_check, t_awake_threshold, awake_tag, sleep_cycle_tags, where):
+_ON_UNSCORED = ('warn', 'raise')
+
+
+def _check_on_unscored(on_unscored, where):
+    if on_unscored not in _ON_UNSCORED:
+        raise ValueError(f"{where}: on_unscored must be one of {_ON_UNSCORED}, got {on_unscored!r}.")
+
+
+def _missing(b):
+    """``NaT`` (datetime hypnogram) or ``NaN`` (numeric hypnogram)."""
+    return float('nan') if _is_real_number(b['start'].iloc[0]) else pd.NaT
+
+
+def _unscored_found(b, i0, i1, what, where, on_unscored, tags):
+    """Report the unscored bouts ``i0 .. i1`` (inclusive): raise or warn."""
+    labels = list(dict.fromkeys(b['annotation'].iloc[i0:i1 + 1]))
+    msg = (f'{where}: unscored epochs {labels} from {b["start"].iloc[i0]} to {b["end"].iloc[i1]} lie '
+           f'{what}, so it is ambiguous when it happened (any time in that span).')
+    if on_unscored == 'raise':
+        raise ValueError(msg + " Score the span, or pass on_unscored='warn' to get NaT/NaN.")
+    warnings.warn(msg + ' Returning NaT/NaN for it and for everything computed from it '
+                  "(on_unscored='raise' makes this an error).", UserWarning, stacklevel=4)
+
+
+def _unscored_before_sleep(b, awake_tag, sleep_tags):
+    """Indices ``(i0, k)``: sleep bout ``k`` preceded by unscored bouts ``i0 .. k-1`` that
+    follow an ``awake_tag`` bout (or the start of the recording)."""
+    ann = b['annotation'].to_numpy()
+    sleep = np.isin(ann, sleep_tags)
+    scored = sleep | (ann == awake_tag) | np.isin(ann, _SLEEP_STAGES)
+    out = []
+    for k in np.flatnonzero(sleep):
+        i0 = k
+        while i0 > 0 and not scored[i0 - 1]:
+            i0 -= 1
+        if i0 < k and (i0 == 0 or ann[i0 - 1] == awake_tag):
+            out.append((i0, int(k)))
+    return out
+
+
+def _fell_asleep_index(b, t_sleep_check, t_awake_threshold, awake_tag, sleep_cycle_tags, where,
+                       on_unscored='warn'):
+    """Index of the sleep-onset bout, or ``None`` if the onset is ambiguous because of
+    unscored epochs (warned about; ``on_unscored='raise'`` raises)."""
+    _check_on_unscored(on_unscored, where)
     if len(b) == 0:
         raise ValueError(f'{where}: the hypnogram is empty (after removing arousals).')
     awake_tag = _canon(awake_tag)
@@ -281,9 +334,18 @@ def _fell_asleep_index(b, t_sleep_check, t_awake_threshold, awake_tag, sleep_cyc
     candidates = ([0] if sleep[0] else []) + list(np.flatnonzero(awake[:-1] & sleep[1:]) + 1)
     window = t_sleep_check * 60.0
     limit = t_awake_threshold * 60.0
+    found = None
     for k in candidates:
         if _in_window(s, e, s[k], s[k] + window)[awake].sum() < limit:
-            return int(k)
+            found = int(k)
+            break
+    hidden = [u for u in _unscored_before_sleep(b, awake_tag, sleep_tags) if found is None or u[1] < found]
+    if hidden:
+        i0, k = hidden[0]
+        _unscored_found(b, i0, k - 1, 'between the wake and the first sleep', where, on_unscored, sleep_tags)
+        return None
+    if found is not None:
+        return found
     raise ValueError(
         f'{where}: no sleep onset found: no transition into {sleep_tags} is followed by less '
         f'than {t_awake_threshold} min of {awake_tag!r} within {t_sleep_check} min.')
@@ -302,8 +364,11 @@ def _awakening_candidates(ann, awake_tag, sleep_tags):
     return np.array(out, dtype=int)
 
 
-def _awakening(b, t_awake_threshold, t_sleep_threshold, awake_tag, sleep_cycle_tags, after_s, where):
-    """Returns ``(time, seconds)`` of the awakening."""
+def _awakening(b, t_awake_threshold, t_sleep_threshold, awake_tag, sleep_cycle_tags, after_s, where,
+               on_unscored='warn'):
+    """Returns ``(time, seconds)`` of the awakening (``NaT``/``NaN`` if ambiguous because of
+    unscored epochs: warned about, or ``on_unscored='raise'`` raises)."""
+    _check_on_unscored(on_unscored, where)
     if len(b) == 0:
         raise ValueError(f'{where}: the hypnogram is empty (after removing arousals).')
     awake_tag = _canon(awake_tag)
@@ -313,6 +378,14 @@ def _awakening(b, t_awake_threshold, t_sleep_threshold, awake_tag, sleep_cycle_t
     e = b['_e'].to_numpy()
     asleep = np.isin(ann, list(dict.fromkeys(list(_SLEEP_STAGES) + sleep_tags)))
     awake = ann == awake_tag
+    last_sleep = np.flatnonzero(asleep)
+    if last_sleep.size and (after_s is None or e[last_sleep[-1]] > after_s + _TOL):
+        L = int(last_sleep[-1])
+        wake_after = np.flatnonzero(awake[L + 1:])
+        if wake_after.size and wake_after[0] > 0:  # bouts between are neither sleep nor awake
+            _unscored_found(b, L + 1, L + int(wake_after[0]), 'between the last sleep epoch and the final wake',
+                            where, on_unscored, sleep_tags)
+            return _missing(b), float('nan')
     candidates = _awakening_candidates(ann, awake_tag, sleep_tags)
     if after_s is not None:
         candidates = candidates[s[candidates] >= after_s - _TOL]
@@ -372,7 +445,8 @@ def get_hypnogram_datarate(df):
     return float(h['duration'].sum() / span)
 
 
-def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N1', 'N2', 'N3']):
+def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N1', 'N2', 'N3'],
+                        on_unscored='warn'):
     """
     Determine when the subject fell asleep based on hypnogram data.
 
@@ -400,16 +474,25 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
         Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
     sleep_cycle_tags : list, optional
         List of tags indicating sleep states. Default is ['REM', 'N1', 'N2', 'N3'].
+    on_unscored : {'warn', 'raise'}, optional
+        What to do when unscored epochs (``'UNKNOWN'`` or any label that is neither a sleep
+        stage nor ``awake_tag``) lie between the wake and an earlier-than-found (or the only)
+        sleep, so the onset is ambiguous. ``'warn'`` (default) emits a :class:`UserWarning`
+        naming the span and returns ``NaT``/``NaN``; ``'raise'`` raises ``ValueError``.
+        New in 3.0.0.
 
     Returns
     -------
     datetime or float
-        Start of the sleep-onset bout, in the type of the ``start`` column.
+        Start of the sleep-onset bout, in the type of the ``start`` column; ``NaT``
+        (datetime input) or ``NaN`` (numeric input) if the onset is ambiguous because of
+        unscored epochs and ``on_unscored='warn'``.
 
     Raises
     ------
     ValueError
-        If no candidate qualifies, the hypnogram is empty, or epochs overlap.
+        If no candidate qualifies, the hypnogram is empty, or epochs overlap; or unscored
+        epochs make the onset ambiguous and ``on_unscored='raise'``.
 
     Notes
     -----
@@ -422,15 +505,18 @@ def get_fell_asleep_time(df, t_sleep_check=60, t_awake_threshold=10, awake_tag='
        (v1.0.0 counted every epoch that started inside it in full, so on merged bouts an
        AWAKE bout starting 5 min before the window end counted with its whole length).
        ``awake_tag`` is compared for equality (it was a substring test); ``'WAKE'`` is
-       read as ``'AWAKE'``. Numeric timestamps (seconds) work.
+       read as ``'AWAKE'``. Numeric timestamps (seconds) work. Unscored epochs between the
+       wake and the sleep no longer shift the onset silently (``on_unscored``).
     """
     where = 'get_fell_asleep_time'
     b = _bouts(df, where)
-    k = _fell_asleep_index(b, t_sleep_check, t_awake_threshold, awake_tag, sleep_cycle_tags, where)
-    return b['start'].iloc[k]
+    k = _fell_asleep_index(b, t_sleep_check, t_awake_threshold, awake_tag, sleep_cycle_tags, where,
+                           on_unscored)
+    return _missing(b) if k is None else b['start'].iloc[k]
 
 
-def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N1', 'N2', 'N3'], after=None):
+def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag='AWAKE', sleep_cycle_tags=['REM', 'N1', 'N2', 'N3'], after=None,
+                       on_unscored='warn'):
     """
     Determine when the subject woke up based on hypnogram data.
 
@@ -449,6 +535,10 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
       **last** candidate (the final transition from sleep to wake; ``ValueError`` if there
       is none); otherwise the end of the recording (the subject was still asleep when it
       ended).
+    - **Unscored epochs** (``'UNKNOWN'`` or any label that is neither a sleep stage nor
+      ``awake_tag``) between the last sleep epoch and the following wake make the final
+      awakening ambiguous (it may have begun anywhere in that span), so no time is returned
+      for it: see ``on_unscored``.
 
     Example (defaults): AWAKE 30 min, N2 60, REM 20, AWAKE 5, N2 120, N1 5, AWAKE 120 gives
     the start of the last AWAKE bout (at 240 min): the brief AWAKE at 110 min holds 95 min
@@ -471,11 +561,18 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
         kind as ``start`` (a timezone-aware datetime for datetime input, a number of
         seconds for numeric input), otherwise ``TypeError`` is raised.
         :func:`score_night` passes the sleep onset. New in 3.0.0.
+    on_unscored : {'warn', 'raise'}, optional
+        What to do when unscored epochs lie between the last sleep epoch and the final wake
+        (e.g. ``... N2, UNKNOWN, AWAKE``). ``'warn'`` (default) emits a :class:`UserWarning`
+        naming the unscored span and returns ``NaT``/``NaN``; ``'raise'`` raises
+        ``ValueError``. New in 3.0.0.
 
     Returns
     -------
     datetime or float
-        Time of the awakening, in the type of the ``start`` column.
+        Time of the awakening, in the type of the ``start`` column; ``NaT`` (datetime
+        input) or ``NaN`` (numeric input) if it is ambiguous because of unscored epochs
+        and ``on_unscored='warn'``.
 
     Raises
     ------
@@ -483,7 +580,8 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
         If ``after`` is not of the same kind as ``start``, or the input is invalid
         (module docstring).
     ValueError
-        If the hypnogram is empty or invalid, or it ends awake without a candidate.
+        If the hypnogram is empty or invalid, or it ends awake without a candidate; or
+        unscored epochs make the awakening ambiguous and ``on_unscored='raise'``.
 
     Notes
     -----
@@ -499,7 +597,10 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
        longer a candidate (it returned the start of that sleep epoch), ``'Arousal'`` rows
        are removed like ``'Arrousal'``, ``'WAKE'`` is read as ``'AWAKE'``, epochs are
        sorted and merged into bouts, and ``ValueError`` replaces an ``IndexError`` when no
-       transition exists. Numeric timestamps (seconds) work.
+       transition exists. Numeric timestamps (seconds) work. A night with unscored epochs
+       between the last sleep epoch and the final wake (``N2, UNKNOWN, AWAKE``) used to
+       return a silently shifted awakening (the transition before the unknown span, or an
+       error); it now warns and returns ``NaT``/``NaN`` (``on_unscored``).
     """
     where = 'get_awakening_time'
     h = _hypnogram(df, where)
@@ -513,7 +614,7 @@ def get_awakening_time(df, t_awake_threshold=90, t_sleep_threshold=10, awake_tag
                 raise TypeError(f'{where}: "after" is a {after_kind} time but "start" is {kind}; '
                                 'pass "after" in the same kind as the hypnogram times.')
     return _awakening(_merge_bouts(h), t_awake_threshold, t_sleep_threshold, awake_tag,
-                      sleep_cycle_tags, after_s, where)[0]
+                      sleep_cycle_tags, after_s, where, on_unscored)[0]
 
 
 def is_sleep_complete(df, awake_tag='AWAKE'):
@@ -559,6 +660,8 @@ def is_sleep_complete(df, awake_tag='AWAKE'):
 
 
 def _rem_latency(b, k_onset, rem_tag, awake_tag, where):
+    """``k_onset=None`` (ambiguous onset): ``fall_asleep`` is missing, and ``last_awake``
+    too unless an AWAKE epoch precedes the REM."""
     rem_tag, awake_tag = _canon(rem_tag), _canon(awake_tag)
     ann = b['annotation'].to_numpy()
     rem = np.flatnonzero(ann == rem_tag)
@@ -567,12 +670,16 @@ def _rem_latency(b, k_onset, rem_tag, awake_tag, where):
     k_rem = rem[0]
     first_rem_start = b['start'].iloc[k_rem]
     before = np.flatnonzero((ann == awake_tag) & (b['_e'].to_numpy() <= b['_s'].iloc[k_rem] + _TOL))
+    if k_onset is None:
+        nan = _missing(b)
+        return {'last_awake': first_rem_start - b['end'].iloc[before[-1]] if before.size else nan,
+                'fall_asleep': nan}
     last_awake_end = b['end'].iloc[before[-1]] if before.size else b['start'].iloc[k_onset]
     return {'last_awake': first_rem_start - last_awake_end,
             'fall_asleep': first_rem_start - b['start'].iloc[k_onset]}
 
 
-def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
+def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE', on_unscored='warn'):
     """
     Calculate REM sleep latency (time from falling asleep or last awake to first REM).
 
@@ -584,6 +691,12 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
         Tag for REM sleep state. Default is 'REM'.
     awake_tag : str, optional
         Tag for awake state. Default is 'AWAKE' (``'WAKE'`` is the same state).
+    on_unscored : {'warn', 'raise'}, optional
+        As in :func:`get_fell_asleep_time`, which this function uses for the sleep onset:
+        if unscored epochs make the onset ambiguous, ``'warn'`` (default) warns and gives
+        ``NaT``/``NaN`` for ``'fall_asleep'`` (and for ``'last_awake'`` when no ``awake_tag``
+        epoch precedes the first REM and the onset would have been the reference);
+        ``'raise'`` raises ``ValueError``. New in 3.0.0.
 
     Returns
     -------
@@ -608,7 +721,7 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE'):
     """
     where = 'get_rem_latency'
     b = _bouts(df, where)
-    k_onset = _fell_asleep_index(b, 60, 10, awake_tag, ['REM', 'N1', 'N2', 'N3'], where)
+    k_onset = _fell_asleep_index(b, 60, 10, awake_tag, ['REM', 'N1', 'N2', 'N3'], where, on_unscored)
     return _rem_latency(b, k_onset, rem_tag, awake_tag, where)
 
 
@@ -840,7 +953,7 @@ def get_stage_times_dataset(hypnograms:list, keys, verbose=True):
     return pd.DataFrame([dict([(state, get_time_by_key(hyp, state)) for state in keys]) for hyp in hypnograms])
 
 
-def score_night(df, plot=False):
+def score_night(df, plot=False, on_unscored='warn'):
     """
     Compute comprehensive sleep metrics for a night's hypnogram.
 
@@ -852,6 +965,15 @@ def score_night(df, plot=False):
     - ``awakening_time``: :func:`get_awakening_time` with ``after=fell_asleep_time``.
     - The **sleep period** is made of the bouts starting at or after ``fell_asleep_time``
       and before ``awakening_time``; the counts and stage times below are taken over it.
+    - **Unscored epochs** (``'UNKNOWN'`` or any label that is neither a sleep stage nor
+      AWAKE) between the last sleep epoch and the final wake make the awakening ambiguous;
+      between the wake and the first sleep, the onset. With ``on_unscored='warn'`` (default)
+      a :class:`UserWarning` names the span, the ambiguous time is ``NaT``/``NaN`` and so is
+      everything computed from it: with an ambiguous awakening ``awakening_time`` and all
+      sleep-period metrics (``n_complete_sleep_cycles``, ``n_awakenings`` and the five
+      ``*_sleep_time`` stage times), with an ambiguous onset ``fell_asleep_time``, the
+      sleep-period metrics and ``rem_latency_fell_asleep``. ``sleep_complete`` and the
+      rest stay computed. ``'raise'`` raises ``ValueError`` instead.
 
     Parameters
     ----------
@@ -861,6 +983,8 @@ def score_night(df, plot=False):
     plot : bool, optional
         If True, plot the hypnogram with sleep onset and awakening markers. Default is False.
         Needs matplotlib (optional extra ``brainmaze-eeg[plot]``) and datetime input.
+    on_unscored : {'warn', 'raise'}, optional
+        See above. New in 3.0.0.
 
     Returns
     -------
@@ -872,6 +996,10 @@ def score_night(df, plot=False):
         - rem_latency_last_awake: first REM start minus the end of the last AWAKE before it,
           in seconds (float; NaN if there is no REM); see :func:`get_rem_latency`
         - awakening_time: time of final awakening (type of ``start``)
+
+        ``fell_asleep_time`` and ``awakening_time`` are ``NaT`` (datetime input) or ``NaN``
+        (numeric input), and the metrics computed from them ``NaN`` (counts, times and
+        latencies are floats then), when unscored epochs make them ambiguous (see above).
         - n_complete_sleep_cycles: REM bouts in the sleep period,
           :func:`get_number_of_sleep_stages` with ``tags='REM', delay=30``
         - n_awakenings: :func:`get_number_of_awakenings` over the sleep period
@@ -882,7 +1010,8 @@ def score_night(df, plot=False):
     ------
     ValueError
         If the hypnogram is empty, invalid (module docstring), or no sleep onset or
-        awakening can be determined.
+        awakening can be determined; or unscored epochs make either ambiguous and
+        ``on_unscored='raise'``.
 
     Notes
     -----
@@ -897,40 +1026,53 @@ def score_night(df, plot=False):
        and it could be found before the sleep onset (now only after it). The onset and
        awakening windows count only the part of each bout inside them. ``'Arousal'``
        rows were not removed, ``'WAKE'`` (NSRR) was not recognised as ``'AWAKE'``, and a
-       night without REM raised ``IndexError`` (now the latencies are NaN).
+       night without REM raised ``IndexError`` (now the latencies are NaN). A night ending
+       ``... N2, UNKNOWN, AWAKE`` no longer returns a silently shifted awakening and
+       metrics computed from it: see ``on_unscored``.
     """
     where = 'score_night'
+    _check_on_unscored(on_unscored, where)
     h = _hypnogram(df, where)
     if len(h) == 0:
         raise ValueError(f'{where}: the hypnogram is empty (after removing arousals).')
     b = _merge_bouts(h)
 
-    k_onset = _fell_asleep_index(b, 60, 10, 'AWAKE', ['REM', 'N1', 'N2', 'N3'], where)
-    fell_asleep_time = b['start'].iloc[k_onset]
-    fell_s = b['_s'].iloc[k_onset]
-    awakening_time, awake_s = _awakening(b, 90, 10, 'AWAKE', ['REM', 'N1', 'N2', 'N3'], fell_s, where)
+    nan = float('nan')
+    k_onset = _fell_asleep_index(b, 60, 10, 'AWAKE', ['REM', 'N1', 'N2', 'N3'], where, on_unscored)
+    fell_s = None if k_onset is None else b['_s'].iloc[k_onset]
+    fell_asleep_time = _missing(b) if k_onset is None else b['start'].iloc[k_onset]
+    awakening_time, awake_s = _awakening(b, 90, 10, 'AWAKE', ['REM', 'N1', 'N2', 'N3'], fell_s, where,
+                                         on_unscored)
     sleep_complete = bool(b['annotation'].iloc[0] == 'AWAKE' == b['annotation'].iloc[-1])
 
-    sleep_df = b.loc[(b['_s'] >= fell_s - _TOL) & (b['_s'] < awake_s - _TOL)].reset_index(drop=True)
-
-    n_complete_sleep_cycles = get_number_of_sleep_stages(sleep_df, tags='REM', delay=30)
-    n_awakenings = _count_awakenings(sleep_df['annotation'].to_numpy(), 'AWAKE', 'N1', ['N2', 'N3', 'REM'])
+    if k_onset is None or not np.isfinite(awake_s):  # sleep period undefined
+        sleep_df = None
+        n_complete_sleep_cycles = n_awakenings = nan
+    else:
+        sleep_df = b.loc[(b['_s'] >= fell_s - _TOL) & (b['_s'] < awake_s - _TOL)].reset_index(drop=True)
+        n_complete_sleep_cycles = get_number_of_sleep_stages(sleep_df, tags='REM', delay=30)
+        n_awakenings = _count_awakenings(sleep_df['annotation'].to_numpy(), 'AWAKE', 'N1', ['N2', 'N3', 'REM'])
     if (b['annotation'] == 'REM').any():
         rem_latency = _rem_latency(b, k_onset, 'REM', 'AWAKE', where)
         rem_latency = {k: _delta_seconds(v) for k, v in rem_latency.items()}
     else:
         rem_latency = {'fall_asleep': float('nan'), 'last_awake': float('nan')}
 
-    n1_sleep_time = float(get_time_by_key(sleep_df, 'N1'))
-    n2_sleep_time = float(get_time_by_key(sleep_df, 'N2'))
-    n3_sleep_time = float(get_time_by_key(sleep_df, 'N3'))
-    rem_sleep_time = float(get_time_by_key(sleep_df, 'REM'))
-    awake_sleep_time = float(get_time_by_key(sleep_df, 'AWAKE'))
+    def stage_time(key):
+        return nan if sleep_df is None else float(get_time_by_key(sleep_df, key))
+
+    n1_sleep_time = stage_time('N1')
+    n2_sleep_time = stage_time('N2')
+    n3_sleep_time = stage_time('N3')
+    rem_sleep_time = stage_time('REM')
+    awake_sleep_time = stage_time('AWAKE')
 
     if plot == True:
         plot_hypnogram(df)
         plt = _pyplot()
-        plt.stem([fell_asleep_time, awakening_time], [7, 7], linefmt='r', markerfmt='or', basefmt='r')
+        marks = [t for t in (fell_asleep_time, awakening_time) if not pd.isna(t)]
+        if marks:
+            plt.stem(marks, [7] * len(marks), linefmt='r', markerfmt='or', basefmt='r')
 
     return {
         'sleep_complete': sleep_complete,
@@ -959,6 +1101,8 @@ def _format_hms(seconds):
 
 
 def _format_clock(t):
+    if pd.isna(t):
+        return 'n/a'
     return t.strftime('%H:%M:%S') if hasattr(t, 'strftime') else f'{t} s'
 
 
@@ -1000,7 +1144,7 @@ def print_sleep_score(score):
                         ('N2', score['n2_sleep_time']), ('N3', score['n3_sleep_time'])]:
         print()
         print('Sleep-time ' + name)
-        print('Absolute: {0}  Relative: {1:0.3f}'.format(int(value), rel(value)))
+        print('Absolute: {0}  Relative: {1:0.3f}'.format(int(value) if np.isfinite(value) else 'n/a', rel(value)))
 
 
 def get_transition_counts(hyp, states=['AWAKE', 'N1', 'N2', 'N3', 'REM']):
