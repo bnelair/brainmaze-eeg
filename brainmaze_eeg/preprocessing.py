@@ -1,5 +1,8 @@
 
 import numpy as np
+# numpy.typing is a submodule: `np.typing` only resolves after it has been imported
+# (numpy < 1.25 does not import it lazily), so import it explicitly.
+import numpy.typing as npt
 import scipy.signal as signal
 from typing import Tuple
 from scipy.ndimage import binary_dilation
@@ -7,7 +10,7 @@ from scipy.ndimage import binary_dilation
 from brainmaze_utils.signal import PSD, buffer
 
 
-def channel_data_rate_thresholding(x: np.typing.NDArray[np.float64], threshold_data_rate: float=0.1):
+def channel_data_rate_thresholding(x: npt.NDArray[np.float64], threshold_data_rate: float=0.1):
     """
     Masks the whole channel [nchans, nsamples] with nans if the channel data rate is below the threshold.
 
@@ -39,7 +42,7 @@ def channel_data_rate_thresholding(x: np.typing.NDArray[np.float64], threshold_d
     return x
 
 
-def replace_nans_with_median(x: np.typing.NDArray[np.float64]):
+def replace_nans_with_median(x: npt.NDArray[np.float64]):
     """
     Replaces NaN values in the input signal with the median of the non-NaN values along each channel.
 
@@ -81,7 +84,7 @@ def replace_nans_with_median(x: np.typing.NDArray[np.float64]):
     return x, mask
 
 
-def filter_powerline(x: np.typing.NDArray[np.float64], fs: float, frequency_powerline: float=60):
+def filter_powerline(x: npt.NDArray[np.float64], fs: float, frequency_powerline: float=60):
     """
     Remove powerline noise from EEG signals using a notch filter.
     
@@ -147,7 +150,7 @@ def filter_powerline(x: np.typing.NDArray[np.float64], fs: float, frequency_powe
 
 
 def detect_powerline_segments(
-        x: np.typing.NDArray[np.float64],
+        x: npt.NDArray[np.float64],
         fs: float,
         window_s: float = 0.5,
         powerline_freq:float = 60,
@@ -247,7 +250,7 @@ def detect_powerline_segments(
 
 
 def detect_outlier_segments(
-        x: np.typing.NDArray[np.float64],
+        x: npt.NDArray[np.float64],
         fs: float,
         window_s: float = 0.5,
         threshold: float = 10
@@ -293,7 +296,7 @@ def detect_outlier_segments(
     return detected_noise
 
 def detect_flat_line_segments(
-        x: np.typing.NDArray[np.float64],
+        x: npt.NDArray[np.float64],
         fs: float,
         window_s:float = 0.5,
         threshold: float = 0.5e-6
@@ -333,7 +336,7 @@ def detect_flat_line_segments(
     return detected_flat_line
 
 
-def detect_stim_segments(x: np.typing.NDArray[np.float64], fs: float, window_s:float = 1,
+def detect_stim_segments(x: npt.NDArray[np.float64], fs: float, window_s:float = 1,
                          threshold_detection:float = 2000, freq_band: Tuple[float, float] = (80, 110,)):
     """
     Detects stimulation artifacts in the input signal. Calculates differential signal of the input signal.
@@ -384,7 +387,7 @@ def detect_stim_segments(x: np.typing.NDArray[np.float64], fs: float, window_s:f
     return detected_stim, psd_sum
 
 
-def mask_segments_with_nans(x: np.typing.NDArray[np.float64], segment_mask: np.typing.NDArray[np.float64],
+def mask_segments_with_nans(x: npt.NDArray[np.float64], segment_mask: npt.NDArray[np.float64],
                             fs: float, window_s: float):
     """
     Masks EEG signal segments based on provided mask setting them to NaN.

@@ -11,7 +11,7 @@ import datetime
 from copy import deepcopy
 from tqdm import tqdm
 
-from brainmaze_utils.annotations import merge_annotations, filter_by_key
+from brainmaze_utils.annotations import merge_annotations, filter_by_key, create_day_indexes
 
 
 
@@ -36,6 +36,15 @@ def _pyplot():
             "(or pip install matplotlib)."
         ) from e
     return plt
+
+
+def _delta_seconds(delta):
+    """Length of a time difference in seconds (timedelta, or a difference of numeric
+    timestamps in seconds). Unlike ``timedelta.seconds`` this keeps the days component
+    and the sign."""
+    if isinstance(delta, (int, float, np.integer, np.floating)):
+        return float(delta)
+    return pd.Timedelta(delta).total_seconds()
 
 
 def get_hypnogram_datarate(df):
@@ -205,34 +214,44 @@ def get_number_of_sleep_stages(df, tags ='REM', delay=30):
     df : pd.DataFrame
         Hypnogram dataframe with 'annotation', 'start', and 'end' columns.
     tags : str or list, optional
-        Sleep stage tag(s) to count. Default is 'REM'.
+        Sleep stage tag(s) to count. Default is 'REM'. With several tags, epochs with
+        any of them are counted together.
     delay : int, optional
         Minimum time in minutes between stage occurrences. Default is 30.
+        An epoch starts a new occurrence when it begins at least ``delay`` after the
+        end of the epoch that started the previous occurrence. ``start``/``end`` may
+        be datetimes or numeric timestamps in seconds.
     
     Returns
     -------
     int
         Number of sleep stage occurrences.
+
+    Notes
+    -----
+    .. note:: **Changed in 2.0.1:**
+       Rewritten without ``DataFrame.append`` (removed in pandas 2, so this function
+       always raised). Two bugs of the old code are fixed: with several ``tags`` it
+       required an epoch to equal all of them at once (so it always returned 0), and it
+       compared ``timedelta.seconds``, which drops whole days and wraps negative
+       differences.
     """
     if isinstance(tags, str):
         tags = [tags]
 
-    delay = datetime.timedelta(minutes=delay)
-    bool_idxes = np.ones(df.__len__(), dtype=bool)
-    for tag in tags:
-        bool_idxes = (bool_idxes) & (df.annotation == tag)
+    delay_s = datetime.timedelta(minutes=delay).total_seconds()
+    df = df.loc[df.annotation.isin(tags)].reset_index(drop=True)
 
-    df = df.loc[bool_idxes].reset_index(drop=True)
+    # An epoch starts a new occurrence if it begins at least `delay` after the end of
+    # the last counted occurrence (the first epoch always counts).
+    n_occurrences = 0
+    last_end = None
+    for start, end in zip(df.start, df.end):
+        if last_end is None or _delta_seconds(start - last_end) >= delay_s:
+            n_occurrences += 1
+            last_end = end
 
-    stage_df = pd.DataFrame()
-    for idx, row in enumerate(df.iterrows()):
-        if idx == 0:
-            stage_df = stage_df.append(row[1], ignore_index=True)
-        else:
-            if (row[1].start - stage_df.iloc[-1].end).seconds >= delay.seconds:
-                stage_df = stage_df.append(row[1], ignore_index=True)
-
-    return (stage_df.annotation == tag).sum()
+    return n_occurrences
 
 
 
@@ -875,11 +894,16 @@ def correct_hypnogram(df, time_threshold=60):
 
 def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsize=12, fig=None, night_start=22):
     """
-    Creates a Matplotlib figure of spectrogram from the annotations. Time must be in a time-zone aware format.
+    Creates a Matplotlib figure of the hypnogram from the annotations. Time must be in a time-zone aware format.
 
     Parameters
     ----------
-    orig_df : annotations
+    orig_df : pd.DataFrame
+        Hypnogram with ``annotation`` and timezone-aware ``start``/``end`` columns, sorted
+        by ``start``. An optional integer ``day`` column (as made by
+        :func:`brainmaze_utils.annotations.create_day_indexes`) groups the epochs for the
+        night shading; without it the day index is derived with that function. The
+        frame is not modified.
     hypnogram_values : dict
         dict of a y-axis values for each hypnogram state
     hypnogram_colors : dict
@@ -898,6 +922,18 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
     ------
     ImportError
         If matplotlib is not installed (optional extra ``brainmaze-eeg[plot]``).
+    TypeError
+        If ``start``/``end`` are not timezone-aware datetimes.
+    ValueError
+        If the hypnogram has no sleep-state epochs.
+
+    Notes
+    -----
+    .. note:: **Changed in 2.0.1:**
+       Works with pandas 2 (it used ``DataFrame.append``, removed in pandas 2, and
+       called the ``datetime`` module instead of ``datetime.datetime``, so it always
+       raised). It no longer adds ``state_id``/``state_color`` columns to the input
+       frame, derives ``day`` when it is missing, and handles a one-epoch hypnogram.
     """
     plt = _pyplot()
     import matplotlib.dates as mdates
@@ -932,22 +968,31 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
         """Map hypnogram annotation to property value from reference dictionary."""
         return ref_dict[x.annotation]
 
+    if len(orig_df) == 0:
+        raise ValueError('plot_hypnogram: the hypnogram is empty.')
+    for col in ('start', 'end'):
+        first = orig_df[col].iloc[0]
+        if not isinstance(first, datetime.datetime) or first.tzinfo is None:
+            raise TypeError(f'plot_hypnogram: "{col}" must hold timezone-aware datetimes '
+                            '(convert numeric timestamps first).')
+    orig_df = orig_df.copy()  # do not add the helper columns to the caller's frame
     orig_df['state_id'] = orig_df.apply(lambda x: set_hypnogram_properties(x, hypnogram_values), axis=1)
     orig_df['state_color'] = orig_df.apply(lambda x: set_hypnogram_properties(x, hypnogram_colors), axis=1)
     df_arrousals = orig_df.loc[orig_df.annotation == 'Arrousal'].reset_index(drop=True)
     df = orig_df.loc[orig_df.annotation != 'Arrousal'].reset_index(drop=True)
-    new_df = pd.DataFrame()
-    for idx, row in enumerate(df.iterrows()):  # if 2 cons. states are same, merges them
-        appbl = True
-        if idx > 0:
-            if new_df.iloc[-1].state_id == row[1].state_id and new_df.iloc[-1].end == row[1].start:
-                appbl = False
-
-        if appbl == True:
-            new_df = new_df.append(row[1], ignore_index=True)
+    if len(df) == 0:
+        raise ValueError('plot_hypnogram: the hypnogram has no sleep-state epochs (only arousals).')
+    # if 2 consecutive epochs have the same state and touch in time, merge them
+    merged_rows = []
+    for _, row in df.iterrows():
+        if merged_rows and merged_rows[-1]['state_id'] == row.state_id and merged_rows[-1]['end'] == row.start:
+            merged_rows[-1]['end'] = row.end
         else:
-            new_df.loc[new_df.__len__() - 1, 'end'] = row[1].end
-    df = new_df
+            merged_rows.append(row.to_dict())
+    df = pd.DataFrame(merged_rows, columns=df.columns)
+    if 'day' not in df.columns:
+        # night shading groups epochs by day; derive the index when it was not supplied
+        df = create_day_indexes(df)
 
     x_start = np.array(df['start'])
     x_end = np.array(df['end'])
@@ -981,13 +1026,7 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
         background_color = 'gray'
         background_alpha = 0.3
         day_start = x_start[df.day == day_id][0]
-        night_start_ = datetime(
-            year=day_start.year,
-            month=day_start.month,
-            day=day_start.day,
-            hour=night_start,
-            tzinfo=day_start.tzinfo
-        )
+        night_start_ = day_start.replace(hour=night_start, minute=0, second=0, microsecond=0)
         night_end_ = night_start_ + datetime.timedelta(hours=12)
         plt.axvspan(night_start_, night_end_, facecolor=background_color, alpha=background_alpha)
 
@@ -1029,8 +1068,8 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
 
         plt.plot(x, y, color='black', alpha=1, linewidth=1)
 
-    x = [start1, end1]
-    y = [val1, val1]
+    x = [df.start.iloc[-1], df.end.iloc[-1]]
+    y = [df.state_id.iloc[-1], df.state_id.iloc[-1]]
     plt.plot(x, y, color='black', alpha=1, linewidth=1)
 
     # plot arrousals
@@ -1050,7 +1089,7 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
     # format y ticks
     plt.yticks(list(hypnogram_values.values()), hypnogram_values.keys())
     for ticklabel in plt.gca().get_yticklabels():
-        clr = hypnogram_colors[ticklabel._text]
+        clr = hypnogram_colors[ticklabel.get_text()]
         ticklabel.set_color(clr)
         # ticklabel.set_fontsize(fontsize)
 
