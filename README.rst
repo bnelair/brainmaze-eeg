@@ -21,6 +21,13 @@ Installation
 
     pip install brainmaze-eeg
 
+Plotting in ``brainmaze_eeg.hypnogram`` (``plot_hypnogram``, ``score_night(plot=True)``)
+needs matplotlib, which is an optional extra:
+
+.. code-block:: bash
+
+    pip install "brainmaze-eeg[plot]"
+
 How to contribute
 """""""""""""""""""""""""""
 The project has 2 main protected branches *main* that contains official software releases and *dev* that contains the latest feature implementations shared with developers.
