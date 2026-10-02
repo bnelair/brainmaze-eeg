@@ -12,7 +12,6 @@ authors = [
 readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.10"
 dependencies = [
-    "setuptools>=61",
     # brainmaze_utils >= 3.0.0 (utils PR #28) resamples correctly at every input rate and
     # DC level; 2.0.0 corrupts some rates (the classifiers then raise ValueError).
     "brainmaze_utils>=3.0.0",
@@ -41,6 +40,10 @@ classifiers = [
 urls = { "Homepage" = "https://github.com/bnelair/brainmaze-eeg" }
 
 [project.optional-dependencies]
+# Plotting in brainmaze_eeg.hypnogram (plot_hypnogram, score_night(plot=True)).
+plot = [
+    "matplotlib",
+]
 test = [
     "pytest",
 ]
@@ -58,6 +61,9 @@ include = ["brainmaze_eeg", "brainmaze_eeg.*"]
 exclude = ["brainmaze_eeg.tests", "brainmaze_eeg.tests.*"]
 
 [tool.setuptools]
-# No package data: brainmaze_eeg needs no non-Python files at runtime. The sdist is
-# trimmed the same way by MANIFEST.in.
+# No package data: brainmaze_eeg needs no non-Python files at runtime (the shared artifact
+# check allows only .py/.pyi/py.typed inside the package). If a runtime data file is ever
+# added, list it under [tool.setuptools.package-data] AND in `required-assets` in
+# .github/workflows/ci.yml + release.yml; otherwise it silently drops out of the wheel
+# while the tests (which import from the source tree) still pass.
 include-package-data = false

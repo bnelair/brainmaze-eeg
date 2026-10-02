@@ -1,11 +1,9 @@
-# Release artifacts (wheel AND sdist) ship only the package code and the runtime assets
-# listed under [tool.setuptools.package-data] in pyproject.toml -- no tests, demos, docs,
-# images or data (maintainer rule). The family CI checks this on every PR (dist-check).
+# Release artifacts (wheel AND sdist) ship only the package code (maintainer rule). This
+# file only keeps setuptools' default sdist extras out; the real guard is the shared
+# artifact check (brainmaze-sphinx check-dist.yml, `dist-check: error` in ci.yml and
+# release.yml), which fails on any non-code file, test, demo or doc in either artifact.
 prune brainmaze_eeg/tests
 prune demo
 prune docs_src
 prune img
 prune .github
-exclude make_docs.sh RELEASING.md .gitignore
-global-exclude *.npz *.npy *.mat *.edf *.csv *.xml *.pkl *.h5
-global-exclude *.py[cod]

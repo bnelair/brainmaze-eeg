@@ -8,8 +8,6 @@
 import numpy as np
 import pandas as pd
 import datetime
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from copy import deepcopy
 from tqdm import tqdm
 
@@ -20,7 +18,24 @@ from brainmaze_utils.annotations import merge_annotations, filter_by_key
 
 """
 Tools for analyzing hypnograms such as number of cycles, hypnogram time etc.
+
+Plotting (:func:`plot_hypnogram`, ``score_night(..., plot=True)``) needs matplotlib, an
+optional dependency: ``pip install "brainmaze-eeg[plot]"``. Everything else in this
+module works without it.
 """
+
+
+def _pyplot():
+    """Import matplotlib.pyplot on first use (optional dependency, extra ``[plot]``)."""
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as e:
+        raise ImportError(
+            "Plotting in brainmaze_eeg.hypnogram needs matplotlib, which is an optional "
+            "dependency. Install it with: pip install \"brainmaze-eeg[plot]\" "
+            "(or pip install matplotlib)."
+        ) from e
+    return plt
 
 
 def get_hypnogram_datarate(df):
@@ -347,6 +362,7 @@ def score_night(df, plot=False):
         Hypnogram dataframe with 'annotation', 'start', 'end', and 'duration' columns.
     plot : bool, optional
         If True, plot the hypnogram with sleep onset and awakening markers. Default is False.
+        Needs matplotlib (optional extra ``brainmaze-eeg[plot]``).
     
     Returns
     -------
@@ -386,6 +402,7 @@ def score_night(df, plot=False):
 
     if plot == True:
         plot_hypnogram(df)
+        plt = _pyplot()
         plt.stem([fell_asleep_time, awakening_time], [7, 7], linefmt='r', markerfmt='or', basefmt='r')
 
     return {
@@ -877,7 +894,14 @@ def plot_hypnogram(orig_df, hypnogram_values=None, hypnogram_colors=None, fontsi
     Returns
     -------
 
+    Raises
+    ------
+    ImportError
+        If matplotlib is not installed (optional extra ``brainmaze-eeg[plot]``).
     """
+    plt = _pyplot()
+    import matplotlib.dates as mdates
+
     _hypnogram_values = {
         'AWAKE': 6,
         'Arousal': 5,
