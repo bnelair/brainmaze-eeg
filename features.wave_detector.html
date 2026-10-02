@@ -393,13 +393,24 @@
                 <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#wave-detection">Wave detection</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-ways-to-use-it">Two ways to use it</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm">Algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trough-placement-trough">Trough placement (<code class="docutils literal notranslate"><span class="pre">trough</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edges-and-gaps">Edges and gaps</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-signals-filtered-and-unfiltered">Two signals: filtered and unfiltered</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#outputs-per-wave-from-detect-detect-waves">Outputs (per wave, from <code class="docutils literal notranslate"><span class="pre">detect</span></code> / <code class="xref py py-func docutils literal notranslate"><span class="pre">detect_waves()</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#windowed-features-call">Windowed features (<code class="docutils literal notranslate"><span class="pre">__call__</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#slope-conventions">Slope conventions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance">Performance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-from-v1-0-0-brainmaze-eeg-2-0-0-class-version-2-0-0-2-1-0">Changes from v1.0.0 (brainmaze-eeg 2.0.0; class version 2.0.0 -&gt; 2.1.0)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector"><code class="docutils literal notranslate"><span class="pre">WaveDetector</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.cutoff_high"><code class="docutils literal notranslate"><span class="pre">WaveDetector.cutoff_high</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.cutoff_low"><code class="docutils literal notranslate"><span class="pre">WaveDetector.cutoff_low</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.detect"><code class="docutils literal notranslate"><span class="pre">WaveDetector.detect()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.edge_margin_s"><code class="docutils literal notranslate"><span class="pre">WaveDetector.edge_margin_s</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.feature_names"><code class="docutils literal notranslate"><span class="pre">WaveDetector.feature_names</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.gap_margin_s"><code class="docutils literal notranslate"><span class="pre">WaveDetector.gap_margin_s</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.detect_waves"><code class="docutils literal notranslate"><span class="pre">detect_waves()</span></code></a></li>
@@ -420,75 +431,443 @@
 <h2>Wave detection<a class="headerlink" href="#wave-detection" title="Link to this heading">#</a></h2>
 <p><a class="reference internal" href="#brainmaze_eeg.features.wave_detector.WaveDetector" title="brainmaze_eeg.features.wave_detector.WaveDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">WaveDetector</span></code></a> finds waves (a negative half-wave followed by a positive
 half-wave) inside a chosen frequency band and reports morphological features of
-those waves – amplitude, peak-to-peak, duration and slope.</p>
+those waves: rate, amplitude, peak-to-peak, duration and slope.</p>
 <p>It is a general half-wave detector: with <code class="docutils literal notranslate"><span class="pre">fband=(0.5,</span> <span class="pre">4)</span></code> it detects delta waves,
 with <code class="docutils literal notranslate"><span class="pre">(0.5,</span> <span class="pre">0.9)</span></code> slow oscillations, and any other band works too. The interface
-mirrors <a class="reference internal" href="features.feature_extraction.html#brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor" title="brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor</span></code></a>
-and <a class="reference internal" href="features.time_domain_features.html#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor" title="brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor</span></code></a>:
-calling the detector returns <code class="docutils literal notranslate"><span class="pre">(values,</span> <span class="pre">names)</span></code> so wave features can be concatenated
-with spectral / time-domain features for the same epochs.</p>
+follows <a class="reference internal" href="features.time_domain_features.html#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor" title="brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor</span></code></a>
+(and, for the <code class="docutils literal notranslate"><span class="pre">(values,</span> <span class="pre">names)</span></code> return,
+<a class="reference internal" href="features.feature_extraction.html#brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor" title="brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.feature_extraction.SleepSpectralFeatureExtractor</span></code></a>):
+configure it once with <code class="docutils literal notranslate"><span class="pre">fs</span></code> and <code class="docutils literal notranslate"><span class="pre">segm_size</span></code>, call it on a 1-D signal or an
+<code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code> array, and concatenate the wave features with spectral /
+time-domain features for the same windows.</p>
 <section id="two-ways-to-use-it">
 <h3>Two ways to use it<a class="headerlink" href="#two-ways-to-use-it" title="Link to this heading">#</a></h3>
-<p>Windowed feature extraction (<code class="docutils literal notranslate"><span class="pre">__call__</span></code>):</p>
+<p>Windowed feature extraction (<code class="docutils literal notranslate"><span class="pre">__call__</span></code>), e.g. a 30-minute, 32-channel segment:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">brainmaze_eeg.features.wave_detector</span><span class="w"> </span><span class="kn">import</span> <span class="n">WaveDetector</span>
 
-<span class="n">det</span> <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">),</span> <span class="n">segm_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
-<span class="n">values</span><span class="p">,</span> <span class="n">names</span> <span class="o">=</span> <span class="n">det</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>                 <span class="c1"># x: 1-D or (n_signals, n_samples)</span>
+<span class="n">det</span> <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">),</span> <span class="n">segm_size</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">datarate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                   <span class="n">features_on</span><span class="o">=</span><span class="s1">'both'</span><span class="p">)</span>
+<span class="n">values</span><span class="p">,</span> <span class="n">names</span> <span class="o">=</span> <span class="n">det</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>        <span class="c1"># x: (32, 900000) -&gt; each value (32, 60)</span>
+<span class="c1"># names: DATA_RATE, WAVE_RATE, WAVE_PK2PK_MEAN, ..., WAVE_SLOPE_MEDIAN,</span>
+<span class="c1">#        WAVE_PK2PK_MEAN_BAND, ..., ANALYSABLE_RATE</span>
 </pre></div>
 </div>
 <p>Raw detections, for plotting or custom analysis (<code class="docutils literal notranslate"><span class="pre">detect</span></code>):</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">det</span> <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">))</span>
-<span class="n">waves</span> <span class="o">=</span> <span class="n">det</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>                  <span class="c1"># dict (1-D) or list of dicts (2-D)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">waves</span><span class="p">[</span><span class="s1">'min_pos'</span><span class="p">],</span> <span class="n">waves</span><span class="p">[</span><span class="s1">'min_val'</span><span class="p">],</span> <span class="s1">'v'</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">waves</span><span class="p">[</span><span class="s1">'max_pos'</span><span class="p">],</span> <span class="n">waves</span><span class="p">[</span><span class="s1">'max_val'</span><span class="p">],</span> <span class="s1">'^'</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">det</span> <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">))</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">det</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">return_signals</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>          <span class="c1"># dict (1-D) or list of dicts (2-D)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="s1">'x_amp'</span><span class="p">]);</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="s1">'x_band'</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="s1">'min_pos'</span><span class="p">],</span> <span class="n">w</span><span class="p">[</span><span class="s1">'min_val'</span><span class="p">],</span> <span class="s1">'v'</span><span class="p">)</span>               <span class="c1"># unfiltered trough values</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="s1">'min_pos_band'</span><span class="p">],</span> <span class="n">w</span><span class="p">[</span><span class="s1">'min_val_band'</span><span class="p">],</span> <span class="s1">'v'</span><span class="p">)</span>     <span class="c1"># filtered trough values</span>
 </pre></div>
 </div>
+<p>Consecutive segments (e.g. a night cut into 30-min blocks) can pass a few seconds of the
+neighbouring blocks as <code class="docutils literal notranslate"><span class="pre">context=(n_before,</span> <span class="pre">n_after)</span></code>: it is used for filtering only, so
+no wave is lost to the edge margin at the block borders and none is counted twice.</p>
+</section>
+<section id="algorithm">
+<h3>Algorithm<a class="headerlink" href="#algorithm" title="Link to this heading">#</a></h3>
+<p>For every signal, independently and on the <strong>whole</strong> signal at once (window borders
+never cut a wave):</p>
+<ol class="arabic">
+<li><p><strong>Gaps.</strong> Non-finite samples (NaN, +/-inf) in <code class="docutils literal notranslate"><span class="pre">x</span></code> or <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> are gaps.
+With <code class="docutils literal notranslate"><span class="pre">nan_policy='fill'</span></code> (default) they are filled by
+<code class="xref py py-func docutils literal notranslate"><span class="pre">brainmaze_utils.gaps.fill_gaps()</span></code> with <code class="docutils literal notranslate"><span class="pre">method='spectral'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">max_interp_s=0.1</span></code> (both passed explicitly): gaps up to 0.1 s are interpolated
+linearly, longer gaps get noise whose spectrum matches the neighbouring data, with
+edges conditioned on the neighbouring samples. This only lets the filters run; the fill is never measured: step 6
+discards every wave near a gap. With <code class="docutils literal notranslate"><span class="pre">nan_policy='raise'</span></code> any gap raises
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. Clean signals skip this step entirely.</p></li>
+<li><p><strong>Filtering.</strong> The mean is removed, then zero-phase filters produce two signals:</p>
+<ul class="simple">
+<li><p>the <em>filtered</em> (detection) signal: band-pass to <code class="docutils literal notranslate"><span class="pre">fband</span></code>;</p></li>
+<li><p>the <em>unfiltered</em> (broadband amplitude) signal: drift removal only (high-pass
+at <code class="docutils literal notranslate"><span class="pre">0.5</span> <span class="pre">*</span> <span class="pre">fband[0]</span></code>), or <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> when given (mean-subtracted, used
+as-is), or, with <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code>, the paper’s trace (see <em>Trough placement</em>).</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">filter='butter'</span></code> (default) uses a Butterworth band-pass of order
+<code class="docutils literal notranslate"><span class="pre">filter_order</span></code> (default 2) in second-order sections applied forward-backward
+(<code class="docutils literal notranslate"><span class="pre">scipy.signal.sosfiltfilt</span></code>): zero phase, magnitude <code class="docutils literal notranslate"><span class="pre">|H(f)|^2</span></code> – gain 1 in
+the band centre, <strong>0.5 (-6 dB) at the band edges</strong>, and a skirt of about
+-24 dB/octave outside the band for order 2 (12 dB/octave per pass, two passes). The
+drift high-pass is a 4th-order Butterworth at <code class="docutils literal notranslate"><span class="pre">0.5</span> <span class="pre">*</span> <span class="pre">fband[0]</span></code>, forward-backward:
+gain 0.996 at <code class="docutils literal notranslate"><span class="pre">fband[0]</span></code>, 0.004 at <code class="docutils literal notranslate"><span class="pre">fband[0]</span> <span class="pre">/</span> <span class="pre">4</span></code>. The measured response
+matches this design to within 0.003 for fs from 200 Hz to 25 kHz (see
+<code class="docutils literal notranslate"><span class="pre">test_wave_detector.py</span></code>). <code class="docutils literal notranslate"><span class="pre">filter='fft'</span></code> uses the ideal brick-wall FFT mask of
+v1.0.0 (its drift removal is a brick-wall high-pass at <code class="docutils literal notranslate"><span class="pre">fband[0]</span></code>). The
+brick-wall filter has a sinc impulse response that rings for many seconds around
+any transient and invents waves there (one isolated 50 uV, 1 Hz cycle in 30 s of
+silence: 14 detections in v1.0.0, 5 with <code class="docutils literal notranslate"><span class="pre">'fft'</span></code> here, 1 with <code class="docutils literal notranslate"><span class="pre">'butter'</span></code>), and
+it is 10-15x slower on long signals, so it is no longer the default.</p>
+</li>
+<li><p><strong>Half-waves.</strong> The filtered signal (with <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code>: the paper’s trace) is
+split at its zero crossings into negative and positive half-waves. A <em>wave</em> is a
+negative half-wave immediately followed by a positive one. Both half-waves must be
+bounded by <strong>real</strong> zero crossings: the truncated half-waves at the start and end
+of the signal are never paired.</p></li>
+<li><p><strong>Positions.</strong> The trough / peak are placed according to <code class="docutils literal notranslate"><span class="pre">trough</span></code> (see <em>Trough
+placement</em>).</p></li>
+<li><p><strong>Duration gate.</strong> Keep waves whose duration lies within half a period of the band
+edges, up to a relative tolerance of 1 %:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mf">0.99</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">fband</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>  <span class="o">&lt;=</span>  <span class="n">duration</span>  <span class="o">&lt;=</span>  <span class="mf">1.01</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">fband</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>The duration is trough -&gt; peak (<code class="docutils literal notranslate"><span class="pre">'refine'</span></code>: of the refined positions, as in
+v1.0.0; <code class="docutils literal notranslate"><span class="pre">'band'</span></code>: of the band positions), with both extremes located to a
+fraction of a sample by a parabola through the three samples around them; with
+<code class="docutils literal notranslate"><span class="pre">'paper'</span></code> it is the negative half-wave between its two interpolated zero
+crossings (the paper’s “zero-crossings separated by 1.1-2 s” for 0.5-0.9 Hz). This
+gate (more than the filter) defines the <em>effective</em> band of the detected waves,
+and it is the same at every <code class="docutils literal notranslate"><span class="pre">fs</span></code>: a sine at exactly <code class="docutils literal notranslate"><span class="pre">fband[1]</span></code> is detected, one
+3 % above it is not, at 128 Hz as at 5 kHz (v1.0.0 lost about a third of the
+<code class="docutils literal notranslate"><span class="pre">fband[1]</span></code> sines; the previous one-sample tolerance let more out-of-band waves in
+at low <code class="docutils literal notranslate"><span class="pre">fs</span></code>).</p>
+</li>
+<li><p><strong>Edges and gaps.</strong> A wave’s <em>span</em> runs from its interpolated down-going zero
+crossing (<code class="docutils literal notranslate"><span class="pre">zero_pos_frac</span></code>) to the end of its positive half-wave (<code class="docutils literal notranslate"><span class="pre">end_pos</span></code>),
+widened to include the trough and peak if they lie outside (possible with
+<code class="docutils literal notranslate"><span class="pre">'refine'</span></code>). A wave is discarded when its span starts within <code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> of
+the first sample or ends within <code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> of the last sample, or overlaps a
+gap widened by its <em>gap margin</em> on each side. See <em>Edges and gaps</em>.</p></li>
+<li><p><strong>Morphology.</strong> Amplitudes, durations and slopes are read at the wave’s positions
+on both signals (outputs below).</p></li>
+</ol>
+</section>
+<section id="trough-placement-trough">
+<h3>Trough placement (<code class="docutils literal notranslate"><span class="pre">trough</span></code>)<a class="headerlink" href="#trough-placement-trough" title="Link to this heading">#</a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">'refine'</span></code> (default) – <strong>the v1.0.0 placement</strong></dt><dd><p>The trough / peak are the extremes of the drift-removed <code class="docutils literal notranslate"><span class="pre">x</span></code> within +/- half a
+period of <code class="docutils literal notranslate"><span class="pre">fband[1]</span></code> around the band-pass extremes. As in v1.0.0 this window is
+not clamped to the wave’s half-wave, the duration gate uses these refined
+positions, the broadband values are read from <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> (when given) at these
+positions, and <code class="docutils literal notranslate"><span class="pre">downslope</span></code> runs from the first negative sample of the band
+signal (<code class="docutils literal notranslate"><span class="pre">zero_pos</span></code>), not the interpolated crossing. A trough that lands at or
+before that sample gives <code class="docutils literal notranslate"><span class="pre">downslope</span> <span class="pre">=</span> <span class="pre">NaN</span></code>, which the slope features ignore.
+This keeps existing results: on the demo recording (6.8 h Fz-Cz, 500 Hz, NREM
+epochs, <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> 0.5-35 Hz, <code class="docutils literal notranslate"><span class="pre">amplitude_threshold=5</span></code>), the mean downslope
+is SO 186.8 / delta 250.1 uV/s with <code class="docutils literal notranslate"><span class="pre">filter='fft'</span></code> (v1.0.0: 186.0 / 250.2; the
+rest of the difference is the truncated edge half-waves no longer being paired and
+the fs-independent gate tolerance) and <strong>173.9 / 239.3</strong> with the default
+Butterworth filter (the ringing fix, -6.5 % / -4.4 %). The search runs on <code class="docutils literal notranslate"><span class="pre">x</span></code>
+even when <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> is given (as in v1.0.0); use <code class="docutils literal notranslate"><span class="pre">'paper'</span></code> to measure the
+negative peak of the measured trace itself.
+Why these v1.0.0 details matter: clamping the window to the half-wave, or using
+the interpolated crossing, lets broadband troughs sit a fraction of a sample after
+the crossing, and <code class="docutils literal notranslate"><span class="pre">-min_val</span> <span class="pre">/</span> <span class="pre">down_dur</span></code> then explodes (demo SO mean 316, with
+<code class="docutils literal notranslate"><span class="pre">measure_on</span></code> as the search signal 910). In v1.0.0 these cases gave NaN.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">'band'</span></code> – band-limited placement (opt-in)</dt><dd><p>The trough / peak are those of the band-passed signal; the broadband values are
+read there. Unbiased under noise (100 uV pk2pk 1 Hz sine + white noise SD 10 uV:
+pk2pk 101 vs 139 with <code class="docutils literal notranslate"><span class="pre">'refine'</span></code>) and no heavy slope tail, but it reads the
+broadband trace at the band trough, which is neither the broadband negative peak
+nor the band slope, and sharp non-sinusoidal extremes are underestimated. Demo:
+SO 51.8 / delta 155.0 uV/s (mean), rate 0.309 / 1.336 per s.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">'paper'</span></code> – Carvalho et al. 2024, Methods (opt-in)</dt><dd><p>The detector builds the study’s trace from <code class="docutils literal notranslate"><span class="pre">x</span></code>: a 0.5-35 Hz zero-phase FIR
+(Hamming window, 4 s; 1999 taps at the study’s 500 Hz, applied once with its delay
+removed, DC gain set to exactly 0), then a centred 50 ms moving average (25 samples
+at 500 Hz). Zero crossings, half-waves, the duration gate (step 5) and the trough
+– “the negative peak after each zero-crossing” – are all taken on that trace, and
+the slope is “the amplitude difference (zero-crossing to negative peak) divided by
+their interval” on the same trace. <code class="docutils literal notranslate"><span class="pre">fband</span></code> only sets the gate; <code class="docutils literal notranslate"><span class="pre">measure_on</span></code>
+must be None and <code class="docutils literal notranslate"><span class="pre">features_on</span></code> must be <code class="docutils literal notranslate"><span class="pre">'broadband'</span></code>. The <code class="docutils literal notranslate"><span class="pre">_band</span></code> outputs are
+the band-passed <code class="docutils literal notranslate"><span class="pre">x</span></code> read at the same positions. Default <code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> and the
+gap-margin cap are the support of the two filters (2.02 s at 500 Hz): beyond it the
+fill or the signal end has exactly no effect.
+<em>Interpretation.</em> The Methods text says “zero phase shift” but not how it was
+achieved. This mode reads it as a <strong>single pass</strong> of the FIR with its group delay
+removed (magnitude <code class="docutils literal notranslate"><span class="pre">|H|</span></code>), not as forward-backward <code class="docutils literal notranslate"><span class="pre">filtfilt</span></code> (<code class="docutils literal notranslate"><span class="pre">|H|^2</span></code>); the
+DC-gain nulling is this module’s own addition (it moves the demo trace by up to
+11 uV and the SO mean slope by +1 %), and the duration gate uses the interpolated
+crossings (step 5). With this reading the mode is wave for wave identical to an
+independent loop implementation (demo: 2088 / 2088 SO and 27817 / 27817 delta
+waves, slopes within 1e-9). Sensitivity: the 4 s Hamming FIR’s transition band
+lies on the SO band (<code class="docutils literal notranslate"><span class="pre">|H|</span></code> 0.50 / 0.87 at 0.5 / 0.7 Hz single pass, 0.25 / 0.75
+with <code class="docutils literal notranslate"><span class="pre">filtfilt</span></code>), so the <code class="docutils literal notranslate"><span class="pre">filtfilt</span></code> reading finds 0.76 instead of 1.29 SO waves
+per NREM epoch on the demo, with median SO slope 95.3 instead of 104.2 uV/s (mean
+of epoch means about the same, 172.9 vs 173.1; that reading as literally written
+uses an integer-sample gate, with the interpolated gate 0.84 waves and 96.7 uV/s);
+delta is unaffected (195.1-195.5,
+about 40 waves per epoch). Demo:
+SO 173.1 / delta 195.3 uV/s (mean of epoch means), median wave 104.2 / 152.0;
+only 1.3 SO waves per NREM epoch (half-waves of 0.55-1 s are rare on a 0.5-35 Hz
+trace). The paper reports 95.1 +/- 28.9 (SO) and 130.8 +/- 34.8 (delta) across
+subjects; this is one subject, and the original <code class="docutils literal notranslate"><span class="pre">SlowWaveDetect</span></code> source is not
+available, so this mode reproduces the published <em>method</em>, not verified numbers.</p>
+</dd>
+</dl>
+</section>
+<section id="edges-and-gaps">
+<h3>Edges and gaps<a class="headerlink" href="#edges-and-gaps" title="Link to this heading">#</a></h3>
+<p>Both margins exist because a zero-phase filter needs time to forget a signal end or a
+gap fill. They were measured on 1/f EEG with slow oscillations and delta bursts (fs 250
+and 1000 Hz; bands 0.5-4, 0.5-0.9 and 1-3.9 Hz; <code class="docutils literal notranslate"><span class="pre">'refine'</span></code> and <code class="docutils literal notranslate"><span class="pre">'band'</span></code>; probes
+listed in PR #68) by comparing every wave with the same wave in the uncut, gap-free
+recording, against the distance between the wave’s span and the cut or gap, in periods
+of <code class="docutils literal notranslate"><span class="pre">fband[0]</span></code>: <em>value error</em> = broadband trough or peak value changed by more than
+1 uV; <em>lost / gained</em> = no wave with a zero crossing within 20 ms; <em>switched</em> = trough
+or peak moved by more than 2 samples (1 nV of white noise alone switches 0.1-1 %, between
+near-equal extremes).</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> (default <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code>, 8 s for a 0.5 Hz edge; <code class="docutils literal notranslate"><span class="pre">'paper'</span></code>: the
+trace’s filter support). At 3-3.5 periods from a signal end 1.5 % of waves still had a
+value error (0.5-4 Hz), none beyond 3.5 periods. Use <code class="docutils literal notranslate"><span class="pre">context</span></code> for consecutive
+segments so this costs nothing at the segment borders.</p></li>
+<li><p>gap margin (default: depends on the gap length <code class="docutils literal notranslate"><span class="pre">L</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">margin</span> <span class="o">=</span> <span class="mi">0</span>                                        <span class="k">if</span> <span class="n">L</span> <span class="o">&lt;=</span> <span class="mi">25</span> <span class="n">ms</span>
+<span class="n">margin</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span> <span class="o">*</span> <span class="p">(</span><span class="n">L</span> <span class="o">*</span> <span class="n">fband</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">**</span> <span class="mf">0.25</span><span class="p">)</span> <span class="o">/</span> <span class="n">fband</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="n">otherwise</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>gap length <code class="docutils literal notranslate"><span class="pre">L</span></code></p></td>
+<td><p>&lt;= 25 ms</p></td>
+<td><p>50 ms</p></td>
+<td><p>0.1 s</p></td>
+<td><p>0.5 s</p></td>
+<td><p>1 s</p></td>
+<td><p>&gt;= 2 s</p></td>
+</tr>
+<tr class="row-even"><td><p>margin at 0.5 Hz (s)</p></td>
+<td><p>0</p></td>
+<td><p>3.2</p></td>
+<td><p>3.8</p></td>
+<td><p>5.7</p></td>
+<td><p>6.7</p></td>
+<td><p>8.0</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>With this rule (spectral fill of brainmaze-utils &gt;= 3.0.0, utils#26 round 3) and
+the default <code class="docutils literal notranslate"><span class="pre">trough='refine'</span></code>, among the waves within 6 periods of gaps of 4 ms
+to 5 s, at most 0.8 % had a value error (0.5-0.9 Hz band; 0 % in the others), 0.1 %
+were lost or gained and 0.5 % switched; the same at 1 kHz (an independent re-check with another
+generator found 0.00 % value errors at 250 Hz and 1 kHz, &lt;= 0.22 % lost). Gaps up to
+20 ms changed nothing even with no margin (a 1-sample dropout costs only the wave it
+falls in). Without margins long gaps gave up to 18 % value errors; the previous fixed
+<code class="docutils literal notranslate"><span class="pre">3</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code> up to 1.1 %. <code class="docutils literal notranslate"><span class="pre">trough='band'</span></code> is more sensitive to the fill: it
+reads the broadband value at the exact band-pass argmin, which on a flat 0.5-0.9 Hz
+band trace can move by a sample, so 0.1-1.8 % (250 Hz) and <strong>0.9-5.9 % (1 kHz)</strong> of
+its SO waves had a value error <em>beyond</em> the margin; use a fixed, larger
+<code class="docutils literal notranslate"><span class="pre">gap_margin_s</span></code> if that matters. The step from 0 to about 3 periods at 25 ms is
+conservative: with no margin at all, 30-100 ms gaps gave 0-0.3 % (<code class="docutils literal notranslate"><span class="pre">'refine'</span></code>,
+0.5-0.9 Hz; up to 0.9 % for 1-3.9 Hz) and 1.4-4.9 % (<code class="docutils literal notranslate"><span class="pre">'band'</span></code>) affected waves, so
+data with frequent short dropouts loses more time than strictly necessary; set
+<code class="docutils literal notranslate"><span class="pre">gap_margin_s</span></code> explicitly to trade that off. With
+<code class="docutils literal notranslate"><span class="pre">'paper'</span></code> the margin is capped at the trace’s filter support. A fixed
+<code class="docutils literal notranslate"><span class="pre">gap_margin_s</span></code> (seconds, all gaps) overrides the rule.</p>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> counts waves per <em>analysable</em> second: the time outside the margins and
+gaps, with every clean run shortened by the mean zero-crossing -&gt; trough time at its
+start and the mean trough -&gt; span-end time at its end – the same rule that decides
+whether a wave is kept. So the rate does not depend on how many gaps there are (1 Hz
+sine with 20 ms dropouts every 10 s or 50 ms every 30 s: pooled rate 1.000 within 1 %;
+before this, -6 to -11 %). <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code> (with <code class="docutils literal notranslate"><span class="pre">datarate=True</span></code>) is that time as a
+fraction of the window: gate <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> on it, not on <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code>. The shrink uses
+mean durations, which no longer represent the few short runs left when gaps are dense:
+with <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code> below about 5 % <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> is unreliable and biased low
+(30 ms dropouts every 5 s, <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code> 0.6-1.3 %: 0.82-0.83 of the gap-free
+rate; 0.976-1.028 whenever <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span> <span class="pre">&gt;=</span> <span class="pre">5</span> <span class="pre">%</span></code>). A window with no analysable
+time (<code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span> <span class="pre">==</span> <span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> NaN) reports NaN shape features too,
+even if a kept wave’s trough lies in it.</p>
+</section>
+<section id="two-signals-filtered-and-unfiltered">
+<h3>Two signals: filtered and unfiltered<a class="headerlink" href="#two-signals-filtered-and-unfiltered" title="Link to this heading">#</a></h3>
+<p>Every wave is measured twice, on the same set of detected waves:</p>
+<ul class="simple">
+<li><p><strong>unfiltered</strong> (broadband; keys without suffix, features <code class="docutils literal notranslate"><span class="pre">WAVE_*</span></code>): values of the
+drift-removed input (or of <code class="docutils literal notranslate"><span class="pre">measure_on</span></code>, or the paper trace) – what the EEG
+really looked like, including faster activity riding on the wave;</p></li>
+<li><p><strong>filtered</strong> (band-passed; keys suffixed <code class="docutils literal notranslate"><span class="pre">_band</span></code>, features suffixed <code class="docutils literal notranslate"><span class="pre">_BAND</span></code>):
+values of the band-passed detection signal at its own extremes – the band-limited
+component only. Note the filter gain: <code class="docutils literal notranslate"><span class="pre">|H(f)|^2</span></code> is 0.5 at the band edges, so the
+filtered amplitude of a wave near a band edge is attenuated (a pure sine at
+<code class="docutils literal notranslate"><span class="pre">fband[0]</span></code> or <code class="docutils literal notranslate"><span class="pre">fband[1]</span></code> comes out at half amplitude).</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">WaveDetector(features_on=...)</span></code> selects which set the windowed features use;
+<code class="docutils literal notranslate"><span class="pre">detect()</span></code> always returns both.</p>
+</section>
+<section id="outputs-per-wave-from-detect-detect-waves">
+<h3>Outputs (per wave, from <code class="docutils literal notranslate"><span class="pre">detect</span></code> / <a class="reference internal" href="#brainmaze_eeg.features.wave_detector.detect_waves" title="brainmaze_eeg.features.wave_detector.detect_waves"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_waves()</span></code></a>)<a class="headerlink" href="#outputs-per-wave-from-detect-detect-waves" title="Link to this heading">#</a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">zero_pos</span></code></dt><dd><p>First negative sample after the down-going zero crossing (int sample index).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">zero_pos_frac</span></code></dt><dd><p>The same crossing linearly interpolated between the two samples that bracket it
+(fractional sample index).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">end_pos</span></code></dt><dd><p>Last sample of the positive half-wave (int). <code class="docutils literal notranslate"><span class="pre">[zero_pos_frac,</span> <span class="pre">end_pos]</span></code> is the
+wave’s span used for edge / gap exclusion.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">min_pos</span></code>, <code class="docutils literal notranslate"><span class="pre">max_pos</span></code></dt><dd><p>Trough / peak sample index (int).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">min_val</span></code>, <code class="docutils literal notranslate"><span class="pre">max_val</span></code></dt><dd><p>Signal value at the trough / peak (input units, e.g. uV).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">pk2pk</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">max_val</span> <span class="pre">-</span> <span class="pre">min_val</span></code> (input units).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">delta_t</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(max_pos</span> <span class="pre">-</span> <span class="pre">min_pos)</span> <span class="pre">/</span> <span class="pre">fs</span></code> (s).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">down_dur</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(min_pos</span> <span class="pre">-</span> <span class="pre">zero)</span> <span class="pre">/</span> <span class="pre">fs</span></code> (s), where <code class="docutils literal notranslate"><span class="pre">zero</span></code> is <code class="docutils literal notranslate"><span class="pre">zero_pos</span></code> for the broadband
+outputs of <code class="docutils literal notranslate"><span class="pre">trough='refine'</span></code> (v1.0.0) and <code class="docutils literal notranslate"><span class="pre">zero_pos_frac</span></code> otherwise. Can be
+&lt;= 0 with <code class="docutils literal notranslate"><span class="pre">'refine'</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">upslope</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">pk2pk</span> <span class="pre">/</span> <span class="pre">delta_t</span></code> (input units / s).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">downslope</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">-min_val</span> <span class="pre">/</span> <span class="pre">down_dur</span></code> (input units / s); NaN when <code class="docutils literal notranslate"><span class="pre">down_dur</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code>. Positive for
+a trough below zero (the normal case). It can be negative if the unfiltered value
+at the trough is above zero; <code class="docutils literal notranslate"><span class="pre">amplitude_threshold</span></code> removes such waves.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">*_band</span></code></dt><dd><p>The nine keys <code class="docutils literal notranslate"><span class="pre">min_pos</span></code> … <code class="docutils literal notranslate"><span class="pre">downslope</span></code> again, measured on the filtered signal
+(always with the interpolated crossing).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">gaps</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(n_gaps,</span> <span class="pre">2)</span></code> <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> sample indices of the non-finite runs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">x_band</span></code>, <code class="docutils literal notranslate"><span class="pre">x_amp</span></code></dt><dd><p>Only with <code class="docutils literal notranslate"><span class="pre">return_signals=True</span></code>: the filtered and unfiltered signals (NaN in
+gaps).</p>
+</dd>
+</dl>
+</section>
+<section id="windowed-features-call">
+<h3>Windowed features (<code class="docutils literal notranslate"><span class="pre">__call__</span></code>)<a class="headerlink" href="#windowed-features-call" title="Link to this heading">#</a></h3>
+<p>See <a class="reference internal" href="#brainmaze_eeg.features.wave_detector.WaveDetector" title="brainmaze_eeg.features.wave_detector.WaveDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">WaveDetector</span></code></a>. In order: <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> (only with <code class="docutils literal notranslate"><span class="pre">datarate=True</span></code>),
+<code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code>, the per-window means of <code class="docutils literal notranslate"><span class="pre">pk2pk</span></code>, the selected slope, <code class="docutils literal notranslate"><span class="pre">delta_t</span></code>,
+<code class="docutils literal notranslate"><span class="pre">min_val</span></code> and <code class="docutils literal notranslate"><span class="pre">max_val</span></code> (the v1.0.0 names, at their v1.0.0 positions), then
+<code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEDIAN</span></code> (median of the selected slope: robust to the few very steep
+waves that dominate the mean), the same for <code class="docutils literal notranslate"><span class="pre">_BAND</span></code> when requested, and last
+<code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code> (only with <code class="docutils literal notranslate"><span class="pre">datarate=True</span></code>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> here is the fraction of samples that are finite in <code class="docutils literal notranslate"><span class="pre">x</span></code> <strong>and</strong> in
+<code class="docutils literal notranslate"><span class="pre">measure_on</span></code>; <code class="docutils literal notranslate"><span class="pre">TimeDomainFeatureExtractor</span></code>’s <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> counts only NaN in its
+own input. They agree for NaN-only gaps without <code class="docutils literal notranslate"><span class="pre">measure_on</span></code>; with +/-inf samples or
+gaps in <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> this one is lower.</p>
 </section>
 <section id="slope-conventions">
 <h3>Slope conventions<a class="headerlink" href="#slope-conventions" title="Link to this heading">#</a></h3>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">slope='upslope'</span></code></dt><dd><p>Trough -&gt; peak rate, <code class="docutils literal notranslate"><span class="pre">(max_val</span> <span class="pre">-</span> <span class="pre">min_val)</span> <span class="pre">/</span> <span class="pre">(t_peak</span> <span class="pre">-</span> <span class="pre">t_trough)</span></code>. This is the
-historical behaviour of this class.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">slope='downslope'</span></code> (default)</dt><dd><p>Zero-crossing -&gt; negative-trough rate, <code class="docutils literal notranslate"><span class="pre">-min_val</span> <span class="pre">/</span> <span class="pre">(t_trough</span> <span class="pre">-</span> <span class="pre">t_zero_cross)</span></code>,
+the slow-wave slope of Carvalho et al. 2024. The study detected on the narrow band,
+measured on a broadband 0.5-35 Hz trace and kept waves with a negative peak of at
+least 5 uV (<code class="docutils literal notranslate"><span class="pre">amplitude_threshold=5</span></code>); <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code> implements its Methods
+text, the default reproduces this package’s v1.0.0 numbers. See
+<code class="docutils literal notranslate"><span class="pre">demo/eeg_wave_detection/example_one_file.py</span></code>.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">slope='downslope'</span></code></dt><dd><p>Zero-crossing -&gt; negative-trough rate, <code class="docutils literal notranslate"><span class="pre">|min_val|</span> <span class="pre">/</span> <span class="pre">(t_trough</span> <span class="pre">-</span> <span class="pre">t_zero_cross)</span></code>.
-This is the slow-wave downslope used by Carvalho et al. 2024, who measure it on a
-broadband trace (pass that trace via <code class="docutils literal notranslate"><span class="pre">measure_on=</span></code>) after detecting on the narrow
-band, and apply an amplitude threshold on the negative peak (<code class="docutils literal notranslate"><span class="pre">amplitude_threshold</span></code>).</p>
+<dt><code class="docutils literal notranslate"><span class="pre">slope='upslope'</span></code></dt><dd><p>Trough -&gt; peak rate, <code class="docutils literal notranslate"><span class="pre">(max_val</span> <span class="pre">-</span> <span class="pre">min_val)</span> <span class="pre">/</span> <span class="pre">(t_peak</span> <span class="pre">-</span> <span class="pre">t_trough)</span></code>.</p>
 </dd>
 </dl>
+<p>For <code class="docutils literal notranslate"><span class="pre">A</span> <span class="pre">sin(2</span> <span class="pre">pi</span> <span class="pre">f</span> <span class="pre">t)</span></code> both equal <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">A</span> <span class="pre">f</span></code>.</p>
+</section>
+<section id="performance">
+<h3>Performance<a class="headerlink" href="#performance" title="Link to this heading">#</a></h3>
+<p>Everything is vectorised (no Python loop over samples, waves or windows); time and
+memory are O(n) per signal, dominated by the <code class="docutils literal notranslate"><span class="pre">sosfiltfilt</span></code> passes. 2-D input is
+converted to float64 one channel at a time; the working set is about five float64
+copies of one channel (~1.8 GB for a 30-min channel at 25 kHz), times <code class="docutils literal notranslate"><span class="pre">n_processes</span></code>.
+CPU time per 30-minute channel (single thread, <code class="docutils literal notranslate"><span class="pre">fband=(0.5,</span> <span class="pre">4)</span></code>, <code class="docutils literal notranslate"><span class="pre">segm_size=30</span></code>,
+synthetic 1/f EEG with delta bursts, on a loaded 12-core workstation): 0.054 s at
+250 Hz, 0.20 s at 1 kHz (0.32 s with 20 gaps), 1.0 s at 5 kHz, 5.3 s at 25 kHz;
+<code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code> adds 10-45 % (its FIR). v1.0.0 needed 0.40 / 1.56 / 8.7 / 48.4 s
+(7.5-9x slower) and returned <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span> <span class="pre">=</span> <span class="pre">0</span></code> for any input with a gap.</p>
+</section>
+<section id="changes-from-v1-0-0-brainmaze-eeg-2-0-0-class-version-2-0-0-2-1-0">
+<h3>Changes from v1.0.0 (brainmaze-eeg 2.0.0; class version 2.0.0 -&gt; 2.1.0)<a class="headerlink" href="#changes-from-v1-0-0-brainmaze-eeg-2-0-0-class-version-2-0-0-2-1-0" title="Link to this heading">#</a></h3>
+<p>Same default trough placement as v1.0.0 (<code class="docutils literal notranslate"><span class="pre">trough='refine'</span></code>). Butterworth instead of
+brick-wall FFT filter (demo SO / delta downslope 186.0 / 250.2 -&gt; 173.9 / 239.3 uV/s);
+NaN gaps no longer zero the whole signal; truncated edge half-waves are no longer
+paired; waves near the signal edges and gaps are excluded and <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> is
+normalised by analysable time; fs-independent duration gate; <code class="docutils literal notranslate"><span class="pre">trough='band'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code>; <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEDIAN</span></code>, <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code>, <code class="docutils literal notranslate"><span class="pre">*_band</span></code> outputs and
+<code class="docutils literal notranslate"><span class="pre">features_on</span></code>; <code class="docutils literal notranslate"><span class="pre">return_signals</span></code>; <code class="docutils literal notranslate"><span class="pre">context</span></code>; numpy scalar <code class="docutils literal notranslate"><span class="pre">fs</span></code> accepted.</p>
 <p class="rubric">References</p>
 <p>Carvalho D.Z. et al. (2024), <em>Non-rapid eye movement sleep slow-wave activity features
 are associated with amyloid accumulation in older adults with obstructive sleep apnoea</em>,
-Brain Communications 6(5): fcae354. <a class="reference external" href="https://doi.org/10.1093/braincomms/fcae354">https://doi.org/10.1093/braincomms/fcae354</a></p>
+Brain Communications 6(5): fcae354. <a class="reference external" href="https://doi.org/10.1093/braincomms/fcae354">https://doi.org/10.1093/braincomms/fcae354</a>.
+Methods, slow-wave detection: “bandpass finite impulse response filter with zero phase
+shift … in the 0.5-35 Hz band” (length 2000, Hamming window), then a “50-ms moving
+average filter”; “negative peaks (troughs) of SWs after each zero-crossing”;
+“zero-crossings were separated by 1.1-2 s for SO and 0.25-1.0 s for delta waves”;
+“SW amplitude threshold set at -5 uV”; slope = “the amplitude difference (zero-crossing
+to negative peak in uV) by their interval”.</p>
 <p>Lineage: this detector is the successor of the <code class="docutils literal notranslate"><span class="pre">SlowWaveDetect</span></code> routine used in the
-study above, generalised to an arbitrary band; the <code class="docutils literal notranslate"><span class="pre">slope='downslope'</span></code> +
-<code class="docutils literal notranslate"><span class="pre">amplitude_threshold</span></code> + <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> options reproduce that original feature.</p>
+study above, generalised to an arbitrary band. The original <code class="docutils literal notranslate"><span class="pre">SlowWaveDetect</span></code> source is
+not part of this repository, so numerical identity with the published values cannot be
+verified here.</p>
 </section>
 </section>
 <dl class="py class">
 <dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.WaveDetector">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.wave_detector.</span></span><span class="sig-name descname"><span class="pre">WaveDetector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fband</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.5,</span> <span class="pre">4.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'downslope'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">amplitude_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_processes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff_low</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff_high</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.wave_detector.</span></span><span class="sig-name descname"><span class="pre">WaveDetector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fband</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.5,</span> <span class="pre">4.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segm_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'downslope'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">amplitude_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datarate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_processes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff_low</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff_high</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'butter'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nan_policy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fill'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trough</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'refine'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">features_on</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'broadband'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector" title="Link to this definition">#</a></dt>
 <dd><p>Band-limited wave detector and windowed feature extractor.</p>
+<p>Same calling convention as
+<a class="reference internal" href="features.time_domain_features.html#brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor" title="brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.time_domain_features.TimeDomainFeatureExtractor</span></code></a>:
+configure once with <code class="docutils literal notranslate"><span class="pre">fs</span></code> and <code class="docutils literal notranslate"><span class="pre">segm_size</span></code>, then call it on a 1-D signal or an
+<code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code> array (e.g. a 30-minute multichannel segment) and get
+<code class="docutils literal notranslate"><span class="pre">(values,</span> <span class="pre">names)</span></code> back, one value per feature window. See the module docstring for
+the algorithm and the exact definition of every output.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency (Hz).</p></li>
-<li><p><strong>fband</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – Single <code class="docutils literal notranslate"><span class="pre">(low,</span> <span class="pre">high)</span></code> band in Hz. One detector detects in one band; run several
-detectors for several bands. Default <code class="docutils literal notranslate"><span class="pre">(0.5,</span> <span class="pre">4.0)</span></code> (delta).</p></li>
+<li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency (Hz). Python or numpy real scalar.</p></li>
+<li><p><strong>fband</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – Single <code class="docutils literal notranslate"><span class="pre">(low,</span> <span class="pre">high)</span></code> band in Hz, <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">low</span> <span class="pre">&lt;</span> <span class="pre">high</span> <span class="pre">&lt;</span> <span class="pre">fs/2</span></code>. One detector
+detects in one band; run several detectors for several bands. Default
+<code class="docutils literal notranslate"><span class="pre">(0.5,</span> <span class="pre">4.0)</span></code> (delta).</p></li>
 <li><p><strong>segm_size</strong> (<em>float</em><em>, </em><em>optional</em>) – Feature window length in seconds. <code class="docutils literal notranslate"><span class="pre">None</span></code> (default) treats the whole signal as
-one window.</p></li>
+one window. Only complete windows are returned (a trailing partial window is
+dropped, like <code class="xref py py-func docutils literal notranslate"><span class="pre">brainmaze_utils.signal.buffer()</span></code> and
+<code class="docutils literal notranslate"><span class="pre">TimeDomainFeatureExtractor</span></code>); a signal shorter than one window gives zero
+windows.</p></li>
 <li><p><strong>overlap</strong> (<em>float</em>) – Feature window overlap in seconds. Default <code class="docutils literal notranslate"><span class="pre">0.0</span></code>.</p></li>
-<li><p><strong>slope</strong> (<em>{'downslope'</em><em>, </em><em>'upslope'}</em>) – Which slope <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEAN</span></code> reports (see module docstring). Default
-<code class="docutils literal notranslate"><span class="pre">'downslope'</span></code>.</p></li>
-<li><p><strong>amplitude_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Keep only waves whose negative trough is at least this deep (<code class="docutils literal notranslate"><span class="pre">-min_val</span> <span class="pre">&gt;=</span>
-<span class="pre">amplitude_threshold</span></code>), measured on the amplitude signal. <code class="docutils literal notranslate"><span class="pre">None</span></code> (default)
-keeps all waves. Carvalho et al. use <code class="docutils literal notranslate"><span class="pre">5</span></code> (µV).</p></li>
-<li><p><strong>datarate</strong> (<em>bool</em>) – If True, prepend a <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> feature (fraction of non-NaN samples per window).</p></li>
+<li><p><strong>slope</strong> (<em>{'downslope'</em><em>, </em><em>'upslope'}</em>) – Which slope <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEAN</span></code> / <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEDIAN</span></code> report (see module
+docstring). Default <code class="docutils literal notranslate"><span class="pre">'downslope'</span></code>.</p></li>
+<li><p><strong>amplitude_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Keep only waves whose broadband negative trough is at least this deep
+(<code class="docutils literal notranslate"><span class="pre">-min_val</span> <span class="pre">&gt;=</span> <span class="pre">amplitude_threshold</span></code>, input units). <code class="docutils literal notranslate"><span class="pre">None</span></code> (default) keeps all
+waves. Carvalho et al. use <code class="docutils literal notranslate"><span class="pre">5</span></code> (uV). The same set of waves feeds the broadband
+and the band features.</p></li>
+<li><p><strong>features_on</strong> (<em>{'broadband'</em><em>, </em><em>'band'</em><em>, </em><em>'both'}</em>) – Which signal the windowed shape features are measured on (module docstring,
+<em>Two signals</em>). <code class="docutils literal notranslate"><span class="pre">'broadband'</span></code> (default): <code class="docutils literal notranslate"><span class="pre">WAVE_*</span></code> names as in v1.0.0.
+<code class="docutils literal notranslate"><span class="pre">'band'</span></code>: the band-passed signal, names suffixed <code class="docutils literal notranslate"><span class="pre">_BAND</span></code>. <code class="docutils literal notranslate"><span class="pre">'both'</span></code>: both
+sets, broadband first. <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> and <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> appear once. Must be
+<code class="docutils literal notranslate"><span class="pre">'broadband'</span></code> with <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code>.</p></li>
+<li><p><strong>datarate</strong> (<em>bool</em>) – If True, add <code class="docutils literal notranslate"><span class="pre">DATA_RATE</span></code> (first; fraction of finite samples per window) and
+<code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code> (last; fraction of the window that <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> is
+computed on; <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> is unreliable below about 5 %, and windows with 0
+report NaN for every wave feature).</p></li>
 <li><p><strong>n_processes</strong> (<em>int</em>) – Parallelise detection across signals for 2-D / list input. Default <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p><strong>filter</strong> (<em>{'butter'</em><em>, </em><em>'fft'}</em>) – Band-pass implementation. <code class="docutils literal notranslate"><span class="pre">'butter'</span></code> (default): zero-phase Butterworth of order
+<code class="docutils literal notranslate"><span class="pre">filter_order</span></code>. <code class="docutils literal notranslate"><span class="pre">'fft'</span></code>: ideal brick-wall FFT mask (the v1.0.0 filter; rings
+around transients and invents waves – see module docstring).</p></li>
+<li><p><strong>filter_order</strong> (<em>int</em>) – Butterworth order. Default 2.</p></li>
+<li><p><strong>nan_policy</strong> (<em>{'fill'</em><em>, </em><em>'raise'}</em>) – Handling of non-finite samples. <code class="docutils literal notranslate"><span class="pre">'fill'</span></code> (default): fill with
+<code class="xref py py-func docutils literal notranslate"><span class="pre">brainmaze_utils.gaps.fill_gaps()</span></code> (<code class="docutils literal notranslate"><span class="pre">method='spectral'</span></code>), discard waves
+overlapping a gap (plus its margin), and normalise <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> by the
+analysable time of each window. <code class="docutils literal notranslate"><span class="pre">'raise'</span></code>: raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p></li>
+<li><p><strong>gap_margin_s</strong> (<em>float</em><em> or </em><em>None</em>) – Exclusion margins in seconds around gaps / at the two ends of each signal.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> (default): gap-length-dependent / <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code>. See
+<a class="reference internal" href="#brainmaze_eeg.features.wave_detector.detect_waves" title="brainmaze_eeg.features.wave_detector.detect_waves"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_waves()</span></code></a> and the module docstring, <em>Edges and gaps</em>.</p></li>
+<li><p><strong>edge_margin_s</strong> (<em>float</em><em> or </em><em>None</em>) – Exclusion margins in seconds around gaps / at the two ends of each signal.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> (default): gap-length-dependent / <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code>. See
+<a class="reference internal" href="#brainmaze_eeg.features.wave_detector.detect_waves" title="brainmaze_eeg.features.wave_detector.detect_waves"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_waves()</span></code></a> and the module docstring, <em>Edges and gaps</em>.</p></li>
+<li><p><strong>trough</strong> (<em>{'refine'</em><em>, </em><em>'band'</em><em>, </em><em>'paper'}</em>) – Where the broadband trough / peak are placed (module docstring, <em>Trough
+placement</em>). Default <code class="docutils literal notranslate"><span class="pre">'refine'</span></code> (the v1.0.0 placement).</p></li>
 </ul>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<p>Windowed features (<code class="docutils literal notranslate"><span class="pre">__call__</span></code>):</p>
+<ul class="simple">
+<li><p>detection runs once on the <strong>whole</strong> signal (so window borders do not cut waves
+and do not add filter transients); a wave then belongs to the window containing
+its trough (<code class="docutils literal notranslate"><span class="pre">min_pos</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> = number of waves / <em>analysable</em> seconds in the window (Hz).
+Analysable: finite, not within the gap margin of a gap or <code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> of
+either end, and – because a wave is only kept when its whole span is clean –
+every clean run is shortened by the mean zero-crossing-&gt;trough time at its start
+and the mean trough-&gt;span-end time at its end (means over the signal’s counted
+waves). So the expected rate does not depend on how many gaps there are;</p></li>
+<li><p>a window with no analysable time gives <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span> <span class="pre">=</span> <span class="pre">NaN</span></code>; a window with
+analysable time but no wave gives <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span> <span class="pre">=</span> <span class="pre">0</span></code>; shape features are NaN when
+there is no wave;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">WAVE_*_MEAN</span></code> are means, <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEDIAN</span></code> the median, over the waves in the
+window, ignoring non-finite per-wave values (e.g. a NaN downslope).</p></li>
+</ul>
 <dl class="py property">
 <dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.WaveDetector.cutoff_high">
 <em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cutoff_high</span></span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector.cutoff_high" title="Link to this definition">#</a></dt>
@@ -501,18 +880,30 @@ keeps all waves. Carvalho et al. use <code class="docutils literal notranslate">
 
 <dl class="py method">
 <dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.WaveDetector.detect">
-<span class="sig-name descname"><span class="pre">detect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measure_on</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector.detect" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">detect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measure_on</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector.detect" title="Link to this definition">#</a></dt>
 <dd><p>Raw per-signal detections.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>x</strong> (<em>np.ndarray</em><em> or </em><em>list</em>) – 1-D <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code>, 2-D <code class="docutils literal notranslate"><span class="pre">(n_signals,</span> <span class="pre">n_samples)</span></code>, or list of 1-D arrays.</p></li>
-<li><p><strong>measure_on</strong> (<em>np.ndarray</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – Amplitude signal(s), same shape as <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p></li>
+<li><p><strong>measure_on</strong> (<em>np.ndarray</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – Broadband amplitude signal(s), same shape as <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p></li>
+<li><p><strong>return_signals</strong> (<em>bool</em>) – Also return the band-passed (<code class="docutils literal notranslate"><span class="pre">'x_band'</span></code>) and broadband amplitude
+(<code class="docutils literal notranslate"><span class="pre">'x_amp'</span></code>) signals per input signal (NaN in gaps). Default False.</p></li>
+<li><p><strong>context</strong> (<em>(</em><em>int</em><em>, </em><em>int</em><em>)</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">(n_before,</span> <span class="pre">n_after)</span></code>: the first <code class="docutils literal notranslate"><span class="pre">n_before</span></code> and last <code class="docutils literal notranslate"><span class="pre">n_after</span></code> samples
+of every signal are context (e.g. the end of the previous and the start of
+the next 30-min segment), used for filtering only. Only waves whose trough
+lies in the core <code class="docutils literal notranslate"><span class="pre">[n_before,</span> <span class="pre">n</span> <span class="pre">-</span> <span class="pre">n_after)</span></code> are returned, with all
+positions (and <code class="docutils literal notranslate"><span class="pre">gaps</span></code>, <code class="docutils literal notranslate"><span class="pre">x_band</span></code>, <code class="docutils literal notranslate"><span class="pre">x_amp</span></code>) relative to the core start;
+<code class="docutils literal notranslate"><span class="pre">zero_pos</span></code> / <code class="docutils literal notranslate"><span class="pre">end_pos</span></code> of a wave that straddles the core border can be
+negative / beyond the core. Consecutive segments then count every wave
+exactly once and lose nothing to the edge margin. Default: no context.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A single detection dict for 1-D input, otherwise one dict per signal.
-Signals are detected <strong>independently</strong> – positions index into that signal.</p>
+<dd class="field-even"><p>A single detection dict for 1-D input, otherwise one dict per signal (keys:
+see <a class="reference internal" href="#brainmaze_eeg.features.wave_detector.detect_waves" title="brainmaze_eeg.features.wave_detector.detect_waves"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_waves()</span></code></a>; broadband keys unsuffixed, band-passed keys
+suffixed <code class="docutils literal notranslate"><span class="pre">_band</span></code>). Signals are detected <strong>independently</strong> – positions
+index into that signal.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>dict or list of dict</p>
@@ -520,27 +911,81 @@ Signals are detected <strong>independently</strong> – positions index into tha
 </dl>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.WaveDetector.edge_margin_s">
+<span class="sig-name descname"><span class="pre">edge_margin_s</span></span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector.edge_margin_s" title="Link to this definition">#</a></dt>
+<dd><p>resolved edge margin in seconds (<code class="docutils literal notranslate"><span class="pre">None</span></code> at construction -&gt; the default)</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.WaveDetector.feature_names">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feature_names</span></span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector.feature_names" title="Link to this definition">#</a></dt>
+<dd><p>Names returned by <code class="docutils literal notranslate"><span class="pre">__call__</span></code>, in order (v1.0.0 names keep their positions).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.WaveDetector.gap_margin_s">
+<span class="sig-name descname"><span class="pre">gap_margin_s</span></span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.WaveDetector.gap_margin_s" title="Link to this definition">#</a></dt>
+<dd><p>fixed gap margin in seconds, or <code class="docutils literal notranslate"><span class="pre">None</span></code> for the gap-length-dependent default</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.features.wave_detector.detect_waves">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.wave_detector.</span></span><span class="sig-name descname"><span class="pre">detect_waves</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fband</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.5,</span> <span class="pre">4.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measure_on</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.detect_waves" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.features.wave_detector.</span></span><span class="sig-name descname"><span class="pre">detect_waves</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fband</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.5,</span> <span class="pre">4.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measure_on</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'butter'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nan_policy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fill'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trough</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'refine'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.features.wave_detector.detect_waves" title="Link to this definition">#</a></dt>
 <dd><p>Detect waves in a single 1-D signal and return their positions and morphology.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>x</strong> (<em>np.ndarray</em>) – 1-D signal.</p></li>
-<li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency (Hz).</p></li>
-<li><p><strong>fband</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – (low, high) band in Hz that defines the waves to detect.</p></li>
-<li><p><strong>measure_on</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – Signal the amplitudes/slopes are read from (same length as <code class="docutils literal notranslate"><span class="pre">x</span></code>). Detection
-always runs on <code class="docutils literal notranslate"><span class="pre">x</span></code>; when <code class="docutils literal notranslate"><span class="pre">measure_on</span></code> is given, morphology is measured on it
-(e.g. detect on a narrow band, measure on a 0.5-35 Hz broadband trace). Defaults
-to the drift-removed <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p></li>
+<li><p><strong>x</strong> (<em>np.ndarray</em>) – 1-D signal (any amplitude unit; outputs use the same unit, e.g. uV). Any real
+dtype; it is converted to float64 here (one signal at a time).</p></li>
+<li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency (Hz). Python or numpy real scalar.</p></li>
+<li><p><strong>fband</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – <code class="docutils literal notranslate"><span class="pre">(low,</span> <span class="pre">high)</span></code> band in Hz, <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">low</span> <span class="pre">&lt;</span> <span class="pre">high</span> <span class="pre">&lt;</span> <span class="pre">fs/2</span></code>.</p></li>
+<li><p><strong>measure_on</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – Signal the <em>broadband</em> amplitudes/slopes are read from (same length as <code class="docutils literal notranslate"><span class="pre">x</span></code>),
+e.g. a 0.5-35 Hz trace of <code class="docutils literal notranslate"><span class="pre">x</span></code>. Mean-subtracted, otherwise used as-is.
+Detection (zero crossings, half-waves) always runs on <code class="docutils literal notranslate"><span class="pre">x</span></code>; with
+<code class="docutils literal notranslate"><span class="pre">trough='refine'</span></code> the broadband trough / peak are still searched on the
+drift-removed <code class="docutils literal notranslate"><span class="pre">x</span></code> (as in v1.0.0) and only their values are read from
+<code class="docutils literal notranslate"><span class="pre">measure_on</span></code>; with <code class="docutils literal notranslate"><span class="pre">trough='band'</span></code> the values are read at the band-pass
+extremes. Defaults to the drift-removed <code class="docutils literal notranslate"><span class="pre">x</span></code>. The
+<code class="docutils literal notranslate"><span class="pre">*_band</span></code> outputs always come from the band-passed <code class="docutils literal notranslate"><span class="pre">x</span></code>. Not allowed with
+<code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code> (which builds its own trace).</p></li>
+<li><p><strong>filter</strong> (<em>{'butter'</em><em>, </em><em>'fft'}</em>) – Band-pass implementation (module docstring, step 2). Default <code class="docutils literal notranslate"><span class="pre">'butter'</span></code>.</p></li>
+<li><p><strong>filter_order</strong> (<em>int</em>) – Butterworth order (ignored for <code class="docutils literal notranslate"><span class="pre">'fft'</span></code>). The filter is applied
+forward-backward, so the magnitude response is squared. Default 2.</p></li>
+<li><p><strong>nan_policy</strong> (<em>{'fill'</em><em>, </em><em>'raise'}</em>) – Non-finite samples in <code class="docutils literal notranslate"><span class="pre">x</span></code> or <code class="docutils literal notranslate"><span class="pre">measure_on</span></code>: <code class="docutils literal notranslate"><span class="pre">'fill'</span></code> (default) fills them
+for filtering and discards every wave that overlaps them (plus the gap margin);
+<code class="docutils literal notranslate"><span class="pre">'raise'</span></code> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p></li>
+<li><p><strong>gap_margin_s</strong> (<em>float</em><em> or </em><em>None</em>) – Seconds added on both sides of every gap; a wave whose span overlaps a widened
+gap is discarded. <code class="docutils literal notranslate"><span class="pre">None</span></code> (default): depends on the gap length (0 up to 25 ms,
+rising to <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code> for gaps of <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code> and longer; module
+docstring, <em>Edges and gaps</em>).</p></li>
+<li><p><strong>edge_margin_s</strong> (<em>float</em><em> or </em><em>None</em>) – A wave whose span starts within <code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> of the first sample or ends
+within it of the last sample is discarded (the zero-phase filters’ edge
+transient). <code class="docutils literal notranslate"><span class="pre">None</span></code> (default): <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">/</span> <span class="pre">fband[0]</span></code> (with <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code>: the
+support of the paper trace’s filters, ~2 s). <code class="docutils literal notranslate"><span class="pre">0</span></code> keeps every complete wave.</p></li>
+<li><p><strong>trough</strong> (<em>{'refine'</em><em>, </em><em>'band'</em><em>, </em><em>'paper'}</em>) – Where the broadband (unsuffixed) trough / peak are placed (module docstring,
+<em>Trough placement</em>). <code class="docutils literal notranslate"><span class="pre">'refine'</span></code> (default, v1.0.0 placement): the extreme of
+the drift-removed <code class="docutils literal notranslate"><span class="pre">x</span></code> within half a period of <code class="docutils literal notranslate"><span class="pre">fband[1]</span></code> around the
+band-pass extreme; the window is not clamped to the wave’s half-wave, so a
+trough at or before <code class="docutils literal notranslate"><span class="pre">zero_pos</span></code> gives <code class="docutils literal notranslate"><span class="pre">downslope</span> <span class="pre">=</span> <span class="pre">NaN</span></code>. <code class="docutils literal notranslate"><span class="pre">'band'</span></code>: the
+band-pass extreme.
+<code class="docutils literal notranslate"><span class="pre">'paper'</span></code>: Carvalho et al. 2024 – zero crossings, half-waves and the
+negative peak all on a 0.5-35 Hz FIR + 50 ms moving-average trace of <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p></li>
+<li><p><strong>return_signals</strong> (<em>bool</em>) – Also return the band-passed signal (<code class="docutils literal notranslate"><span class="pre">'x_band'</span></code>) and the broadband amplitude
+signal (<code class="docutils literal notranslate"><span class="pre">'x_amp'</span></code>; with <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code>, the paper trace), both float
+arrays of the input length. Gaps are NaN in both (the fill is never returned).
+Default False.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Keys: <code class="docutils literal notranslate"><span class="pre">min_pos,</span> <span class="pre">min_val,</span> <span class="pre">max_pos,</span> <span class="pre">max_val,</span> <span class="pre">zero_pos</span></code> (arrays over waves) and the
-derived per-wave arrays <code class="docutils literal notranslate"><span class="pre">pk2pk,</span> <span class="pre">delta_t,</span> <span class="pre">upslope,</span> <span class="pre">down_dur,</span> <span class="pre">downslope</span></code>.</p>
+<dd class="field-even"><p>Per-wave arrays (see <em>Outputs</em> in the module docstring): <code class="docutils literal notranslate"><span class="pre">zero_pos,</span>
+<span class="pre">zero_pos_frac,</span> <span class="pre">end_pos</span></code> and, for the broadband signal, <code class="docutils literal notranslate"><span class="pre">min_pos,</span> <span class="pre">min_val,</span>
+<span class="pre">max_pos,</span> <span class="pre">max_val,</span> <span class="pre">pk2pk,</span> <span class="pre">delta_t,</span> <span class="pre">upslope,</span> <span class="pre">down_dur,</span> <span class="pre">downslope</span></code>, and the same
+nine keys with suffix <code class="docutils literal notranslate"><span class="pre">_band</span></code> for the band-passed signal. Plus <code class="docutils literal notranslate"><span class="pre">gaps</span></code>:
+<code class="docutils literal notranslate"><span class="pre">(n_gaps,</span> <span class="pre">2)</span></code> <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> sample indices of the non-finite runs (union
+over <code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">measure_on</span></code>). Waves are ordered by time.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>dict</p>
@@ -599,13 +1044,24 @@ derived per-wave arrays <code class="docutils literal notranslate"><span class="
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#wave-detection">Wave detection</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-ways-to-use-it">Two ways to use it</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm">Algorithm</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trough-placement-trough">Trough placement (<code class="docutils literal notranslate"><span class="pre">trough</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edges-and-gaps">Edges and gaps</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-signals-filtered-and-unfiltered">Two signals: filtered and unfiltered</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#outputs-per-wave-from-detect-detect-waves">Outputs (per wave, from <code class="docutils literal notranslate"><span class="pre">detect</span></code> / <code class="xref py py-func docutils literal notranslate"><span class="pre">detect_waves()</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#windowed-features-call">Windowed features (<code class="docutils literal notranslate"><span class="pre">__call__</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#slope-conventions">Slope conventions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance">Performance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-from-v1-0-0-brainmaze-eeg-2-0-0-class-version-2-0-0-2-1-0">Changes from v1.0.0 (brainmaze-eeg 2.0.0; class version 2.0.0 -&gt; 2.1.0)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector"><code class="docutils literal notranslate"><span class="pre">WaveDetector</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.cutoff_high"><code class="docutils literal notranslate"><span class="pre">WaveDetector.cutoff_high</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.cutoff_low"><code class="docutils literal notranslate"><span class="pre">WaveDetector.cutoff_low</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.detect"><code class="docutils literal notranslate"><span class="pre">WaveDetector.detect()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.edge_margin_s"><code class="docutils literal notranslate"><span class="pre">WaveDetector.edge_margin_s</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.feature_names"><code class="docutils literal notranslate"><span class="pre">WaveDetector.feature_names</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.WaveDetector.gap_margin_s"><code class="docutils literal notranslate"><span class="pre">WaveDetector.gap_margin_s</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.features.wave_detector.detect_waves"><code class="docutils literal notranslate"><span class="pre">detect_waves()</span></code></a></li>

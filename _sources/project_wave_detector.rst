@@ -14,7 +14,37 @@ Here we conveniently provide a standalone fully functional code example for anal
 This enables trialing this code without installing the whole Best Toolbox library.
 The codes were also embedded into the brainmaze_eeg Toolbox so they can be freely available upon installing the whole `Brainmaze EEG Library <https://github.com/bnelair/brainmaze_eeg/>`_. The documentation to the toolbox is available at `Brainmaze EEG Documentation <https://bnelair.github.io/brainmaze_eeg>`_.
 
-TBD TBD !!!! For more information on this specific project, see the page describing `Wave Detection <https://best-toolbox.readthedocs.io/en/latest/feature_extraction.WaveDetector.html>`_.
+In this package the slow-wave features are computed by
+:class:`brainmaze_eeg.features.wave_detector.WaveDetector` (see :doc:`features.wave_detector`
+for the algorithm, filters, gap handling, and the definition and unit of every output).
+Two configurations relate to the study::
+
+    from brainmaze_eeg.features.wave_detector import WaveDetector
+
+    # x: Fz-(A1+A2)/2 in uV; broadband: the same signal band-passed 0.5-35 Hz
+
+    # (1) brainmaze-eeg's slow-wave feature as computed since v1.0.0 (default trough='refine'):
+    #     detect on the band, measure the downslope on the broadband trace
+    so    = WaveDetector(fs=fs, fband=(0.5, 0.9), segm_size=30, slope='downslope', amplitude_threshold=5)
+    delta = WaveDetector(fs=fs, fband=(1.0, 3.9), segm_size=30, slope='downslope', amplitude_threshold=5)
+    values, names = so(x, measure_on=broadband)    # WAVE_SLOPE_MEAN / WAVE_SLOPE_MEDIAN, uV/s
+
+    # (2) the Methods text of the paper (trough='paper'): 0.5-35 Hz FIR + 50 ms moving
+    #     average, zero crossings and the negative peak on that trace (no measure_on)
+    so_paper = WaveDetector(fs=fs, fband=(0.5, 0.9), segm_size=30, amplitude_threshold=5, trough='paper')
+    values, names = so_paper(x)
+
+The runnable version is ``demo/eeg_wave_detection/example_one_file.py``. On its recording
+(NREM epochs) the mean downslope is SO 173.9 / delta 239.3 uV/s with (1) (brainmaze-eeg
+1.0.0: 186.0 / 250.2; the difference is the filter fix) and SO 173.1 / delta 195.3 uV/s
+with (2). The original ``SlowWaveDetect`` routine is not part of this repository (only
+the script that calls it is listed below), so numerical identity with the published
+values cannot be verified. Note that the listed script compensates the FIR group delay
+with ``n = len(fir_coeff) // 2`` of the 1999-tap broadband filter for all three filters,
+but the band filters have 19999 and 9999 taps: at 500 Hz the 1-3.9 Hz signal ``x2`` lags
+the 0.5-35 Hz trace by ``((9999 - 1) / 2 - 999) / 500 = 8`` s. If the published numbers
+came from this script, ``SlowWaveDetect`` received a band signal shifted by 8 s relative
+to the trace it measured, so they cannot anchor the trough placement numerically.
 
 
 Acknowledgement

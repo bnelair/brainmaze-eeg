@@ -422,7 +422,37 @@
 <p>Here we conveniently provide a standalone fully functional code example for analysis related to this project - <a class="reference external" href="https://github.com/bnelair/brainmaze_eeg/tree/fmivalt/main/demo/eeg_wave_detection">One file example</a>.
 This enables trialing this code without installing the whole Best Toolbox library.
 The codes were also embedded into the brainmaze_eeg Toolbox so they can be freely available upon installing the whole <a class="reference external" href="https://github.com/bnelair/brainmaze_eeg/">Brainmaze EEG Library</a>. The documentation to the toolbox is available at <a class="reference external" href="https://bnelair.github.io/brainmaze_eeg">Brainmaze EEG Documentation</a>.</p>
-<p>TBD TBD !!!! For more information on this specific project, see the page describing <a class="reference external" href="https://best-toolbox.readthedocs.io/en/latest/feature_extraction.WaveDetector.html">Wave Detection</a>.</p>
+<p>In this package the slow-wave features are computed by
+<a class="reference internal" href="features.wave_detector.html#brainmaze_eeg.features.wave_detector.WaveDetector" title="brainmaze_eeg.features.wave_detector.WaveDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">brainmaze_eeg.features.wave_detector.WaveDetector</span></code></a> (see <a class="reference internal" href="features.wave_detector.html"><span class="doc">Wave Detector</span></a>
+for the algorithm, filters, gap handling, and the definition and unit of every output).
+Two configurations relate to the study:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">brainmaze_eeg.features.wave_detector</span><span class="w"> </span><span class="kn">import</span> <span class="n">WaveDetector</span>
+
+<span class="c1"># x: Fz-(A1+A2)/2 in uV; broadband: the same signal band-passed 0.5-35 Hz</span>
+
+<span class="c1"># (1) brainmaze-eeg's slow-wave feature as computed since v1.0.0 (default trough='refine'):</span>
+<span class="c1">#     detect on the band, measure the downslope on the broadband trace</span>
+<span class="n">so</span>    <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">),</span> <span class="n">segm_size</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">slope</span><span class="o">=</span><span class="s1">'downslope'</span><span class="p">,</span> <span class="n">amplitude_threshold</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">delta</span> <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">3.9</span><span class="p">),</span> <span class="n">segm_size</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">slope</span><span class="o">=</span><span class="s1">'downslope'</span><span class="p">,</span> <span class="n">amplitude_threshold</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">values</span><span class="p">,</span> <span class="n">names</span> <span class="o">=</span> <span class="n">so</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">measure_on</span><span class="o">=</span><span class="n">broadband</span><span class="p">)</span>    <span class="c1"># WAVE_SLOPE_MEAN / WAVE_SLOPE_MEDIAN, uV/s</span>
+
+<span class="c1"># (2) the Methods text of the paper (trough='paper'): 0.5-35 Hz FIR + 50 ms moving</span>
+<span class="c1">#     average, zero crossings and the negative peak on that trace (no measure_on)</span>
+<span class="n">so_paper</span> <span class="o">=</span> <span class="n">WaveDetector</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span> <span class="n">fband</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">),</span> <span class="n">segm_size</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">amplitude_threshold</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">trough</span><span class="o">=</span><span class="s1">'paper'</span><span class="p">)</span>
+<span class="n">values</span><span class="p">,</span> <span class="n">names</span> <span class="o">=</span> <span class="n">so_paper</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The runnable version is <code class="docutils literal notranslate"><span class="pre">demo/eeg_wave_detection/example_one_file.py</span></code>. On its recording
+(NREM epochs) the mean downslope is SO 173.9 / delta 239.3 uV/s with (1) (brainmaze-eeg
+1.0.0: 186.0 / 250.2; the difference is the filter fix) and SO 173.1 / delta 195.3 uV/s
+with (2). The original <code class="docutils literal notranslate"><span class="pre">SlowWaveDetect</span></code> routine is not part of this repository (only
+the script that calls it is listed below), so numerical identity with the published
+values cannot be verified. Note that the listed script compensates the FIR group delay
+with <code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">=</span> <span class="pre">len(fir_coeff)</span> <span class="pre">//</span> <span class="pre">2</span></code> of the 1999-tap broadband filter for all three filters,
+but the band filters have 19999 and 9999 taps: at 500 Hz the 1-3.9 Hz signal <code class="docutils literal notranslate"><span class="pre">x2</span></code> lags
+the 0.5-35 Hz trace by <code class="docutils literal notranslate"><span class="pre">((9999</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">/</span> <span class="pre">2</span> <span class="pre">-</span> <span class="pre">999)</span> <span class="pre">/</span> <span class="pre">500</span> <span class="pre">=</span> <span class="pre">8</span></code> s. If the published numbers
+came from this script, <code class="docutils literal notranslate"><span class="pre">SlowWaveDetect</span></code> received a band signal shifted by 8 s relative
+to the trace it measured, so they cannot anchor the trough placement numerically.</p>
 </section>
 <section id="acknowledgement">
 <h2>Acknowledgement<a class="headerlink" href="#acknowledgement" title="Link to this heading">#</a></h2>
