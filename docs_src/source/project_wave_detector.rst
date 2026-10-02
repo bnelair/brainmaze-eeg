@@ -7,12 +7,14 @@ Project: EEG Slow Wave Detection and Analysis
 
 This project was published in the following paper:
  |
- | Carvalho DZ, Kremen V, Mivalt F, St Louis EK, McCarter SJ, Bukartyk J, Przybelski SA, Kamykowski MG, Spychalla AJ, Machulda MM, Boeve BF, Petersen RC, Jack CR Jr, Lowe VJ, Graff-Radford J, Worrell GA, Somers VK, Varga AW, Vemuri P. Non-rapid eye movement sleep slow-wave activity features are associated with amyloid accumulation in older adults with obstructive sleep apnoea. Brain Commun. 2024 Oct 7;6(5):fcae354. doi: 10.1093/braincomms/fcae354. PMID: 39429245; PMCID: PMC11487750.
+ | Carvalho DZ, Kremen V, Mivalt F, St Louis EK, McCarter SJ, Bukartyk J, Przybelski SA, Kamykowski MG, Spychalla AJ, Machulda MM, Boeve BF, Petersen RC, Jack CR Jr, Lowe VJ, Graff-Radford J, Worrell GA, Somers VK, Varga AW, Vemuri P. Non-rapid eye movement sleep slow-wave activity features are associated with amyloid accumulation in older adults with obstructive sleep apnoea. Brain Commun. 2024 Oct 7;6(5):fcae354. doi: `10.1093/braincomms/fcae354 <https://doi.org/10.1093/braincomms/fcae354>`_. PMID: 39429245; PMCID: PMC11487750.
  |
 
-Here we conveniently provide a standalone fully functional code example for analysis related to this project - `One file example <https://github.com/bnelair/brainmaze_eeg/tree/fmivalt/main/demo/eeg_wave_detection>`_.
-This enables trialing this code without installing the whole Best Toolbox library.
-The codes were also embedded into the brainmaze_eeg Toolbox so they can be freely available upon installing the whole `Brainmaze EEG Library <https://github.com/bnelair/brainmaze_eeg/>`_. The documentation to the toolbox is available at `Brainmaze EEG Documentation <https://bnelair.github.io/brainmaze_eeg>`_.
+A runnable example for this project is in the repository:
+`demo/eeg_wave_detection <https://github.com/bnelair/brainmaze-eeg/tree/main/demo/eeg_wave_detection>`_
+(``example_one_file.py`` with a 6.8 h recording, ``patient_one_data.mat``). It needs only
+``pip install brainmaze-eeg`` (`brainmaze-eeg on GitHub <https://github.com/bnelair/brainmaze-eeg>`_;
+`documentation <https://bnelair.github.io/brainmaze-eeg/>`_).
 
 In this package the slow-wave features are computed by
 :class:`brainmaze_eeg.features.wave_detector.WaveDetector` (see :doc:`features.wave_detector`
@@ -50,11 +52,11 @@ to the trace it measured, so they cannot anchor the trough placement numerically
 Acknowledgement
 """""""""""""""""""""""""""
  |
- | F. Mivalt et V. Kremen et al., “Electrical brain stimulation and continuous behavioral state tracking in ambulatory humans,” J. Neural Eng., vol. 19, no. 1, p. 016019, Feb. 2022, doi: 10.1088/1741-2552/ac4bfd.
+ | F. Mivalt et V. Kremen et al., “Electrical brain stimulation and continuous behavioral state tracking in ambulatory humans,” J. Neural Eng., vol. 19, no. 1, p. 016019, Feb. 2022, doi: `10.1088/1741-2552/ac4bfd <https://doi.org/10.1088/1741-2552/ac4bfd>`_.
  |
- | F. Mivalt et V. Sladky et al., “Automated sleep classification with chronic neural implants in freely behaving canines,” J. Neural Eng., vol. 20, no. 4, p. 046025, Aug. 2023, doi: 10.1088/1741-2552/aced21.
+ | F. Mivalt et V. Sladky et al., “Automated sleep classification with chronic neural implants in freely behaving canines,” J. Neural Eng., vol. 20, no. 4, p. 046025, Aug. 2023, doi: `10.1088/1741-2552/aced21 <https://doi.org/10.1088/1741-2552/aced21>`_.
  |
- | Gerla, V., Kremen, V., Macas, M., Dudysova, D., Mladek, A., Sos, P., & Lhotska, L. (2019). Iterative expert-in-the-loop classification of sleep PSG recordings using a hierarchical clustering. Journal of Neuroscience Methods, 317(February), 61?70. https://doi.org/10.1016/j.jneumeth.2019.01.013
+ | Gerla, V., Kremen, V., Macas, M., Dudysova, D., Mladek, A., Sos, P., & Lhotska, L. (2019). Iterative expert-in-the-loop classification of sleep PSG recordings using a hierarchical clustering. Journal of Neuroscience Methods, 317(February), 61–70. https://doi.org/10.1016/j.jneumeth.2019.01.013
  |
  | Kremen, V., Brinkmann, B. H., Van Gompel, J. J., Stead, S. (Matt) M., St Louis, E. K., & Worrell, G. A. (2018). Automated Unsupervised Behavioral State Classification using Intracranial Electrophysiology. Journal of Neural Engineering. https://doi.org/10.1088/1741-2552/aae5ab
  |
@@ -81,7 +83,12 @@ Extracted features for the whole night.
 
 Code
 """"""""""""""""""
-The code is also attached for convenience in here:
+The original analysis script of the study is listed below for reference. It is a
+**historical listing and does not run** against brainmaze-eeg: it needs the BEST toolbox,
+``mne`` and the unpublished ``SlowWaveDetector.py`` (``SlowWaveDetect``), and reads a
+``patient_one_data.pkl`` export that is not distributed. The runnable equivalent is
+`demo/eeg_wave_detection/example_one_file.py <https://github.com/bnelair/brainmaze-eeg/blob/main/demo/eeg_wave_detection/example_one_file.py>`_,
+which uses :class:`~brainmaze_eeg.features.wave_detector.WaveDetector`.
 
 .. code-block:: python
 

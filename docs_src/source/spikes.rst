@@ -8,7 +8,10 @@ morphology). The detectors are raw (finite input only);
 :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` wraps any of them for data
 with NaN/inf gaps. Algorithms, every parameter with its default and source, the filter
 verification and the comparison with the reference implementations are documented in
-``brainmaze_eeg/spikes/README.md`` and in the module docstrings below.
+the `spike detectors README <https://github.com/bnelair/brainmaze-eeg/blob/main/brainmaze_eeg/spikes/README.md>`_
+(``brainmaze_eeg/spikes/README.md``) and in the module docstrings below. Runnable examples
+(both detectors, gaps and constant-value dropouts, the ripple preset) are in
+`demo/spike_detection <https://github.com/bnelair/brainmaze-eeg/tree/main/demo/spike_detection>`_.
 
 .. automodule:: brainmaze_eeg.spikes
    :no-members:

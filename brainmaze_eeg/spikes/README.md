@@ -2,6 +2,9 @@
 
 Interictal epileptiform discharge (IED, "spike") detectors for scalp EEG and iEEG.
 
+API reference: the [Spike detectors](https://bnelair.github.io/brainmaze-eeg/spikes.html)
+documentation page. Runnable examples: [`demo/spike_detection`](../../demo/spike_detection/).
+
 The package has **two layers**:
 
 1. **Raw detectors**: the algorithms only. The input must be finite; NaN or ±inf raise a
