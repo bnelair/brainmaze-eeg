@@ -51,18 +51,18 @@ def test_number_of_sleep_stages_counts_rem_cycles(numeric):
     if numeric:
         df = to_numeric(df)
     assert H.get_number_of_sleep_stages(df, 'REM', delay=30) == 4
-    # REM periods start every 50 min. The delay is measured from the end of the first
-    # epoch of the last counted period (49.5 min to the next period), so with 60 min
-    # periods 1 and 3 count, and with 200 min only the first.
+    # 10-min REM bouts start every 50 min (40 min from the end of one bout to the next).
+    # The delay is measured from the end of the last counted bout, so with 60 min bouts
+    # 1 and 3 count, and with 200 min only the first.
     assert H.get_number_of_sleep_stages(df, 'REM', delay=60) == 2
     assert H.get_number_of_sleep_stages(df, 'REM', delay=200) == 1
     assert H.get_number_of_sleep_stages(df, 'N3', delay=30) == 4
     assert H.get_number_of_sleep_stages(df, 'N4', delay=30) == 0
 
 
-def test_number_of_sleep_stages_delay_is_measured_from_the_counted_epoch():
-    # Same rule as before 2.0.1: compare with the end of the epoch that started the
-    # previous occurrence.
+def test_number_of_sleep_stages_delay_is_measured_from_the_counted_bout():
+    # Compare with the end of the last counted bout; bouts that were not counted do not
+    # move the reference.
     df = epochs([('REM', 0, 10), ('REM', 15, 10), ('REM', 45, 10)])
     assert H.get_number_of_sleep_stages(df, 'REM', delay=30) == 2   # 15 < 10+30 ; 45 >= 10+30
     assert H.get_number_of_sleep_stages(df, 'REM', delay=36) == 1   # 45 - 10 = 35 < 36
