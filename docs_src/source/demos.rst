@@ -21,4 +21,5 @@ is only needed for the figures.
 `sleep_classification <https://github.com/bnelair/brainmaze-eeg/tree/main/demo/sleep_classification>`_
    :class:`~brainmaze_eeg.classifiers.KDEBayesianModel` trained on half a night and applied
    to the other half: skipped epochs, and out-of-distribution epochs labelled
-   ``'UNKNOWN'`` (with the artefacts that are *not* flagged). See :doc:`classifiers`.
+   ``'UNKNOWN'``, with a table of which artefacts are flagged, which silently change the
+   stage and which change nothing; accuracy, balanced accuracy and kappa. See :doc:`classifiers`.

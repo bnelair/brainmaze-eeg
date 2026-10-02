@@ -80,7 +80,11 @@ def synth_ieeg(fs=1000, dur=120.0, n_channels=8, spiking=(0, 1, 2, 3), n_spikes=
 
 def score(detections, truth, fs, tol_s=0.05, exclude=None):
     """
-    Match detections to planted events within ``tol_s``.
+    Match detections to planted events one-to-one within ``tol_s``.
+
+    Greedy nearest matching: candidate pairs closer than ``tol_s`` are taken in order of
+    increasing distance, and each detection and each planted event is used at most once.
+    A second detection of the same event is therefore a false detection.
 
     ``exclude``: optional ``(n, 2)`` array of ``[start, stop)`` samples; planted events in
     there are not counted (they are not in the data any more, e.g. inside a dropout).
@@ -94,10 +98,16 @@ def score(detections, truth, fs, tol_s=0.05, exclude=None):
         for a, b in exclude:
             inside |= (tru >= a) & (tru < b)
         tru = tru[~inside]
-    tol = tol_s * fs
-    hits = int(sum(np.any(np.abs(det - p) <= tol) for p in tru)) if det.size else 0
-    false = int(sum(not np.any(np.abs(tru - d) <= tol) for d in det)) if tru.size else int(det.size)
-    return hits, int(tru.size), false
+    if det.size == 0 or tru.size == 0:
+        return 0, int(tru.size), int(det.size)
+    dist = np.abs(det[:, None] - tru[None, :])
+    di, ti = np.nonzero(dist <= tol_s * fs)
+    used_d, used_t = set(), set()
+    for k in np.argsort(dist[di, ti], kind='stable'):
+        if di[k] not in used_d and ti[k] not in used_t:
+            used_d.add(di[k])
+            used_t.add(ti[k])
+    return len(used_t), int(tru.size), int(det.size - len(used_d))
 
 
 def peak_indices(per_channel):

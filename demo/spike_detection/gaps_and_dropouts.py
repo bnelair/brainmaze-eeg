@@ -26,8 +26,8 @@ code, a NaN gap and a 10-ms NaN gap; raw vs gap-aware, Janca and Barkmeier.
 
 Part 2 (real data, if ``../eeg_wave_detection/patient_one_data.mat`` is present): 8 min of
 the 6.8-h scalp recording with two dropouts (5 s and 120 s) that the file stores as the
-constant 0.197 uV (its ``data_present`` mask is 0 there). The recording has 60 Hz mains,
-hence ``powerline=60``.
+constant 0.197 uV (its ``data_present`` mask is 0 there). The recording has 60 Hz mains
+(spectral peak at 60 Hz, none at 50 Hz; see the README), hence ``powerline=60``.
 
 Run::
 

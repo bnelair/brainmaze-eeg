@@ -25,10 +25,18 @@ Trains :class:`brainmaze_eeg.classifiers.KDEBayesianModel` on the scored first h
    merged); ``predict_signal_scores`` the per-epoch class probabilities.
 5. **UNKNOWN.** An epoch whose best-state log-likelihood ``max_log_lik_`` is below the
    floor gets NaN probabilities and the label ``'UNKNOWN'`` instead of a confident wrong
-   label. Eight artificial epochs are written into copies of test epochs to show what is
-   and what is **not** flagged. **The floor is not an artifact detector**: it flags only
+   label. Eight artificial epochs are written into copies of N2/N3/REM/AWAKE test epochs.
+   The table shows, for each, the expert stage, the label of the **clean** epoch, and the
+   label of the corrupted epoch, so you can see what is flagged, what silently changes the
+   stage, and what changes nothing. **The floor is not an artifact detector**: it flags only
    epochs whose features are far from every trained state. Use a signal-quality / artifact
    detector before classification.
+6. **Agreement.** Accuracy, balanced accuracy (mean recall of the four states) and Cohen's
+   kappa on the clean test epochs. The set is imbalanced (N3 is rare), so look at the
+   balanced accuracy and kappa, not only at the accuracy.
+
+``fit`` and the predict calls show tqdm progress bars on stderr; the script hides them to
+keep the output readable (the classes have no switch for them).
 
 This is one subject, one channel, and a single train/test split: the agreement printed
 below illustrates the API, it is not a validation of sleep-staging accuracy.
@@ -50,6 +58,7 @@ import warnings
 import numpy as np
 from scipy.io import loadmat
 from scipy.signal import butter, sosfiltfilt
+from sklearn.metrics import balanced_accuracy_score, cohen_kappa_score
 
 from brainmaze_eeg.classifiers import UNKNOWN_LABEL, KDEBayesianModel
 
@@ -76,6 +85,21 @@ def band_noise(rng, n, fs, lo, hi):
     return z / z.std()
 
 
+def _predict(model, signal, fs):
+    """Annotation table, per-epoch scores and labels, ``max_log_lik_`` and epoch indices of a
+    signal; tqdm bars (stderr) hidden, warnings printed."""
+    with warnings.catch_warnings(record=True) as caught, \
+            contextlib.redirect_stderr(io.StringIO()):
+        warnings.simplefilter('always')
+        table = model.predict_signal(signal, fs)                # annotation table
+        scores = model.predict_signal_scores(signal, fs)        # per-epoch probabilities
+    for w in caught:
+        print(f'warning: {w.category.__name__}: {w.message}')
+    max_ll = np.array(model.max_log_lik_)                       # per scored epoch
+    start = model.preprocess_signal(signal, fs)[1]              # epoch start times (s)
+    return labels_from_scores(scores), max_ll, (start // SEGM).astype(int), table, scores
+
+
 def main(outdir='demo_output'):
     if not os.path.exists(DATA_PATH):
         raise SystemExit(f'Missing demo data: {DATA_PATH}')
@@ -100,72 +124,90 @@ def main(outdir='demo_output'):
     print('training epochs per state:',
           {s: int(np.sum(stage[train] == s)) for s in TRAIN_STATES})
     model = KDEBayesianModel(fs=200, segm_size=SEGM, n_jobs=1)
-    X, names = model.extract_features_bulk(list(epochs[train]), [fs] * train.size,
-                                           return_names=True)
+    with contextlib.redirect_stderr(io.StringIO()):            # hide the tqdm bar
+        X, names = model.extract_features_bulk(list(epochs[train]), [fs] * train.size,
+                                               return_names=True)
     with contextlib.redirect_stdout(io.StringIO()):            # RFECV prints every step
         model.fit(X, stage[train])
     print(f'{X.shape[1]} features; states {list(model.STATES)}; '
           f'log_lik_floor_ = {model.log_lik_floor_:.1f} '
           f'(lowest training epoch: {np.min(model.train_max_log_lik_):.1f})\n')
 
-    # -- 5. artificial epochs written into the test half ----------------------------------
-    test = x[half * ns:n_ep * ns].copy()
-    rng = np.random.default_rng(0)
-    sd = np.nanstd(test)
-    t = np.arange(ns) / fs
-    ep = lambda k: test[k * ns:(k + 1) * ns]                    # noqa: E731
-    injected = {
-        20: ('EMG burst: 20-95 Hz noise (5x EEG sd) added', ep(20) + 5 * sd * band_noise(rng, ns, fs, 20, 95)),
-        40: ('EMG only: 20-95 Hz noise (5x EEG sd) replaces it', 5 * sd * band_noise(rng, ns, fs, 20, 95)),
-        60: ('12 Hz sine, 500 uV, added', ep(60) + 500 * np.sin(2 * np.pi * 12 * t)),
-        80: ('disconnected electrode: 0.5 uV white noise', 0.5 * rng.normal(size=ns)),
-        100: ('60 Hz line noise, 300 uV, added', ep(100) + 300 * np.sin(2 * np.pi * 60 * t)),
-        120: ('clipping at +/-200 uV of a 20x amplified epoch', np.clip(ep(120) * 20, -200, 200)),
-        140: ('slow drift only: 0.5-3 Hz noise (5x EEG sd)', 5 * sd * band_noise(rng, ns, fs, 0.5, 3)),
-        160: ('white noise with the EEG sd', sd * rng.normal(size=ns)),
-    }
-    for k, (_, sig) in injected.items():
-        test[k * ns:(k + 1) * ns] = sig
-
-    # -- 4. predict from the raw signal ----------------------------------------------------
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter('always')
-        table = model.predict_signal(test, fs)                  # annotation table
-        scores = model.predict_signal_scores(test, fs)          # per-epoch probabilities
-    for w in caught:
-        print(f'warning: {w.category.__name__}: {w.message}')
-    max_ll = model.max_log_lik_                                 # per scored epoch
-    start = model.preprocess_signal(test, fs)[1]                # epoch start times (s)
-    k_test = (start // SEGM).astype(int)                        # epoch index in the test half
-    pred = labels_from_scores(scores)
-
+    # -- 4. predict the clean test half from the raw signal --------------------------------
+    clean = x[half * ns:n_ep * ns].copy()
+    pred_c, max_ll_c, k_c, table, scores = _predict(model, clean, fs)
+    n_test = n_ep - half
     print(f'predict_signal: {len(table)} annotation rows; first 8:')
     print(table.head(8).to_string(index=False))
-    n_test = n_ep - half
-    print(f'\n{n_test} test epochs: {k_test.size} scored, {n_test - k_test.size} skipped '
-          f'(< 85 % data present), {int(np.sum(pred == UNKNOWN_LABEL))} UNKNOWN')
+    print(f'\n{n_test} test epochs: {k_c.size} scored, {n_test - k_c.size} skipped '
+          f'(< 85 % data present), {int(np.sum(pred_c == UNKNOWN_LABEL))} UNKNOWN')
 
-    print(f"\n{'injected epoch':<50} {'label':>8} {'max_log_lik_':>12}  (floor "
-          f'{model.log_lik_floor_:.1f})')
-    for k, (desc, _) in injected.items():
-        j = np.flatnonzero(k_test == k)
-        print(f'{desc:<50} {pred[j[0]]:>8} {max_ll[j[0]]:>12.1f}')
-
-    # agreement with the expert on the untouched, scored test epochs
-    truth = stage[half + k_test]
-    ok = np.isin(truth, TRAIN_STATES) & ~np.isin(k_test, list(injected))
-    acc = np.mean(pred[ok] == truth[ok])
-    print(f'\nagreement with the hypnogram on {ok.sum()} untouched AWAKE/N2/N3/REM test '
-          f'epochs: {acc:.1%}')
+    # agreement with the expert on the clean, scored test epochs
+    truth = stage[half + k_c]
+    ok = np.isin(truth, TRAIN_STATES)
+    acc = np.mean(pred_c[ok] == truth[ok])
+    bacc = balanced_accuracy_score(truth[ok], pred_c[ok])
+    kappa = cohen_kappa_score(truth[ok], pred_c[ok])
+    print(f'\nclean test epochs scored AWAKE/N2/N3/REM by the expert: {ok.sum()}; '
+          f'{int(np.sum(pred_c[ok] == UNKNOWN_LABEL))} UNKNOWN')
+    print(f'accuracy {acc:.1%}, balanced accuracy {bacc:.1%}, Cohen kappa {kappa:.2f}')
     print('confusion (rows: hypnogram, columns: predicted):')
     cols = TRAIN_STATES + [UNKNOWN_LABEL]
     print(f"{'':>8}" + ''.join(f'{c:>9}' for c in cols))
-    for s in TRAIN_STATES:
-        print(f'{s:>8}' + ''.join(f'{int(np.sum((truth[ok] == s) & (pred[ok] == c))):>9}'
+    for s_ in TRAIN_STATES:
+        print(f'{s_:>8}' + ''.join(f'{int(np.sum((truth[ok] == s_) & (pred_c[ok] == c))):>9}'
                                   for c in cols))
     n1 = truth == 'N1'
     print(f'(N1 epochs, not trained: {n1.sum()}, predicted as '
-          f'{ {c: int(np.sum(pred[n1] == c)) for c in cols if np.any(pred[n1] == c)} })')
+          f'{ {c: int(np.sum(pred_c[n1] == c)) for c in cols if np.any(pred_c[n1] == c)} })')
+
+    # -- 5. artificial epochs written into the test half ----------------------------------
+    rng = np.random.default_rng(0)
+    sd = np.nanstd(clean)
+    t = np.arange(ns) / fs
+    # target epochs: complete, scored, in the middle of a stage; N2/N3/REM mostly, so that a
+    # changed label is a corrupted one
+    full = np.isfinite(clean.reshape(n_test, ns)).all(axis=1)
+    stage_t = stage[half:half + n_test]
+    stable = np.array([k > 0 and k < n_test - 1 and len({stage_t[k - 1], stage_t[k],
+                                                          stage_t[k + 1]}) == 1
+                       for k in range(n_test)])
+    pool = {s_: list(np.flatnonzero(full & stable & (stage_t == s_))) for s_ in TRAIN_STATES}
+    spec = [   # (stage of the target epoch, description, function of the clean epoch)
+        ('N2', 'EMG burst: 20-95 Hz noise (5x EEG sd) added',
+         lambda e: e + 5 * sd * band_noise(rng, ns, fs, 20, 95)),
+        ('REM', 'EMG only: 20-95 Hz noise (5x EEG sd) replaces it',
+         lambda e: 5 * sd * band_noise(rng, ns, fs, 20, 95)),
+        ('N3', '12 Hz sine, 500 uV, added',
+         lambda e: e + 500 * np.sin(2 * np.pi * 12 * t)),
+        ('REM', 'disconnected electrode: 0.5 uV white noise',
+         lambda e: 0.5 * rng.normal(size=ns)),
+        ('N2', '60 Hz line noise, 300 uV, added',
+         lambda e: e + 300 * np.sin(2 * np.pi * 60 * t)),
+        ('N2', 'clipping at +/-200 uV of a 20x amplified epoch',
+         lambda e: np.clip(e * 20, -200, 200)),
+        ('N3', 'slow drift only: 0.5-3 Hz noise (5x EEG sd)',
+         lambda e: 5 * sd * band_noise(rng, ns, fs, 0.5, 3)),
+        ('AWAKE', 'white noise with the EEG sd',
+         lambda e: sd * rng.normal(size=ns)),
+    ]
+    injected, taken = {}, {s_: 0 for s_ in TRAIN_STATES}
+    noisy = clean.copy()
+    for s_, desc, fn in spec:
+        k = int(pool[s_][taken[s_] * 8 + 3])                    # spread out, deterministic
+        taken[s_] += 1
+        injected[k] = (desc, s_)
+        noisy[k * ns:(k + 1) * ns] = fn(clean[k * ns:(k + 1) * ns])
+    pred, max_ll, k_test, _, _ = _predict(model, noisy, fs)
+
+    print(f"\n{'injected artefact':<50} {'expert':>6} {'clean':>8} {'injected':>9} "
+          f"{'clean ll':>9} {'injected ll':>12}   (ll = max_log_lik_; floor "
+          f"{model.log_lik_floor_:.1f})")
+    for k, (desc, s_) in injected.items():
+        j = np.flatnonzero(k_test == k)[0]
+        jc = np.flatnonzero(k_c == k)[0]
+        print(f'{desc:<50} {s_:>6} {pred_c[jc]:>8} {pred[j]:>9} {max_ll_c[jc]:>9.1f} '
+              f'{max_ll[j]:>12.1f}')
 
     _plot(stage[half:], k_test, pred, max_ll, model.log_lik_floor_, injected, outdir)
     return model, table, scores

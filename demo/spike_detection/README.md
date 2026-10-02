@@ -40,10 +40,19 @@ janca = detect_spikes_janca(x, fs, powerline=60)   # one array of sample indices
 bark = detect_spikes_barkmeier(x, fs)              # one dict per detection, whole montage
 ```
 
-- `powerline`: the notch frequency. The default (50 Hz) is the reference implementation's;
-  **use 60 for North-American recordings**. On the 6.8-h recording of the demo data, which
-  has 60 Hz mains, Janca finds 1494 events with the default 50 Hz notch and 2241 with 60 Hz,
-  because unremoved 60 Hz hum raises the 10-60 Hz background envelope.
+- `powerline`: the notch frequency. Set it to the **mains frequency of the recording**:
+  check the spectrum (50 Hz in Europe, 60 Hz in the Americas). The default (50 Hz) is the
+  reference implementation's. The demo recording has 60 Hz mains: its 60 Hz spectral peak is
+  about 680 times the neighbouring spectrum, with harmonics at 120, 180 and 240 Hz, and there
+  is no 50 Hz peak. With a 50 Hz notch the 60 Hz hum stays in the 10-60 Hz band, inflates
+  the envelope and raises the threshold. On the whole night, with the dropouts set to NaN
+  (`GapAwareSpikeDetector`), Janca reports **1309** events with `powerline=50` and **2069**
+  with `powerline=60`. The 60 Hz result agrees with a run on hum-free data (60/120/180/240 Hz
+  notched out beforehand): 2231 against 2241 events with the raw detector, and 2056 of the
+  2069 gap-aware detections match within 50 ms. The count is not the argument; agreement
+  with the hum-free reference is. These are envelope events, **not validated spikes**: the
+  recording has no spike annotations, and 61 % of the detections fall in wake, so many are
+  probably EMG, movement or other transients.
 - Barkmeier scales each one-minute block of **the whole montage** to a common amplitude:
   pass all channels together, not one at a time.
 

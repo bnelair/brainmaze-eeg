@@ -27,30 +27,73 @@ Installation
 What's new in 2.0.0
 """""""""""""""""""""""""""
 
-brainmaze-eeg 2.0.0 is a major release: default outputs change. It requires
-``brainmaze-utils>=3.0.0``. Full list of changes: `release notes <https://github.com/bnelair/brainmaze-eeg/releases/tag/v2.0.0>`_.
+brainmaze-eeg 2.0.0 is a major release: **default outputs change** (list below). It requires
+``brainmaze-utils>=3.0.0``, which resamples correctly at every sampling rate and DC level and
+provides ``brainmaze_utils.gaps`` (its numerical changes are listed on the
+`utils changes page <https://bnelair.github.io/brainmaze-utils/changes.html>`_). Full list of
+merged pull requests: `release notes <https://github.com/bnelair/brainmaze-eeg/releases/tag/v2.0.0>`_.
 
-- **Spike detectors** (``brainmaze_eeg.spikes``), reworked: ``detect_spikes_janca`` /
-  ``JancaDetector`` (Janca et al. 2015, eeg_forge formulation, with presets ``'spike'`` and
-  ``'ripple'``; the ripple preset is not validated on real ripples), a fixed MATLAB-v24 port
-  ``SpikeDetectorHilbert``, and the Barkmeier et al. 2012 detector, now matching the paper
-  (1-35 Hz broad band, one-minute blocks). The raw detectors require finite input;
-  ``GapAwareSpikeDetector`` wraps any of them for data with NaN gaps or constant-value
-  dropouts and reports the valid time per channel. See the
+**New**
+
+- ``detect_spikes_janca`` / ``JancaDetector`` (Janca et al. 2015, eeg_forge formulation, with
+  presets ``'spike'`` and ``'ripple'``; the ripple preset is not validated on real ripples)
+  and ``GapAwareSpikeDetector``, a wrapper that makes any spike detector safe for data with
+  NaN gaps or constant-value dropouts and reports the valid time per channel. In 1.0.0 the
+  package had only ``SpikeDetectorHilbert`` and ``detect_spikes_barkmeier``. The raw detectors
+  require finite input. See the
   `Spike detectors <https://bnelair.github.io/brainmaze-eeg/spikes.html>`_ page and the
   `detailed README <https://github.com/bnelair/brainmaze-eeg/blob/main/brainmaze_eeg/spikes/README.md>`_.
-- **WaveDetector** (slow waves), reworked: Butterworth band-pass instead of the ringing FFT
-  filter, NaN gaps handled, the same ``values, names = detector(x)`` interface as the other
-  feature extractors, features of the filtered and the unfiltered signal, a ``'paper'``
-  trough mode (Carvalho et al. 2024 Methods), a new ``WAVE_SLOPE_MEDIAN`` feature, and
-  7.5-9x faster. The default reproduces the v1.0.0 trough placement. See the
+- ``WaveDetector`` features ``WAVE_SLOPE_MEDIAN`` and ``ANALYSABLE_RATE`` (appended at the end,
+  so the 1.0.0 feature names and positions are unchanged), the ``trough='paper'`` mode
+  (Carvalho et al. 2024 Methods), NaN gaps handled, and 7.5-9x faster. The same
+  ``values, names = detector(x)`` interface as the other feature extractors. See the
   `WaveDetector <https://bnelair.github.io/brainmaze-eeg/features.wave_detector.html>`_ and
   `slow-wave project <https://bnelair.github.io/brainmaze-eeg/project_wave_detector.html>`_ pages.
-- **Sleep classifiers** (``brainmaze_eeg.classifiers``): runtime bugs fixed, inputs
-  standardised, resampling checked, and **out-of-distribution epochs are labelled**
-  ``'UNKNOWN'`` (NaN probabilities) instead of getting a confident label. The floor is not an
-  artifact detector. See the `Classifiers <https://bnelair.github.io/brainmaze-eeg/classifiers.html>`_ page.
+- **Out-of-distribution epochs** in the sleep classifiers (``brainmaze_eeg.classifiers``) are
+  labelled ``'UNKNOWN'`` (NaN probabilities) instead of getting a confident label. The floor
+  is not an artifact detector. See the
+  `Classifiers <https://bnelair.github.io/brainmaze-eeg/classifiers.html>`_ page.
 - **Demos** for all three: `demo/ <https://github.com/bnelair/brainmaze-eeg/tree/main/demo>`_.
+
+**Changes in default output, and the way back**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 45 30
+
+   * - Where
+     - What changes
+     - 1.0.0 behaviour
+   * - Sleep classifiers (KDE family, MultiChannel)
+     - ``standardize=True``: features are standardised before feature selection and PCA, so
+       predictions differ wherever feature columns are not on a common scale.
+       ``log_lik_floor='auto'``: out-of-distribution epochs get label ``'UNKNOWN'`` and NaN
+       score rows (and ``predict_signal`` smoothing no longer crosses skipped epochs).
+       Labels outside ``AWAKE/N1/N2/N3/REM`` and ``'UNKNOWN'`` training labels raise.
+     - ``standardize=False, log_lik_floor=None`` reproduces 1.0.0 for feature-matrix input
+       (differences below 1.4e-15). The smoothing change has no switch.
+   * - ``SleepStructureClassifier``
+     - the default state label is ``'AWAKE'``
+     - was ``'WAKE'``; pass it explicitly
+   * - ``WaveDetector``
+     - Butterworth band-pass instead of the ringing FFT filter: the mean downslopes change by
+       about -4 to -7 % (demo: slow oscillation 186.0 to 173.9 uV/s). ``WAVE_RATE`` uses
+       the analysable time as the denominator (unbiased by dropout density; was 0.89-0.94 of
+       the true rate with dropouts). Two features are appended: ``WAVE_SLOPE_MEDIAN`` and,
+       with ``datarate=True``, ``ANALYSABLE_RATE``.
+     - ``trough='refine'`` (the default) reproduces the 1.0.0 trough placement; adding
+       ``filter='fft'`` also restores the filter (186.8 against 186.0 uV/s).
+   * - ``detect_spikes_barkmeier``
+     - the paper's 1-35 Hz broad band (was 1-80 Hz) and one-minute blocks (``block_s=60``);
+       the paper's artifact-channel rule is **off by default** (opt-in:
+       ``artifact_sd`` / ``artifact_ratio``). NaN/inf raise.
+     - ``block_s=None`` gives whole-record scaling; the 1-80 Hz band can be set explicitly
+       through the band parameters
+   * - ``SpikeDetectorHilbert``
+     - the Chebyshev band-pass is now 10-60 Hz as specified (it was effectively 18-48 Hz), so
+       detections change; the hum notch has the same width at every sampling rate; the ambiguous
+       class (``0 < k2 <= k1``, as in v24) can fire (it never could); NaN/inf raise
+     - ``f_type=2`` reproduces the MATLAB v24 Butterworth switch; the old band has no switch
 
 How to contribute
 """""""""""""""""""""""""""

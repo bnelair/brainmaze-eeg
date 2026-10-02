@@ -35,7 +35,9 @@ python sleep_classification/train_predict_unknown.py       # ~1-2 min
 recording, one channel (`fzcz`, Fz-Cz, µV) at 500 Hz, with
 
 - `hypnogram`: per-sample sleep stage, 0 = awake, 1 = N1, 2 = N2, 3 = N3, 5 = REM,
-  9 = not scored, -1 = no data;
+  9 = not scored, -1 = no data. The codes are stored as **floats with tiny offsets** (e.g.
+  1.99992 for N2, -7.6e-05 for awake), so `hyp == 2` matches nothing: round before
+  comparing (`np.round(hyp).astype(int)`);
 - `data_present`: 1 where the amplifier recorded, 0 in dropouts. In this file the dropouts
   are stored as a **constant** (0.197 µV), not as NaN; set them to NaN with this mask (the
   spike and sleep demos show why);

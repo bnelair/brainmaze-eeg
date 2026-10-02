@@ -36,7 +36,7 @@ Example
 
     extractor = SleepSpectralFeatureExtractor(fs=fs, segm_size=segm_size, fbands=fbands,
                                               datarate=True)
-    extractor._extraction_functions = [mean_bands, mean_frequency, relative_bands]
+    extractor.extraction_functions = [mean_bands, mean_frequency, relative_bands]
 
     feature_values, feature_names = extractor(x)   # one array (n_segments,) per feature
     # feature_names: DATA_RATE, MEAN_PSD1-4Hz, ..., MEAN_DOMINANT_FREQUENCY, REL_PSD_1-4Hz, ...
