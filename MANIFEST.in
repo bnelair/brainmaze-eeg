@@ -1,0 +1,11 @@
+# Release artifacts (wheel AND sdist) ship only the package code and the runtime assets
+# listed under [tool.setuptools.package-data] in pyproject.toml -- no tests, demos, docs,
+# images or data (maintainer rule). The family CI checks this on every PR (dist-check).
+prune brainmaze_eeg/tests
+prune demo
+prune docs_src
+prune img
+prune .github
+exclude make_docs.sh RELEASING.md .gitignore
+global-exclude *.npz *.npy *.mat *.edf *.csv *.xml *.pkl *.h5
+global-exclude *.py[cod]

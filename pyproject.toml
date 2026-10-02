@@ -51,18 +51,13 @@ docs = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = [
-    "tests",
-    "tests.*",
-    "brainmaze_eeg.tests",
-    "brainmaze_eeg.tests.*",
-    "examples",
-    "examples.*",
-    "demo",
-    "img",
-    "docs",
-    "docs_src"
-]
+# Ship only the package itself. Everything else (demo/, docs_src/, img/ and the in-package
+# test suite brainmaze_eeg/tests with its .npz fixtures) must never reach the wheel; without
+# `include`, setuptools' namespace discovery turned demo/ and docs_src/ into top-level packages.
+include = ["brainmaze_eeg", "brainmaze_eeg.*"]
+exclude = ["brainmaze_eeg.tests", "brainmaze_eeg.tests.*"]
 
 [tool.setuptools]
-include-package-data = true
+# No package data: brainmaze_eeg needs no non-Python files at runtime. The sdist is
+# trimmed the same way by MANIFEST.in.
+include-package-data = false
