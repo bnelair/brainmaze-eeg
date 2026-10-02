@@ -1,7 +1,8 @@
 
 import numpy as np
-# numpy.typing is a submodule: `np.typing` only resolves after it has been imported
-# (numpy < 1.25 does not import it lazily), so import it explicitly.
+# numpy.typing is a submodule. numpy 1.x does not load it on attribute access, so a bare
+# `np.typing` only worked when another library had already imported it (scipy 1.15 does,
+# scipy 1.10 does not: AttributeError at import time). Import it explicitly.
 import numpy.typing as npt
 import scipy.signal as signal
 from typing import Tuple
