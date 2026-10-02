@@ -10,15 +10,24 @@ Slow-wave feature extraction demo
 Reproduces the slow-wave morphology pipeline of Carvalho et al. 2024 using
 :class:`brainmaze_eeg.features.wave_detector.WaveDetector`.
 
-For each 30 s epoch of a single Fz-(A1+A2)/2 channel it extracts, in two bands:
+For each 30 s epoch of a single EEG channel (stored as ``fzcz`` in the demo file;
+the study used Fz-(A1+A2)/2) it extracts, in two bands:
 
 * slow oscillation (SO) : 0.5-0.9 Hz
 * delta                 : 1.0-3.9 Hz
 
-the mean **downslope** (zero-crossing -> negative trough, in uV/s) of slow waves whose
-negative peak is at least 5 uV deep. Detection runs on the band-limited signal; the
-downslope amplitude is measured on a 0.5-35 Hz broadband trace (``measure_on=``), exactly
-as in the study.
+the mean and median **downslope** (zero-crossing -> negative trough, in uV/s) of slow
+waves whose negative peak is at least 5 uV deep, in two configurations:
+
+* default (``trough='refine'``, brainmaze-eeg's feature since v1.0.0): detection on the
+  band-limited signal, downslope measured on a 0.5-35 Hz broadband trace
+  (``measure_on=``);
+* ``trough='paper'``: the Methods text of the study (0.5-35 Hz FIR + 50 ms moving
+  average; zero crossings and the negative peak on that trace).
+
+The original ``SlowWaveDetect`` source is not available, so numerical identity with the
+published values is not verified (see the ``wave_detector`` module docstring, *Trough
+placement*).
 
 Reference
 ---------
@@ -29,14 +38,29 @@ Historical note
 ---------------
 The published study used a standalone ``SlowWaveDetect`` routine. That routine was
 folded into :class:`WaveDetector`; ``slope='downslope'`` + ``amplitude_threshold`` +
-``measure_on`` are the same feature, now available for any band.
+``measure_on`` give this package's feature for any band; ``trough='paper'`` follows the
+paper's Methods text.
 
 Run
 ---
     python example_one_file.py
 
 Requires ``patient_one_data.mat`` (an ~6.8 h Fz recording at 500 Hz with a hypnogram)
-in this directory.
+in this directory. Output with brainmaze-eeg 2.0.0 (WaveDetector class version 2.1.0)::
+
+    811 epochs, 325 NREM
+
+      band  trough  downslope mean  median  wave rate (1/s)
+        SO  refine           173.9    89.3            0.266
+     delta  refine           239.3   174.6            1.403
+        SO   paper           173.1   163.8            0.043
+     delta   paper           195.3   162.8            1.343
+
+(brainmaze-eeg 1.0.0 gave mean downslope SO 186.0 / delta 250.2 and rates 0.253 / 1.354
+for the default configuration; the difference is the Butterworth filter that replaced
+the ringing brick-wall FFT filter. ``median`` is the NREM mean of the per-epoch
+``WAVE_SLOPE_MEDIAN``. The SO paper mode finds few waves: half-waves of 0.55-1 s are
+rare on a 0.5-35 Hz trace.)
 """
 
 import os
@@ -76,33 +100,33 @@ def main():
 
     # two detectors, same interface, different band; both report the downslope on the
     # broadband trace and keep only waves with a >= 5 uV negative peak
-    detectors = {
-        'SO':    WaveDetector(fs=fs, fband=(0.5, 0.9), segm_size=SEGM_SIZE,
-                              slope='downslope', amplitude_threshold=5),
-        'delta': WaveDetector(fs=fs, fband=(1.0, 3.9), segm_size=SEGM_SIZE,
-                              slope='downslope', amplitude_threshold=5),
-    }
+    # (the paper mode builds its own 0.5-35 Hz + 50 ms trace from the raw signal)
+    detectors = {}
+    for trough in ('refine', 'paper'):
+        for band, fband in (('SO', (0.5, 0.9)), ('delta', (1.0, 3.9))):
+            detectors[(band, trough)] = WaveDetector(
+                fs=fs, fband=fband, segm_size=SEGM_SIZE, slope='downslope',
+                amplitude_threshold=5, trough=trough)
 
     features = {}
-    for name, det in detectors.items():
-        values, names = det(fzcz, measure_on=broadband)
-        features[name] = dict(zip(names, values))
+    for (band, trough), det in detectors.items():
+        values, names = det(fzcz, measure_on=broadband if trough == 'refine' else None)
+        features[(band, trough)] = dict(zip(names, values))
 
     # epoch-wise sleep stage (stage at the centre of each 30 s epoch)
     epochs = buffer(hypnogram, fs, segm_size=SEGM_SIZE)      # (n_epochs, epoch_samples)
     epoch_stage = np.ceil(epochs[:, epochs.shape[1] // 2]).astype(int)
-    n = min(epoch_stage.size, features['SO']['WAVE_SLOPE_MEAN'].size)
+    n = min(epoch_stage.size, features[('SO', 'refine')]['WAVE_SLOPE_MEAN'].size)
     epoch_stage = epoch_stage[:n]
     nrem = np.isin(epoch_stage, list(NREM_STAGES))
 
     print(f'{n} epochs, {int(nrem.sum())} NREM\n')
-    print(f"{'band':>6} {'mean downslope (uV/s)':>24} {'mean wave rate (1/s)':>22}")
-    for name in detectors:
-        slope = features[name]['WAVE_SLOPE_MEAN'][:n]
-        rate = features[name]['WAVE_RATE'][:n]
-        ms = np.nanmean(slope[nrem]) if nrem.any() else np.nan
-        mr = np.nanmean(rate[nrem]) if nrem.any() else np.nan
-        print(f'{name:>6} {ms:>24.1f} {mr:>22.3f}')
+    print(f"{'band':>6} {'trough':>7} {'downslope mean':>15} {'median':>7} {'wave rate (1/s)':>16}")
+    for (band, trough) in detectors:
+        f = features[(band, trough)]
+        stats = [np.nanmean(f[k][:n][nrem]) if nrem.any() else np.nan
+                 for k in ('WAVE_SLOPE_MEAN', 'WAVE_SLOPE_MEDIAN', 'WAVE_RATE')]
+        print(f'{band:>6} {trough:>7} {stats[0]:>15.1f} {stats[1]:>7.1f} {stats[2]:>16.3f}')
 
     return features, epoch_stage
 
