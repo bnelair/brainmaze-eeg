@@ -68,7 +68,32 @@ A hypnogram is a :class:`pandas.DataFrame` with one row per scored epoch and the
   changes in the middle of a span, is not detected. Gaps up to ``max_gap_s`` are ignored
   (counted neither as awake nor as sleep) and may still change a result; pass
   ``max_gap_s=0`` to check every gap. Time before the first and after the last epoch is
-  outside the recording, not unscored.
+  outside the recording, not unscored. Overlaps are stricter than gaps: epochs that
+  overlap by more than 1e-6 s raise ``ValueError`` (``epochs overlap``), so a hypnogram
+  whose ``start`` times jitter by a sample while ``end = start + 30`` must be fixed (e.g.
+  ``end`` = the next ``start``) before scoring. With unscored time each scoring function
+  runs once per scoring (five times); a recording with tens of thousands of bouts and no
+  qualifying awakening can then take a minute or more in :func:`get_awakening_time`.
+* **Unscored time in practice: expect NaN.** Because every unscored span may be any
+  state, real nights with unscored time often get ``NaN`` (and a warning) for the **REM
+  latencies**, ``n_awakenings`` and ``n_complete_sleep_cycles``, while the sleep onset,
+  the awakening and the stage times usually stay computed. Typical causes:
+
+  - a leading unscored segment before lights-off (e.g. NSRR ``Unscored`` epochs at the
+    start of the recording): scored as REM it would be the first REM, so both REM
+    latencies are ambiguous. Any unscored time before the first REM does the same.
+  - on a night **without REM**, unscored time anywhere (even after the awakening): scored
+    as REM it would create a REM, so the latencies are ambiguous.
+  - an unscored epoch or a gap longer than ``max_gap_s`` inside the sleep: it may be an
+    awakening (``n_awakenings``) or a REM bout (``n_complete_sleep_cycles``).
+
+  Remedies (they bring every field of the demo night back): (1) **drop leading and
+  trailing unscored rows**, because time outside the recording is not unscored (here:
+  the REM latencies come back); (2) **relabel spans whose state is known**, e.g.
+  ``df.loc[df.annotation == 'UNKNOWN', 'annotation'] = 'AWAKE'`` if they are known to be
+  wake; (3) **raise** ``max_gap_s`` for short gaps known to be harmless (e.g.
+  ``max_gap_s=120`` for epochs dropped by a loader). Only relabel what you know: a
+  relabelled span gives the same numbers as if it had been scored that way.
 * **NSRR data:** ``brainmaze_utils.annotations.load_NSRR`` (brainmaze-utils 3.0.0) raises
   ``KeyError`` on the NSRR stages ``'Unscored|9'`` and ``'Movement|6'``. Map both to
   ``'UNKNOWN'`` (unscored) before scoring; do not drop the rows (dropping leaves a gap,
@@ -383,11 +408,32 @@ def _resolutions(b, awake_tag, sleep_tags, max_gap_s):
     return variants, spans
 
 
+def _span_text(labels, s, e):
+    epochs = [label for label in labels if label != _GAP]
+    what = [f'{", ".join(repr(label) for label in epochs)} epochs'] if epochs else []
+    if len(epochs) < len(labels):
+        what.append('a gap (no epochs)')
+    return f'{" and ".join(what)} from {s} to {e}'
+
+
 def _spans_text(spans):
-    parts = [f'{labels} from {s} to {e}' for labels, s, e in spans[:_MAX_SPANS_SHOWN]]
+    parts = [_span_text(*span) for span in spans[:_MAX_SPANS_SHOWN]]
     if len(spans) > _MAX_SPANS_SHOWN:
         parts.append(f'and {len(spans) - _MAX_SPANS_SHOWN} more')
     return '; '.join(parts)
+
+
+def _value_text(value):
+    """A result for a message: a timedelta as signed ``[-]HH:MM:SS`` (``str`` would show
+    -19 min as ``-1 days +23:41:00``), anything else as ``str``."""
+    if isinstance(value, (pd.Timedelta, datetime.timedelta)):
+        return _format_hms(_delta_seconds(value))
+    return str(value)
+
+
+_REMEDY = (' To get a value: score the span(s) whose state is known (e.g. relabel them), drop '
+           'unscored epochs at the start or end of the recording (time outside the recording is '
+           'not unscored), or raise max_gap_s for short gaps that are known to be harmless.')
 
 
 def _ambiguous(where, on_unscored, spans, what, shown, stacklevel):
@@ -399,12 +445,12 @@ def _ambiguous(where, on_unscored, spans, what, shown, stacklevel):
     for label, text in shown:
         alt.setdefault(text, []).append(str(label))
     alt = '; '.join(f'as {"/".join(labels)}: {text}' for text, labels in alt.items())
-    msg = (f'{where}: the {what} depends on how the unscored time is scored (unscored epochs '
+    msg = (f'{where}: the {what} depends on how the unscored time is scored (unscored time: '
            f'{_spans_text(spans)}). Scoring all of it {alt}.')
     if on_unscored == 'raise':
-        raise ValueError(msg + " Score the span(s), or pass on_unscored='warn' to get NaT/NaN.")
-    warnings.warn(msg + ' Returning NaT/NaN for it (on_unscored=\'raise\' makes this an error).',
-                  UserWarning, stacklevel=stacklevel)
+        raise ValueError(msg + _REMEDY + " Or pass on_unscored='warn' to get NaT/NaN.")
+    warnings.warn(msg + ' Returning NaT/NaN for it (on_unscored=\'raise\' makes this an error).'
+                  + _REMEDY, UserWarning, stacklevel=stacklevel)
 
 
 def _decide(where, on_unscored, spans, what, results, missing, stacklevel=4):
@@ -416,7 +462,7 @@ def _decide(where, on_unscored, spans, what, results, missing, stacklevel=4):
             raise results[0][1].exc
         return results[0][2]
     _ambiguous(where, on_unscored, spans, what,
-               [(lab, 'none found' if isinstance(v, _Fail) else str(obj)) for lab, v, obj in results],
+               [(lab, 'none found' if isinstance(v, _Fail) else _value_text(obj)) for lab, v, obj in results],
                stacklevel)
     return missing
 
@@ -494,7 +540,11 @@ def _rem_latency_s(b, onset, rem_tag, awake_tag):
         out['fall_asleep'] = (onset, None)
     else:
         out['fall_asleep'] = (b['_s'].iloc[k_rem] - b['_s'].iloc[onset], first_rem - b['start'].iloc[onset])
-    if before.size:
+    if isinstance(onset, _Fail):
+        # No sleep onset with this scoring: a fully scored night like it raises, so there is
+        # no `last_awake` value either (it must not "agree" with the other scorings).
+        out['last_awake'] = out['fall_asleep']
+    elif before.size:
         j = before[-1]
         out['last_awake'] = (b['_s'].iloc[k_rem] - b['_e'].iloc[j], first_rem - b['end'].iloc[j])
     else:
@@ -818,6 +868,13 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE', on_unscored='warn', ma
         REM may hide an earlier REM, an earlier or later sleep onset, or a later wake. If a
         latency differs, ``'warn'`` (default) warns and gives ``NaT``/``NaN`` for it;
         ``'raise'`` raises ``ValueError``. New in 3.0.0.
+
+        **On real nights this is common:** any unscored time before the first REM (even a
+        leading unscored segment before lights-off), or, on a night without REM, unscored
+        time anywhere, makes both latencies ``NaT``/``NaN``, because that time may have
+        been REM. To get the latencies, drop leading/trailing unscored rows, relabel the
+        spans whose state is known, or raise ``max_gap_s`` for harmless gaps (module
+        docstring, "Unscored time in practice").
     max_gap_s : float, optional
         Time gaps between epochs longer than this (seconds) are unscored time; shorter gaps
         are ignored. Default 1.0. New in 3.0.0.
@@ -843,7 +900,12 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE', on_unscored='warn', ma
     -----
     .. note:: **Changed in 3.0.0:**
        Sorted, validated input; arousal rows (both spellings) removed; ``'WAKE'`` read
-       as ``'AWAKE'``; ``ValueError`` instead of ``IndexError`` without REM. The values themselves are computed as before.
+       as ``'AWAKE'``; ``ValueError`` instead of ``IndexError`` without REM. On a fully
+       scored night the latencies are defined as before, from the sleep onset of
+       :func:`get_fell_asleep_time` (whose onset window changed in 3.0.0, see there). With
+       unscored time (module docstring) a latency that depends on it is no longer returned:
+       it is ``NaT``/``NaN`` with a warning (``on_unscored='warn'``), or ``ValueError`` is
+       raised (``on_unscored='raise'``); see ``on_unscored`` for how often this happens.
     """
     where = 'get_rem_latency'
     _check_on_unscored(on_unscored, where)
@@ -877,7 +939,7 @@ def get_rem_latency(df, rem_tag='REM', awake_tag='AWAKE', on_unscored='warn', ma
             ambiguous.append((key, values))
     if ambiguous:
         what = 'result for ' + ', '.join(key for key, _ in ambiguous)
-        shown = [(label, ', '.join(f'{key}: ' + ('none' if isinstance(vals[i][1], _Fail) else str(vals[i][2]))
+        shown = [(label, ', '.join(f'{key}: ' + ('none' if isinstance(vals[i][1], _Fail) else _value_text(vals[i][2]))
                                    for key, vals in ambiguous))
                  for i, (label, _, _) in enumerate(per_variant)]
         _ambiguous(where, on_unscored, spans, what, shown, stacklevel=3)
@@ -1195,6 +1257,18 @@ def score_night(df, plot=False, on_unscored='warn', max_gap_s=_MAX_GAP_S):
       ``UNKNOWN`` epoch inside the sleep usually leaves the onset, the awakening and the
       stage times unchanged but makes ``n_awakenings`` ambiguous (it may have been an
       awakening), and ``... N2, UNKNOWN, AWAKE`` makes ``awakening_time`` ambiguous.
+    - **Expect NaN on real nights with unscored time.** Both REM latencies,
+      ``n_awakenings`` and ``n_complete_sleep_cycles`` will often be ``NaN``: a leading
+      unscored segment before lights-off (or any unscored time before the first REM)
+      could be the first REM; on a night without REM, unscored time even after the
+      awakening could be a REM; an unscored epoch or gap inside the sleep could be an
+      awakening or a REM bout. Remedies: **drop leading/trailing unscored rows** (time
+      outside the recording is not unscored), **relabel spans whose state is known**, and
+      **raise** ``max_gap_s`` for short harmless gaps. On the demo night (5 min
+      ``UNKNOWN`` at the start, 12.5 min ``UNKNOWN`` in the sleep, one 2-min gap) the
+      four fields are NaN; trimming the leading segment brings back the latencies, and
+      relabelling the inner ``UNKNOWN`` plus ``max_gap_s=120`` brings back all fields. See
+      the module docstring, "Unscored time in practice".
     - The **stage times** count the scored epochs only: unscored time inside the sleep
       period is in none of them (so they do not depend on how it is scored; compare
       :func:`get_hypnogram_datarate`). ``sleep_complete`` reads the first and last epoch
@@ -1285,7 +1359,7 @@ def score_night(df, plot=False, on_unscored='warn', max_gap_s=_MAX_GAP_S):
             score[key] = missing if key in ('fell_asleep_time', 'awakening_time') else nan
             ambiguous.append(key)
     if ambiguous:
-        shown = [(label, ', '.join(f'{key}: ' + ('none' if isinstance(n[key][0], _Fail) else str(n[key][1]))
+        shown = [(label, ', '.join(f'{key}: ' + ('none' if isinstance(n[key][0], _Fail) else _value_text(n[key][1]))
                                    for key in ambiguous)) for label, n in nights]
         _ambiguous(where, on_unscored, spans, 'result for ' + ', '.join(ambiguous), shown, stacklevel=3)
 

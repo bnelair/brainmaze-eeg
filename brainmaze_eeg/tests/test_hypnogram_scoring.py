@@ -730,7 +730,7 @@ def test_awakening_unscored_message_names_span_and_numeric_gives_nan():
     with pytest.warns(UserWarning) as rec:
         H.get_awakening_time(df)
     msg = str(rec[0].message)
-    assert f"['UNKNOWN'] from {at(240)} to {at(250)}" in msg
+    assert f"'UNKNOWN' epochs from {at(240)} to {at(250)}" in msg
     assert rec[0].filename == __file__          # the warning points at the caller
     with pytest.warns(UserWarning):
         assert np.isnan(H.get_awakening_time(numeric(df)))
@@ -966,6 +966,14 @@ def test_random_unscored_nights_return_only_invariant_values():
             for fill, full in fills.items():
                 assert _outcome(f, full) == got, (f.__name__, spec, fill)
                 checked += 1
+        got = _outcome(H.get_rem_latency, df)
+        if not isinstance(got, str):
+            for fill, full in fills.items():
+                ref = _outcome(H.get_rem_latency, full)
+                for key, value in got.items():
+                    if not pd.isna(value):
+                        assert not isinstance(ref, str) and ref[key] == value, (key, spec, fill, value, ref)
+                        checked += 1
         got = _outcome(H.score_night, df)
         if isinstance(got, str):
             continue
@@ -973,6 +981,8 @@ def test_random_unscored_nights_return_only_invariant_values():
             ref = _outcome(H.score_night, full)
             if isinstance(ref, str):   # no onset/awakening in this version: not determined
                 assert pd.isna(got['fell_asleep_time']) or pd.isna(got['awakening_time']), (spec, fill)
+                if _outcome(H.get_fell_asleep_time, full) == 'error':   # no onset: no field (X3)
+                    assert all(pd.isna(v) for k, v in got.items() if k != 'sleep_complete'), (spec, fill, got)
                 continue
             sel = df[(df.start >= ref['fell_asleep_time']) & (df.start < ref['awakening_time'])]
             for key, stage in (('n1_sleep_time', 'N1'), ('n2_sleep_time', 'N2'), ('n3_sleep_time', 'N3'),
@@ -985,3 +995,73 @@ def test_random_unscored_nights_return_only_invariant_values():
                 assert (pd.isna(r) and pd.isna(value)) or r == value, (key, spec, fill, value, r)
                 checked += 1
     assert checked > 200
+
+
+# ---------------------------------------------------------------- round 6: X3, X6, X1 remedies
+
+def test_rem_latency_last_awake_needs_an_onset_in_every_scoring():
+    # X3 (verifier's night): scored AWAKE, the trailing UNKNOWN leaves no sleep onset (the N2
+    # at 9 min has 20 min AWAKE in its 60-min window), so score_night/get_rem_latency of that
+    # night raise. Scored N2/REM, the onset is the trailing span (170 min) and last_awake = 60 s.
+    # Not the same under every scoring -> no value.
+    spec = [('AWAKE', 9), ('N2', 1), ('REM', 20), ('N2', 10), ('AWAKE', 130), ('UNKNOWN', 6.5)]
+    df = bouts(spec)
+    with pytest.raises(ValueError, match='no sleep onset'):
+        H.score_night(bouts([(('AWAKE' if lab == 'UNKNOWN' else lab), m) for lab, m in spec]))
+    with pytest.warns(UserWarning, match='rem_latency_last_awake'):
+        sc = H.score_night(df)
+    assert np.isnan(sc['rem_latency_last_awake']) and np.isnan(sc['rem_latency_fell_asleep'])
+    with pytest.warns(UserWarning, match='last_awake, fall_asleep') as rec:
+        lat = H.get_rem_latency(df)
+    assert pd.isna(lat['last_awake']) and pd.isna(lat['fall_asleep'])
+    # X6: the negative latency of the N2/REM scoring (REM at 10 min - onset at 170 min) is
+    # shown signed, not as pandas' "-1 days +21:20:00"
+    msg = str(rec[0].message)
+    assert 'fall_asleep: -02:40:00' in msg and 'days' not in msg
+    with pytest.raises(ValueError, match='last_awake'):
+        H.get_rem_latency(numeric(df), on_unscored='raise')
+
+
+def test_unscored_messages_name_gaps_and_give_remedies():
+    # X6/X1: a gap reads "a gap (no epochs)" (not "['(no epochs)']"), and the message says
+    # how to get a value
+    g = pd.concat([bouts([('AWAKE', 30), ('N2', 200)]), bouts([('AWAKE', 120)], t0=at(290))],
+                  ignore_index=True)
+    with pytest.warns(UserWarning) as rec:
+        H.get_awakening_time(g)
+    msg = str(rec[0].message)
+    assert f'a gap (no epochs) from {at(230)} to {at(290)}' in msg and "['" not in msg
+    assert 'relabel' in msg and 'max_gap_s' in msg and 'start or end of the recording' in msg
+    u = bouts([('AWAKE', 30), ('N2', 200), ('UNKNOWN', 5), ('AWAKE', 120)])
+    with pytest.raises(ValueError, match=r"'UNKNOWN' epochs from .*relabel"):
+        H.get_awakening_time(u, on_unscored='raise')
+
+
+def test_documented_remedies_bring_the_values_back():
+    # X1, module docstring "Unscored time in practice": a leading unscored segment before
+    # lights-off could be the first REM -> both REM latencies NaN. Dropping it (time outside
+    # the recording is not unscored) gives REM 90 - onset 30 = 60 min and REM 90 - wake end
+    # 30 = 60 min. An UNKNOWN epoch and a 2-min gap inside the sleep make n_awakenings and
+    # the cycles NaN; relabelling the known span and max_gap_s=120 bring them back.
+    spec = [('UNKNOWN', 5), ('AWAKE', 25), ('N2', 60), ('REM', 10), ('N2', 30), ('UNKNOWN', 5),
+            ('N2', 30), ('REM', 10), ('N2', 30)]
+    head = bouts(spec)
+    tail = bouts([('N2', 28), ('AWAKE', 120)], t0=at(207))   # 2-min gap 205-207
+    df = pd.concat([head, tail], ignore_index=True)
+    with pytest.warns(UserWarning):
+        sc = H.score_night(df)
+    for key in ('rem_latency_fell_asleep', 'rem_latency_last_awake', 'n_awakenings',
+                'n_complete_sleep_cycles'):
+        assert np.isnan(sc[key]), key
+    assert sc['fell_asleep_time'] == at(30) and sc['awakening_time'] == at(235)
+    trimmed = df.iloc[1:].reset_index(drop=True)
+    with pytest.warns(UserWarning, match='n_complete_sleep_cycles, n_awakenings'):
+        sc = H.score_night(trimmed)
+    assert sc['rem_latency_fell_asleep'] == 3600.0 and sc['rem_latency_last_awake'] == 3600.0
+    fixed = trimmed.copy()
+    fixed.loc[fixed.annotation == 'UNKNOWN', 'annotation'] = 'N2'
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', UserWarning)
+        sc = H.score_night(fixed, max_gap_s=120)
+    assert sc['n_complete_sleep_cycles'] == 2 and sc['n_awakenings'] == 0
+    assert sc['rem_latency_fell_asleep'] == 3600.0
