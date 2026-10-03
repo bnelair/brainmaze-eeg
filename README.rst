@@ -24,14 +24,21 @@ Installation
 
     pip install brainmaze-eeg
 
-What's new in 2.0.0
+Plotting in ``brainmaze_eeg.hypnogram`` (``plot_hypnogram``, ``score_night(plot=True)``)
+needs matplotlib, which is an optional extra:
+
+.. code-block:: bash
+
+    pip install "brainmaze-eeg[plot]"
+
+What's new in 3.0.0
 """""""""""""""""""""""""""
 
-brainmaze-eeg 2.0.0 is a major release: **default outputs change** (list below). It requires
+brainmaze-eeg 3.0.0 is a major release: **default outputs change** (list below). It requires
 ``brainmaze-utils>=3.0.0``, which resamples correctly at every sampling rate and DC level and
 provides ``brainmaze_utils.gaps`` (its numerical changes are listed on the
 `utils changes page <https://bnelair.github.io/brainmaze-utils/changes.html>`_). Full list of
-merged pull requests: `release notes <https://github.com/bnelair/brainmaze-eeg/releases/tag/v2.0.0>`_.
+merged pull requests: `release notes <https://github.com/bnelair/brainmaze-eeg/releases/tag/v3.0.0>`_.
 
 **New**
 
@@ -94,6 +101,14 @@ merged pull requests: `release notes <https://github.com/bnelair/brainmaze-eeg/r
        detections change; the hum notch has the same width at every sampling rate; the ambiguous
        class (``0 < k2 <= k1``, as in v24) can fire (it never could); NaN/inf raise
      - ``f_type=2`` reproduces the MATLAB v24 Butterworth switch; the old band has no switch
+   * - ``brainmaze_eeg.hypnogram``
+     - reworked so every public function returns correct numbers or raises: REM periods counted
+       per bout, data rate over multi-day spans, awakening/onset rules (N1 counts as sleep),
+       ``score_night`` works with brainmaze-utils 3. Timestamps must be timezone-aware or POSIX
+       seconds. Unscored time (``UNKNOWN`` labels, gaps) is checked strictly: a value that
+       depends on how the unscored time is filled becomes NaN/NaT with a warning
+       (``on_unscored='raise'`` to fail). Details in the module's "Changes in 3.0.0" notes.
+     - no switch: the 1.0.0/2.0.0 results were wrong or the functions failed
 
 How to contribute
 """""""""""""""""""""""""""

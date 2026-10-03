@@ -36,6 +36,9 @@ jobs:
     uses: bnelair/brainmaze-sphinx/.github/workflows/release.yml@main
     permissions:
       contents: read
+    with:
+      # Block the publish if the built dist contains anything but the package.
+      dist-check: error
 
   publish:
     needs: build
