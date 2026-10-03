@@ -12,7 +12,7 @@ Sleep Feature Extractor
 The Feature Extractor package contains SleepSpectralFeatureExtractor for spectral feature extraction from designed for hypnogram classification from a raw EEG signal.
 
 
-The extractor can return **data rate** which gives a relative ratio of valid values in the input signal based on a number of NaN values. The extractor requires information about frequency bands at which parameters will be calculated. Please see an example bellow.
+The extractor can return **data rate** which gives a relative ratio of valid values in the input signal based on a number of NaN values. The extractor requires information about frequency bands at which parameters will be calculated. Please see an example below.
 
 
 
@@ -21,47 +21,25 @@ Example
 
 .. code-block:: python
 
-    import sys
     import numpy as np
-    from best.feature_extraction.Feature_Extractor import SleepSpectralFeatureExtractor
+    from brainmaze_eeg.features.feature_extraction import SleepSpectralFeatureExtractor
+    from brainmaze_eeg.features.spectral_features import (mean_bands, mean_frequency,
+                                                          relative_bands)
 
-    # Example synthetic signal generator
-    fs = 500 # sampling frequency
-    f = 10 # sin frequency
-    a = 1 # amplitude
-    b = 0 # bias
-    t = np.arange(0, 1000, 1/fs)
-    x = a * np.sin(2*np.pi*f*t) + b
+    # synthetic signal: 10 Hz sine + noise, 5 min at 500 Hz
+    fs = 500                                   # sampling frequency (Hz)
+    t = np.arange(0, 300, 1 / fs)
+    x = np.sin(2 * np.pi * 10 * t) + 0.1 * np.random.default_rng(0).normal(size=t.size)
 
+    segm_size = 30                             # s, one feature value per 30-s segment
+    fbands = [[1, 4], [4, 8], [8, 12], [12, 14], [14, 20], [20, 30]]   # Hz
 
-    # Spectral Feature  Extraction
-    fs = 500 # sampling frequency of an analysed signal
-    segm_size = 30 # time length of a segment which is used for extraction of each feature
-    fbands = [[1, 4],
-     [4, 8],
-     [8, 12],
-     [12, 14],
-     [14, 20],
-     [20, 30]] # frequency bands at which you want to extract features
+    extractor = SleepSpectralFeatureExtractor(fs=fs, segm_size=segm_size, fbands=fbands,
+                                              datarate=True)
+    extractor.extraction_functions = [mean_bands, mean_frequency, relative_bands]
 
-    from sleep_classification.FeatureExtractor.SpectralFeatures import mean_bands, relative_bands
-
-    Extractor = SleepSpectralFeatureExtractor(
-        fs=fs,
-        segm_size=segm_size,
-        fbands=fbands,
-        datarate=True
-    )
-
-
-    Extractor_MeanBand._extraction_functions = \
-        [
-            mean_bands,
-            mean_frequency,
-            relative_bands,
-        ]
-
-    feature_values, feature_names = Extractor(x)
+    feature_values, feature_names = extractor(x)   # one array (n_segments,) per feature
+    # feature_names: DATA_RATE, MEAN_PSD1-4Hz, ..., MEAN_DOMINANT_FREQUENCY, REL_PSD_1-4Hz, ...
 
 
 
@@ -77,7 +55,7 @@ This Feature Extractor implementation is based on the following papers (when use
 | Kremen, V., Brinkmann, B. H., Van Gompel, J. J., Stead, S. (Matt) M., St Louis, E. K., & Worrell, G. A. (2018). Automated Unsupervised Behavioral State Classification using Intracranial Electrophysiology. Journal of Neural Engineering. https://doi.org/10.1088/1741-2552/aae5ab
 
 
-| Gerla, V., Kremen, V., Macas, M., Dudysova, D., Mladek, A., Sos, P., & Lhotska, L. (2019). Iterative expert-in-the-loop classification of hypnogram PSG recordings using a hierarchical clustering. Journal of Neuroscience Methods, 317(February), 61?70. https://doi.org/10.1016/j.jneumeth.2019.01.013
+| Gerla, V., Kremen, V., Macas, M., Dudysova, D., Mladek, A., Sos, P., & Lhotska, L. (2019). Iterative expert-in-the-loop classification of sleep PSG recordings using a hierarchical clustering. Journal of Neuroscience Methods, 317(February), 61–70. https://doi.org/10.1016/j.jneumeth.2019.01.013
 
 
 and on repository `Semi Automated Sleep Classifier <https://github.com/vkremen/Semi_Automated_Sleep_Classifier_iEEG>`_, see details in the original repository.

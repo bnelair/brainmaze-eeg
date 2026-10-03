@@ -146,7 +146,7 @@ html_theme_options = {
     # Toc options
     'collapse_navigation': False,
     'navigation_depth': 5,
-    "repository_url": "https://github.com/bnelair/brainmaze_eeg",
+    "repository_url": "https://github.com/bnelair/brainmaze-eeg",
     "use_repository_button": True,
     "home_page_in_toc": True
 }
