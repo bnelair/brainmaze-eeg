@@ -1,9 +1,10 @@
 
 .. toctree::
    :maxdepth: 1
-   :caption: Projects
+   :caption: Projects and demos
 
    project_wave_detector
+   demos
 
 .. toctree::
    :maxdepth: 3
