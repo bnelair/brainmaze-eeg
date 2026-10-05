@@ -392,6 +392,8 @@
             </div>
             <nav aria-label="Page">
                 <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.AROUSAL_TAGS"><code class="docutils literal notranslate"><span class="pre">AROUSAL_TAGS</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.LABEL_ALIASES"><code class="docutils literal notranslate"><span class="pre">LABEL_ALIASES</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.correct_hypnogram"><code class="docutils literal notranslate"><span class="pre">correct_hypnogram()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.correct_rem"><code class="docutils literal notranslate"><span class="pre">correct_rem()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.do_median_filtration"><code class="docutils literal notranslate"><span class="pre">do_median_filtration()</span></code></a></li>
@@ -430,6 +432,123 @@
                   
   <section id="module-brainmaze_eeg.hypnogram">
 <span id="hypnogram"></span><h1>Hypnogram<a class="headerlink" href="#module-brainmaze_eeg.hypnogram" title="Link to this heading">#</a></h1>
+<p>Tools for analyzing hypnograms such as number of cycles, hypnogram time etc.</p>
+<p>Plotting (<a class="reference internal" href="#brainmaze_eeg.hypnogram.plot_hypnogram" title="brainmaze_eeg.hypnogram.plot_hypnogram"><code class="xref py py-func docutils literal notranslate"><span class="pre">plot_hypnogram()</span></code></a>, <code class="docutils literal notranslate"><span class="pre">score_night(...,</span> <span class="pre">plot=True)</span></code>) needs matplotlib, an
+optional dependency: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;brainmaze-eeg[plot]&quot;</span></code>. Everything else in this
+module works without it.</p>
+<p><strong>Input conventions</strong> (since 3.0.0):</p>
+<p>A hypnogram is a <code class="xref py py-class docutils literal notranslate"><span class="pre">pandas.DataFrame</span></code> with one row per scored epoch and the columns
+<code class="docutils literal notranslate"><span class="pre">annotation</span></code> (sleep-state label), <code class="docutils literal notranslate"><span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">end</span></code>, optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> are either <strong>timezone-aware</strong> datetimes (<code class="docutils literal notranslate"><span class="pre">datetime.datetime</span></code>,
+<code class="xref py py-class docutils literal notranslate"><span class="pre">pandas.Timestamp</span></code> or a <code class="docutils literal notranslate"><span class="pre">datetime64[ns,</span> <span class="pre">tz]</span></code> column) or <strong>numeric POSIX
+timestamps in seconds</strong>. Naive datetimes raise <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> (elapsed time across a DST
+change would be wrong; localize them first). Numeric values whose magnitude exceeds
+<code class="docutils literal notranslate"><span class="pre">1e11</span></code> (the year 5138 in seconds) raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>, because they are almost
+certainly milliseconds or finer. Numbers are not checked further: <em>relative</em> times in
+milliseconds (small numbers) without a <code class="docutils literal notranslate"><span class="pre">duration</span></code> column pass as seconds, so pass
+seconds.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">duration</span></code>, if present, is numeric seconds or a timedelta column (e.g.
+<code class="docutils literal notranslate"><span class="pre">df.end</span> <span class="pre">-</span> <span class="pre">df.start</span></code>) and must equal <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> (to 1 ms), otherwise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+is raised. This also catches millisecond timestamps with durations in seconds. Every
+function that validates the input (all functions that read <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code>) uses
+<code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code>. <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_time_by_key" title="brainmaze_eeg.hypnogram.get_time_by_key"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_time_by_key()</span></code></a>, <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_stage_times" title="brainmaze_eeg.hypnogram.get_stage_times"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_stage_times()</span></code></a>,
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_stage_times_dataset" title="brainmaze_eeg.hypnogram.get_stage_times_dataset"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_stage_times_dataset()</span></code></a> and <a class="reference internal" href="#brainmaze_eeg.hypnogram.valid_dataset_index_by_duration" title="brainmaze_eeg.hypnogram.valid_dataset_index_by_duration"><code class="xref py py-func docutils literal notranslate"><span class="pre">valid_dataset_index_by_duration()</span></code></a> need only
+<code class="docutils literal notranslate"><span class="pre">annotation</span></code> and <code class="docutils literal notranslate"><span class="pre">duration</span></code> and sum the <code class="docutils literal notranslate"><span class="pre">duration</span></code> column as given (not
+validated; a timedelta column gives a <code class="xref py py-class docutils literal notranslate"><span class="pre">pandas.Timedelta</span></code>).</p></li>
+<li><p>Rows may come in any order; functions sort by <code class="docutils literal notranslate"><span class="pre">start</span></code> (stable) and never modify the
+caller’s frame.</p></li>
+<li><p>Labels: <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> (the label written by <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.annotations.load_NSRR</span></code>) is
+an alias of <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code> everywhere in this module, in the data and in tag arguments.
+Functions that return a hypnogram (the <code class="docutils literal notranslate"><span class="pre">fill_*</span></code>/<code class="docutils literal notranslate"><span class="pre">correct_*</span></code> functions and
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.do_median_filtration" title="brainmaze_eeg.hypnogram.do_median_filtration"><code class="xref py py-func docutils literal notranslate"><span class="pre">do_median_filtration()</span></code></a>) return it as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>.</p></li>
+<li><p>Arousals are events, not states: rows labelled <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> (the label written by
+<code class="xref py py-mod docutils literal notranslate"><span class="pre">brainmaze_utils</span></code>) or <code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code> (the legacy spelling of older data) are removed
+before scoring and never relabelled.</p></li>
+<li><p>After arousals are removed, epochs must not overlap (<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> otherwise) in the
+scoring functions (<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="brainmaze_eeg.hypnogram.get_fell_asleep_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_fell_asleep_time()</span></code></a>, <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="brainmaze_eeg.hypnogram.get_awakening_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_awakening_time()</span></code></a>,
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_rem_latency" title="brainmaze_eeg.hypnogram.get_rem_latency"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_rem_latency()</span></code></a>, <a class="reference internal" href="#brainmaze_eeg.hypnogram.score_night" title="brainmaze_eeg.hypnogram.score_night"><code class="xref py py-func docutils literal notranslate"><span class="pre">score_night()</span></code></a>) and in <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_hypnogram_datarate" title="brainmaze_eeg.hypnogram.get_hypnogram_datarate"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_hypnogram_datarate()</span></code></a>,
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.is_sleep_complete" title="brainmaze_eeg.hypnogram.is_sleep_complete"><code class="xref py py-func docutils literal notranslate"><span class="pre">is_sleep_complete()</span></code></a>, and in <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_number_of_awakenings" title="brainmaze_eeg.hypnogram.get_number_of_awakenings"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_number_of_awakenings()</span></code></a> and
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_transition_counts" title="brainmaze_eeg.hypnogram.get_transition_counts"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_transition_counts()</span></code></a> when the frame has <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns.</p></li>
+<li><p>The scoring functions first merge touching epochs with the same label into <strong>bouts</strong>
+(one row per continuous period), so a hypnogram tiled into 30-s epochs and the same
+hypnogram with merged rows give the same results. Their time windows (sleep onset,
+awakening) count only the part of each bout that lies inside the window.</p></li>
+<li><p><strong>Unscored time</strong> is (a) epochs labelled <code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> or any other label that is
+neither a sleep stage (N1, N2, N3, REM) nor the awake tag, and (b) time gaps between
+epochs (no rows) longer than <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code> (default 1 s; this includes the time of a
+removed <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> row that was tiled in as an epoch). The scoring functions
+(<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="brainmaze_eeg.hypnogram.get_fell_asleep_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_fell_asleep_time()</span></code></a>, <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="brainmaze_eeg.hypnogram.get_awakening_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_awakening_time()</span></code></a>, <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_rem_latency" title="brainmaze_eeg.hypnogram.get_rem_latency"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_rem_latency()</span></code></a>,
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.score_night" title="brainmaze_eeg.hypnogram.score_night"><code class="xref py py-func docutils literal notranslate"><span class="pre">score_night()</span></code></a>) compute each result with all unscored time scored as AWAKE, and
+again as each sleep stage (N1, N2, N3, REM). If all agree, the result does not depend
+on the unscored time and is returned without a warning. If they differ, the result is
+ambiguous and is never returned silently: with <code class="docutils literal notranslate"><span class="pre">on_unscored='warn'</span></code> (default) a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code> names the unscored spans and the alternative results, and
+<code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code> is returned for that result only; <code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code> raises
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. New in 3.0.0.</p>
+<p>Limitations: each scoring relabels <em>all</em> unscored time with one state. A result that
+changes only when different unscored spans get different states, or when the state
+changes in the middle of a span, is not detected. Gaps up to <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code> are ignored
+(counted neither as awake nor as sleep) and may still change a result; pass
+<code class="docutils literal notranslate"><span class="pre">max_gap_s=0</span></code> to check every gap. Time before the first and after the last epoch is
+outside the recording, not unscored. Overlaps are stricter than gaps: epochs that
+overlap by more than 1e-6 s raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> (<code class="docutils literal notranslate"><span class="pre">epochs</span> <span class="pre">overlap</span></code>), so a hypnogram
+whose <code class="docutils literal notranslate"><span class="pre">start</span></code> times jitter by a sample while <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">=</span> <span class="pre">start</span> <span class="pre">+</span> <span class="pre">30</span></code> must be fixed (e.g.
+<code class="docutils literal notranslate"><span class="pre">end</span></code> = the next <code class="docutils literal notranslate"><span class="pre">start</span></code>) before scoring. With unscored time each scoring function
+runs once per scoring (five times); a recording with tens of thousands of bouts and no
+qualifying awakening can then take a minute or more in <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="brainmaze_eeg.hypnogram.get_awakening_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_awakening_time()</span></code></a>.</p>
+</li>
+<li><p><strong>Unscored time in practice: expect NaN.</strong> Because every unscored span may be any
+state, real nights with unscored time often get <code class="docutils literal notranslate"><span class="pre">NaN</span></code> (and a warning) for the <strong>REM
+latencies</strong>, <code class="docutils literal notranslate"><span class="pre">n_awakenings</span></code> and <code class="docutils literal notranslate"><span class="pre">n_complete_sleep_cycles</span></code>, while the sleep onset,
+the awakening and the stage times usually stay computed. Typical causes:</p>
+<ul class="simple">
+<li><p>a leading unscored segment before lights-off (e.g. NSRR <code class="docutils literal notranslate"><span class="pre">Unscored</span></code> epochs at the
+start of the recording): scored as REM it would be the first REM, so both REM
+latencies are ambiguous. Any unscored time before the first REM does the same.</p></li>
+<li><p>on a night <strong>without REM</strong>, unscored time anywhere (even after the awakening): scored
+as REM it would create a REM, so the latencies are ambiguous.</p></li>
+<li><p>an unscored epoch or a gap longer than <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code> inside the sleep: it may be an
+awakening (<code class="docutils literal notranslate"><span class="pre">n_awakenings</span></code>) or a REM bout (<code class="docutils literal notranslate"><span class="pre">n_complete_sleep_cycles</span></code>).</p></li>
+</ul>
+<p>Remedies (they bring every field of the demo night back): (1) <strong>drop leading and
+trailing unscored rows</strong>, because time outside the recording is not unscored (here:
+the REM latencies come back); (2) <strong>relabel spans whose state is known</strong>, e.g.
+<code class="docutils literal notranslate"><span class="pre">df.loc[df.annotation</span> <span class="pre">==</span> <span class="pre">'UNKNOWN',</span> <span class="pre">'annotation']</span> <span class="pre">=</span> <span class="pre">'AWAKE'</span></code> if they are known to be
+wake; (3) <strong>raise</strong> <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code> for short gaps known to be harmless (e.g.
+<code class="docutils literal notranslate"><span class="pre">max_gap_s=120</span></code> for epochs dropped by a loader). Only relabel what you know: a
+relabelled span gives the same numbers as if it had been scored that way.</p>
+</li>
+<li><p><strong>NSRR data:</strong> <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.annotations.load_NSRR</span></code> (brainmaze-utils 3.0.0) raises
+<code class="docutils literal notranslate"><span class="pre">KeyError</span></code> on the NSRR stages <code class="docutils literal notranslate"><span class="pre">'Unscored|9'</span></code> and <code class="docutils literal notranslate"><span class="pre">'Movement|6'</span></code>. Map both to
+<code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> (unscored) before scoring; do not drop the rows (dropping leaves a gap,
+which is treated the same way, but only above <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code>). A fix in the loader is a
+brainmaze-utils follow-up.</p></li>
+</ul>
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.AROUSAL_TAGS">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">AROUSAL_TAGS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('Arousal',</span> <span class="pre">'Arrousal')</span></em><a class="headerlink" href="#brainmaze_eeg.hypnogram.AROUSAL_TAGS" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> (brainmaze-utils) and the legacy
+spelling <code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Labels treated as arousal events</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.LABEL_ALIASES">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">LABEL_ALIASES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'WAKE':</span> <span class="pre">'AWAKE'}</span></em><a class="headerlink" href="#brainmaze_eeg.hypnogram.LABEL_ALIASES" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> (written by
+<code class="docutils literal notranslate"><span class="pre">brainmaze_utils.annotations.load_NSRR</span></code>) means <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Alternative labels and the label they stand for</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.correct_hypnogram">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">correct_hypnogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.correct_hypnogram" title="Link to this definition">#</a></dt>
@@ -450,12 +569,23 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are processed in <code class="docutils literal notranslate"><span class="pre">start</span></code> order (input may be unsorted), datetime input works
+(comparing a timedelta with a number of seconds raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>), the input is
+validated (module docstring) and <code class="docutils literal notranslate"><span class="pre">duration</span></code> is returned as <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> in
+seconds.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.correct_rem">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">correct_rem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.correct_rem" title="Link to this definition">#</a></dt>
 <dd><p>Correct REM annotations that occur shortly after prolonged awake periods.</p>
+<p>A REM epoch that starts at most 60 s after an AWAKE epoch, when the AWAKE epochs right
+before it last at least <code class="docutils literal notranslate"><span class="pre">time_threshold</span></code> in total, is relabelled AWAKE.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -471,23 +601,47 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are processed in <code class="docutils literal notranslate"><span class="pre">start</span></code> order (input may be unsorted), datetime input works
+(comparing a timedelta with a number of seconds raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>), the input is
+validated (module docstring) and <code class="docutils literal notranslate"><span class="pre">duration</span></code> is returned as <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> in
+seconds.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.do_median_filtration">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">do_median_filtration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.do_median_filtration" title="Link to this definition">#</a></dt>
 <dd><p>Apply median filtering to remove isolated 30-second stage annotations.</p>
+<p>An epoch of 30 s whose neighbours (in <code class="docutils literal notranslate"><span class="pre">start</span></code> order, after earlier replacements)
+have the same label takes that label. Arousal rows (<code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code>/<code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code>) are
+events, not stages: they are returned unchanged and are skipped when looking for
+neighbours.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’ and ‘duration’ columns.</p>
+<dd class="field-odd"><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’ and ‘start’/’end’ (or ‘duration’) columns.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Filtered hypnogram dataframe.</p>
+<dd class="field-even"><p>Filtered copy of the hypnogram, <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> returned as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>. The input is
+not modified.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+It assigned through chained indexing (<code class="docutils literal notranslate"><span class="pre">df.iloc[k]['annotation']</span> <span class="pre">=</span> <span class="pre">...</span></code>), which
+does not write into the frame, so it returned the input unchanged. It now returns a
+filtered copy, in <code class="docutils literal notranslate"><span class="pre">start</span></code> order, in which arousal rows are unchanged and are not
+neighbours (a legacy 30-s <code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code> epoch between two N2 epochs stays an
+arousal).</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -509,6 +663,17 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are processed in <code class="docutils literal notranslate"><span class="pre">start</span></code> order (input may be unsorted), datetime input works
+(comparing a timedelta with a number of seconds raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>), the input is
+validated (module docstring) and <code class="docutils literal notranslate"><span class="pre">duration</span></code> is returned as <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> in
+seconds.
+The inserted epoch’s <code class="docutils literal notranslate"><span class="pre">duration</span></code> was the length of the following epoch instead of
+the gap.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -530,6 +695,15 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are processed in <code class="docutils literal notranslate"><span class="pre">start</span></code> order (input may be unsorted), datetime input works
+(comparing a timedelta with a number of seconds raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>), the input is
+validated (module docstring) and <code class="docutils literal notranslate"><span class="pre">duration</span></code> is returned as <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> in
+seconds.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -551,6 +725,17 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are processed in <code class="docutils literal notranslate"><span class="pre">start</span></code> order (input may be unsorted), datetime input works
+(comparing a timedelta with a number of seconds raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>), the input is
+validated (module docstring) and <code class="docutils literal notranslate"><span class="pre">duration</span></code> is returned as <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> in
+seconds.
+The inserted epoch’s <code class="docutils literal notranslate"><span class="pre">duration</span></code> was the length of the following epoch instead of
+the gap.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -572,52 +757,177 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are processed in <code class="docutils literal notranslate"><span class="pre">start</span></code> order (input may be unsorted), datetime input works
+(comparing a timedelta with a number of seconds raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>), the input is
+validated (module docstring) and <code class="docutils literal notranslate"><span class="pre">duration</span></code> is returned as <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> in
+seconds.
+The inserted epoch’s <code class="docutils literal notranslate"><span class="pre">duration</span></code> was the length of the following epoch instead of
+the gap.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.get_awakening_time">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_awakening_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_awake_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">90</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_sleep_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleep_cycle_tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['REM',</span> <span class="pre">'N2',</span> <span class="pre">'N3']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_awakening_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_awake_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">90</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_sleep_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleep_cycle_tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['REM',</span> <span class="pre">'N1',</span> <span class="pre">'N2',</span> <span class="pre">'N3']</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">after</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">on_unscored</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'warn'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gap_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="Link to this definition">#</a></dt>
 <dd><p>Determine when the subject woke up based on hypnogram data.</p>
+<p>Touching epochs with the same label are merged into bouts first (module docstring).</p>
+<ul class="simple">
+<li><p><strong>Candidates</strong> are the <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> bouts that follow a <code class="docutils literal notranslate"><span class="pre">sleep_cycle_tags</span></code> bout,
+either directly or through <code class="docutils literal notranslate"><span class="pre">'N1'</span></code> bouts only (N2 -&gt; N1 -&gt; AWAKE is a candidate even
+if <code class="docutils literal notranslate"><span class="pre">'N1'</span></code> is not in <code class="docutils literal notranslate"><span class="pre">sleep_cycle_tags</span></code>), and start at or after <code class="docutils literal notranslate"><span class="pre">after</span></code> if given.</p></li>
+<li><p><strong>Sustained wake:</strong> a candidate qualifies if, in the window <code class="docutils literal notranslate"><span class="pre">[candidate</span> <span class="pre">start,</span>
+<span class="pre">candidate</span> <span class="pre">start</span> <span class="pre">+</span> <span class="pre">t_awake_threshold</span> <span class="pre">+</span> <span class="pre">t_sleep_threshold)</span></code>, at least
+<code class="docutils literal notranslate"><span class="pre">t_awake_threshold</span></code> minutes are <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> and at most <code class="docutils literal notranslate"><span class="pre">t_sleep_threshold</span></code>
+minutes are sleep (N1, N2, N3, REM and <code class="docutils literal notranslate"><span class="pre">sleep_cycle_tags</span></code>). Only the part of each
+bout inside the window counts.</p></li>
+<li><p>The awakening is the start of the <strong>first</strong> qualifying candidate.</p></li>
+<li><p>If none qualifies: when the hypnogram ends with <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code>, the start of the
+<strong>last</strong> candidate (the final transition from sleep to wake; <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if there
+is none); otherwise the end of the recording (the subject was still asleep when it
+ended).</p></li>
+<li><p><strong>Unscored time</strong> (module docstring) is checked: the awakening is returned only if
+it is the same with all unscored time scored as AWAKE and as each sleep stage
+(<code class="docutils literal notranslate"><span class="pre">on_unscored</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">after=None</span></code> searches the whole recording, so a sustained wake after a short nap
+before the night’s sleep is found first; <a class="reference internal" href="#brainmaze_eeg.hypnogram.score_night" title="brainmaze_eeg.hypnogram.score_night"><code class="xref py py-func docutils literal notranslate"><span class="pre">score_night()</span></code></a> passes the sleep onset.</p></li>
+</ul>
+<p><strong>What the time means.</strong> The primary rule (first sustained wake of
+<code class="docutils literal notranslate"><span class="pre">t_awake_threshold</span></code> minutes) is a proxy for the end of the night, roughly when the
+subject got up (lights on); sleep after it (e.g. a morning nap) is not part of the
+night. It is <em>not</em> the AASM final awakening, which is the end of the last sleep epoch
+before lights on: the two agree when the subject stays awake after the last sleep
+epoch. The fallback (no sustained wake, the night ends awake: the last sleep-to-wake
+transition) is the AASM definition.</p>
+<p>Example (defaults): AWAKE 30 min, N2 60, REM 20, AWAKE 5, N2 120, N1 5, AWAKE 120 gives
+the start of the last AWAKE bout (at 240 min): the brief AWAKE at 110 min holds 95 min
+of sleep in its window.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’, ‘start’, ‘end’, and ‘duration’ columns.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code> (optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>).</p></li>
 <li><p><strong>t_awake_threshold</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum sustained awake time in minutes to be considered awakened. Default is 90.</p></li>
 <li><p><strong>t_sleep_threshold</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum sleep time in minutes allowed in the awakening window. Default is 10.</p></li>
-<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’.</p></li>
-<li><p><strong>sleep_cycle_tags</strong> (<em>list</em><em>, </em><em>optional</em>) – List of tags indicating sleep states. Default is [‘REM’, ‘N2’, ‘N3’].</p></li>
+<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’ (<code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is the same state).</p></li>
+<li><p><strong>sleep_cycle_tags</strong> (<em>list</em><em>, </em><em>optional</em>) – List of tags indicating sleep states. Default is [‘REM’, ‘N1’, ‘N2’, ‘N3’].</p></li>
+<li><p><strong>after</strong> (<em>datetime</em><em> or </em><em>float</em><em>, </em><em>optional</em>) – Only consider awakenings starting at or after this time. It must be of the same
+kind as <code class="docutils literal notranslate"><span class="pre">start</span></code> (a timezone-aware datetime for datetime input, a number of
+seconds for numeric input), otherwise <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> is raised.
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.score_night" title="brainmaze_eeg.hypnogram.score_night"><code class="xref py py-func docutils literal notranslate"><span class="pre">score_night()</span></code></a> passes the sleep onset. New in 3.0.0.</p></li>
+<li><p><strong>on_unscored</strong> (<em>{'warn'</em><em>, </em><em>'raise'}</em><em>, </em><em>optional</em>) – What to do when the awakening depends on how the unscored time is scored (e.g.
+<code class="docutils literal notranslate"><span class="pre">...</span> <span class="pre">N2,</span> <span class="pre">UNKNOWN,</span> <span class="pre">AWAKE</span></code>: the wake may have begun anywhere in the unknown span).
+<code class="docutils literal notranslate"><span class="pre">'warn'</span></code> (default) emits a <code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code> naming the unscored spans and the
+alternative times and returns <code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code>; <code class="docutils literal notranslate"><span class="pre">'raise'</span></code> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.
+New in 3.0.0.</p></li>
+<li><p><strong>max_gap_s</strong> (<em>float</em><em>, </em><em>optional</em>) – Time gaps between epochs longer than this (seconds) are unscored time; shorter gaps
+are ignored. Default 1.0. New in 3.0.0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Timestamp when the subject woke up.</p>
+<dd class="field-even"><p>Time of the awakening, in the type of the <code class="docutils literal notranslate"><span class="pre">start</span></code> column; <code class="docutils literal notranslate"><span class="pre">NaT</span></code> (datetime
+input) or <code class="docutils literal notranslate"><span class="pre">NaN</span></code> (numeric input) if it is ambiguous because of unscored epochs
+and <code class="docutils literal notranslate"><span class="pre">on_unscored='warn'</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>datetime</p>
+<dd class="field-odd"><p>datetime or float</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>TypeError</strong> – If <code class="docutils literal notranslate"><span class="pre">after</span></code> is not of the same kind as <code class="docutils literal notranslate"><span class="pre">start</span></code>, or the input is invalid
+    (module docstring).</p></li>
+<li><p><strong>ValueError</strong> – If the hypnogram is empty or invalid, or it ends awake without a candidate (with
+    every scoring of the unscored time); or the awakening depends on the unscored time
+    and <code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code>.</p></li>
+</ul>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+<code class="docutils literal notranslate"><span class="pre">t_sleep_threshold</span></code> (minutes) was compared with the sleep time in seconds, so
+10 meant 10 s: one minute of N2 in the window rejected an awakening. The default
+<code class="docutils literal notranslate"><span class="pre">sleep_cycle_tags</span></code> now include <code class="docutils literal notranslate"><span class="pre">'N1'</span></code>, and a path through N1 bouts counts in
+any case: v1.0.0 missed an awakening reached through N1 (N2 -&gt; N1 -&gt; AWAKE, the
+usual way to wake up) and then returned an earlier brief awakening, which
+truncated the sleep period. The window counts only the part of each bout inside it
+and is <code class="docutils literal notranslate"><span class="pre">t_awake_threshold</span> <span class="pre">+</span> <span class="pre">t_sleep_threshold</span></code> long (v1.0.0 counted the
+<code class="docutils literal notranslate"><span class="pre">t_awake_threshold</span></code> window’s epochs in full). A first epoch in a sleep stage is no
+longer a candidate (it returned the start of that sleep epoch), <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> rows
+are removed like <code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code>, <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is read as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>, epochs are
+sorted and merged into bouts, and <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> replaces an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> when no
+transition exists. Numeric timestamps (seconds) work. A night whose awakening
+depends on unscored epochs or gaps (e.g. <code class="docutils literal notranslate"><span class="pre">N2,</span> <span class="pre">UNKNOWN,</span> <span class="pre">AWAKE</span></code>, or a night ending
+<code class="docutils literal notranslate"><span class="pre">N2,</span> <span class="pre">UNKNOWN</span></code>) used to return a silently shifted awakening (the transition before
+the unknown span, the end of the recording, or an error); it now warns and returns
+<code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code> (<code class="docutils literal notranslate"><span class="pre">on_unscored</span></code>, <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code>).</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.get_fell_asleep_time">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_fell_asleep_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_sleep_check</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_awake_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleep_cycle_tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['REM',</span> <span class="pre">'N1',</span> <span class="pre">'N2',</span> <span class="pre">'N3']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_fell_asleep_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_sleep_check</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_awake_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleep_cycle_tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['REM',</span> <span class="pre">'N1',</span> <span class="pre">'N2',</span> <span class="pre">'N3']</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">on_unscored</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'warn'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gap_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="Link to this definition">#</a></dt>
 <dd><p>Determine when the subject fell asleep based on hypnogram data.</p>
+<p>Touching epochs with the same label are merged into bouts first (module docstring).
+Candidates are the first bout, if it is a sleep stage, and every sleep-stage bout that
+directly follows an <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> bout, in time order. The sleep onset is the first
+candidate for which less than <code class="docutils literal notranslate"><span class="pre">t_awake_threshold</span></code> minutes of <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> lie in the
+window <code class="docutils literal notranslate"><span class="pre">[candidate</span> <span class="pre">start,</span> <span class="pre">candidate</span> <span class="pre">start</span> <span class="pre">+</span> <span class="pre">t_sleep_check)</span></code>. Only the part of each
+bout inside the window counts (a bout reaching past the window end is clipped to it).
+Unscored time (module docstring) is checked: the onset is returned only if it is the
+same with all unscored time scored as AWAKE and as each sleep stage.</p>
+<p>Example (defaults): AWAKE 30 min, N2 55, AWAKE 15, N2 200: the window after the N2 at
+30 min holds 5 min of AWAKE (the AWAKE bout from 85 to 100 min is clipped at 90), so
+the onset is at 30 min.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’, ‘start’, ‘end’, and ‘duration’ columns.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code> (optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>).</p></li>
 <li><p><strong>t_sleep_check</strong> (<em>int</em><em>, </em><em>optional</em>) – Time window in minutes to check for sustained sleep. Default is 60.</p></li>
-<li><p><strong>t_awake_threshold</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum awake time in minutes allowed within t_sleep_check window. Default is 10.</p></li>
-<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’.</p></li>
+<li><p><strong>t_awake_threshold</strong> (<em>int</em><em>, </em><em>optional</em>) – The awake time in minutes inside the window must be below this. Default is 10.</p></li>
+<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’ (<code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is the same state).</p></li>
 <li><p><strong>sleep_cycle_tags</strong> (<em>list</em><em>, </em><em>optional</em>) – List of tags indicating sleep states. Default is [‘REM’, ‘N1’, ‘N2’, ‘N3’].</p></li>
+<li><p><strong>on_unscored</strong> (<em>{'warn'</em><em>, </em><em>'raise'}</em><em>, </em><em>optional</em>) – What to do when the onset depends on how the unscored time (epochs labelled neither
+a sleep stage nor <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code>, gaps longer than <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code>) is scored.
+<code class="docutils literal notranslate"><span class="pre">'warn'</span></code> (default) emits a <code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code> naming the unscored spans and the
+alternative onsets and returns <code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code>; <code class="docutils literal notranslate"><span class="pre">'raise'</span></code> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.
+New in 3.0.0.</p></li>
+<li><p><strong>max_gap_s</strong> (<em>float</em><em>, </em><em>optional</em>) – Time gaps between epochs longer than this (seconds) are unscored time; shorter gaps
+are ignored. Default 1.0. New in 3.0.0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Timestamp when the subject fell asleep.</p>
+<dd class="field-even"><p>Start of the sleep-onset bout, in the type of the <code class="docutils literal notranslate"><span class="pre">start</span></code> column; <code class="docutils literal notranslate"><span class="pre">NaT</span></code>
+(datetime input) or <code class="docutils literal notranslate"><span class="pre">NaN</span></code> (numeric input) if the onset is ambiguous because of
+unscored epochs and <code class="docutils literal notranslate"><span class="pre">on_unscored='warn'</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>datetime</p>
+<dd class="field-odd"><p>datetime or float</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If no candidate qualifies (with every scoring of the unscored time), the hypnogram
+    is empty, or epochs overlap; or the onset depends on the unscored time and
+    <code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code>.</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+If no candidate qualified, v1.0.0 returned the start of the recording, which looks
+like a valid onset; it now raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. Rows labelled <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> are
+removed like <code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code> (only the latter was, so an <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> epoch between
+AWAKE and sleep hid the onset). Epochs are sorted and merged into bouts, so tiled and
+merged hypnograms agree. The window counts only the part of each bout inside it
+(v1.0.0 counted every epoch that started inside it in full, so on merged bouts an
+AWAKE bout starting 5 min before the window end counted with its whole length).
+<code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> is compared for equality (it was a substring test); <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is
+read as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>. Numeric timestamps (seconds) work. Unscored epochs and gaps no
+longer shift the onset silently (<code class="docutils literal notranslate"><span class="pre">on_unscored</span></code>, <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code>).</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -626,26 +936,51 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd><p>Calculate the data rate of a hypnogram.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘duration’, ‘start’, and ‘end’ columns.</p>
+<dd class="field-odd"><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">end</span></code> columns (optionally
+<code class="docutils literal notranslate"><span class="pre">duration</span></code>); see the module docstring for the accepted time formats.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Data rate as the ratio of total duration to time span.</p>
+<dd class="field-even"><p>Scored time (sum of <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> of all non-arousal epochs) divided by the time
+span from the earliest <code class="docutils literal notranslate"><span class="pre">start</span></code> to the latest <code class="docutils literal notranslate"><span class="pre">end</span></code>. 1.0 means no gaps.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>float</p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the hypnogram is empty, spans zero time, or epochs overlap.</p>
+</dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+The span used <code class="docutils literal notranslate"><span class="pre">timedelta.seconds</span></code>, which drops whole days: a fully scored 25 h
+hypnogram returned 25.0 instead of 1.0. Numeric timestamps (seconds) now work (they
+raised <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code>), arousal rows are no longer counted as scored time, the
+input may be unsorted, and the input is validated (module docstring).</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.get_number_of_awakenings">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_number_of_awakenings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'N1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleep_tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['N2',</span> <span class="pre">'N3',</span> <span class="pre">'REM']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_number_of_awakenings" title="Link to this definition">#</a></dt>
 <dd><p>Count the number of awakenings after sleep onset.</p>
+<p>The epochs are taken in time order. An awakening is counted at the first <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code>
+epoch after a <code class="docutils literal notranslate"><span class="pre">sleep_tags</span></code> epoch; the next awakening needs another <code class="docutils literal notranslate"><span class="pre">sleep_tags</span></code>
+epoch first. With the default <code class="docutils literal notranslate"><span class="pre">sleep_tags</span></code> (N2, N3, REM) <code class="docutils literal notranslate"><span class="pre">n1_tag</span></code> epochs neither
+arm nor break the count: <code class="docutils literal notranslate"><span class="pre">N2,</span> <span class="pre">N1,</span> <span class="pre">AWAKE</span></code> is one awakening, and so is
+<code class="docutils literal notranslate"><span class="pre">N2,</span> <span class="pre">AWAKE,</span> <span class="pre">N1,</span> <span class="pre">AWAKE</span></code> (the N1/AWAKE alternation of drowsy wake is not counted
+again). This differs from <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="brainmaze_eeg.hypnogram.get_fell_asleep_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_fell_asleep_time()</span></code></a> and <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="brainmaze_eeg.hypnogram.get_awakening_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_awakening_time()</span></code></a>,
+where N1 is sleep (as in AASM). Pass <code class="docutils literal notranslate"><span class="pre">sleep_tags=['N1',</span> <span class="pre">'N2',</span> <span class="pre">'N3',</span> <span class="pre">'REM']</span></code> to count
+every transition from any sleep stage, N1 included, into <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code>. Other labels
+(e.g. <code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code>) between sleep and <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> do not break the count;
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.score_night" title="brainmaze_eeg.hypnogram.score_night"><code class="xref py py-func docutils literal notranslate"><span class="pre">score_night()</span></code></a> checks them (<code class="docutils literal notranslate"><span class="pre">on_unscored</span></code>).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’ column.</p></li>
-<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with an <code class="docutils literal notranslate"><span class="pre">annotation</span></code> column. With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns the input
+is validated and sorted by <code class="docutils literal notranslate"><span class="pre">start</span></code>; without them the row order is used.</p></li>
+<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’ (<code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is the same state).</p></li>
 <li><p><strong>n1_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for N1 sleep stage. Default is ‘N1’.</p></li>
 <li><p><strong>sleep_tags</strong> (<em>list</em><em>, </em><em>optional</em>) – List of tags for sleep states. Default is [‘N2’, ‘N3’, ‘REM’].</p></li>
 </ul>
@@ -656,49 +991,149 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>int</p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>TypeError</strong> – With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns: on naive datetimes or other invalid time columns
+    (module docstring).</p></li>
+<li><p><strong>ValueError</strong> – With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns: if epochs overlap (after removing arousals) or
+    <code class="docutils literal notranslate"><span class="pre">duration</span></code> does not equal <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code>.</p></li>
+</ul>
+</dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+With <code class="docutils literal notranslate"><span class="pre">n1_tag</span></code> in <code class="docutils literal notranslate"><span class="pre">sleep_tags</span></code>, <code class="docutils literal notranslate"><span class="pre">AWAKE,</span> <span class="pre">N1</span></code> no longer counts an awakening at
+the N1 epoch (falling asleep is not an awakening). Sorted
+by <code class="docutils literal notranslate"><span class="pre">start</span></code> when available (it used the row order and label-based
+indexing, which broke on a non-default index), and <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is read as
+<code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>. Arousal rows (both spellings) are ignored; this does not change the
+count (an arousal never reset the state machine between sleep and AWAKE). With
+<code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns the input is now validated (v1.0.0 ignored the times):
+naive datetimes raise <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>; overlapping states (e.g. a frame that also
+holds channel annotations) and a <code class="docutils literal notranslate"><span class="pre">duration</span></code> that differs from <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code>
+raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.get_number_of_sleep_stages">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_number_of_sleep_stages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'REM'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_number_of_sleep_stages" title="Link to this definition">#</a></dt>
-<dd><p>Count the number of sleep stage occurrences with minimum separation delay.</p>
+<dd><p>Count the bouts (periods) of a sleep stage, ignoring bouts that start too soon after
+the previous counted one.</p>
+<ol class="arabic simple">
+<li><p>Epochs whose <code class="docutils literal notranslate"><span class="pre">annotation</span></code> is in <code class="docutils literal notranslate"><span class="pre">tags</span></code> are sorted by <code class="docutils literal notranslate"><span class="pre">start</span></code>. Epochs that
+touch or overlap in time are merged into one <strong>bout</strong> (several <code class="docutils literal notranslate"><span class="pre">tags</span></code> are treated
+as one class: touching epochs of any of them form one bout). A 40-min REM period
+counts as one bout whether it is one row or eighty 30-s epochs.</p></li>
+<li><p>The first bout is counted. A later bout is counted if its start is at least
+<code class="docutils literal notranslate"><span class="pre">delay</span></code> minutes after the <strong>end of the last counted bout</strong> (bouts that were not
+counted do not move this reference).</p></li>
+</ol>
+<p>Example (delay 30 min): REM 40 min, N2 20 min, REM 40 min gives 1 (the second REM bout
+starts 20 min after the first ends); with N2 30 min instead it gives 2.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’, ‘start’, and ‘end’ columns.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code> (optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>); see the
+module docstring for the accepted time formats. Rows may be unsorted.</p></li>
 <li><p><strong>tags</strong> (<em>str</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – Sleep stage tag(s) to count. Default is ‘REM’.</p></li>
-<li><p><strong>delay</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum time in minutes between stage occurrences. Default is 30.</p></li>
+<li><p><strong>delay</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum time in minutes (<code class="docutils literal notranslate"><span class="pre">&gt;=</span> <span class="pre">0</span></code>) between the end of the last counted bout and the
+start of the next counted one. Default is 30. Any value is allowed, including
+<code class="docutils literal notranslate"><span class="pre">&gt;=</span> <span class="pre">1440</span></code> (one day).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Number of sleep stage occurrences.</p>
+<dd class="field-even"><p>Number of counted bouts (0 if no epoch has one of the tags).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>int</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+v1.0.0 always raised under pandas &gt;= 2 (it used <code class="docutils literal notranslate"><span class="pre">DataFrame.append</span></code>). Its results
+under pandas &lt; 2 differ from 3.0.0 as follows:</p>
+<ul class="simple">
+<li><p>It worked <strong>per epoch</strong>: the delay was measured from the end of the single epoch
+that started the last counted occurrence, so on a hypnogram tiled into 30-s epochs
+one long period was counted several times (one 40-min REM period: 2; 90 min: 3;
+REM 40 / N2 20 / REM 40 min: 4). Now bouts are counted (1, 1 and 1). On input
+that is already merged into bouts (as <code class="docutils literal notranslate"><span class="pre">score_night</span></code> passed it) the result is
+unchanged.</p></li>
+<li><p>With several distinct <code class="docutils literal notranslate"><span class="pre">tags</span></code> it required an epoch to equal all of them (none
+did) and then raised <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code>; the same happened when no epoch matched.
+Now several tags are counted together and no match gives 0.</p></li>
+<li><p>It compared <code class="docutils literal notranslate"><span class="pre">timedelta.seconds</span></code>, which drops whole days and wraps negatives:
+a gap of 1 day + 1 min counted as 1 min, <code class="docutils literal notranslate"><span class="pre">delay</span> <span class="pre">&gt;=</span> <span class="pre">1440</span></code> wrapped (<code class="docutils literal notranslate"><span class="pre">delay=1440</span></code>
+acted as 0, so every epoch counted), and unsorted or overlapping rows gave
+arbitrary counts. Now the rows are sorted, overlapping epochs join one bout, and
+gaps and <code class="docutils literal notranslate"><span class="pre">delay</span></code> are exact.</p></li>
+<li><p>Numeric timestamps must be in seconds; values that look like milliseconds raise
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> (they were silently read as seconds). Naive datetimes raise
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>.</p></li>
+</ul>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.get_rem_latency">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_rem_latency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rem_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'REM'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_rem_latency" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_rem_latency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rem_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'REM'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">awake_tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'AWAKE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">on_unscored</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'warn'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gap_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_rem_latency" title="Link to this definition">#</a></dt>
 <dd><p>Calculate REM sleep latency (time from falling asleep or last awake to first REM).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’, ‘start’, and ‘end’ columns.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code> (optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>).</p></li>
 <li><p><strong>rem_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for REM sleep state. Default is ‘REM’.</p></li>
-<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’.</p></li>
+<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’ (<code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is the same state).</p></li>
+<li><p><strong>on_unscored</strong> (<em>{'warn'</em><em>, </em><em>'raise'}</em><em>, </em><em>optional</em>) – <p>Each latency is returned only if it is the same with all unscored time (module
+docstring) scored as AWAKE and as each sleep stage; unscored time before the first
+REM may hide an earlier REM, an earlier or later sleep onset, or a later wake. If a
+latency differs, <code class="docutils literal notranslate"><span class="pre">'warn'</span></code> (default) warns and gives <code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code> for it;
+<code class="docutils literal notranslate"><span class="pre">'raise'</span></code> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. New in 3.0.0.</p>
+<p><strong>On real nights this is common:</strong> any unscored time before the first REM (even a
+leading unscored segment before lights-off), or, on a night without REM, unscored
+time anywhere, makes both latencies <code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code>, because that time may have
+been REM. To get the latencies, drop leading/trailing unscored rows, relabel the
+spans whose state is known, or raise <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code> for harmless gaps (module
+docstring, “Unscored time in practice”).</p>
+</p></li>
+<li><p><strong>max_gap_s</strong> (<em>float</em><em>, </em><em>optional</em>) – Time gaps between epochs longer than this (seconds) are unscored time; shorter gaps
+are ignored. Default 1.0. New in 3.0.0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Dictionary with ‘last_awake’ and ‘fall_asleep’ latencies as timedelta objects.</p>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">'fall_asleep'</span></code>: start of the first REM epoch minus the sleep onset
+(<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="brainmaze_eeg.hypnogram.get_fell_asleep_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_fell_asleep_time()</span></code></a> with its defaults). <code class="docutils literal notranslate"><span class="pre">'last_awake'</span></code>: start of the
+first REM epoch minus the end of the last <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code> epoch before it (the sleep
+onset if there is none). Timedeltas for datetime input, seconds (float) for
+numeric input. A latency is <strong>negative</strong> when the first REM precedes the reference
+(e.g. REM before the sustained sleep onset).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>dict</p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If there is no <code class="docutils literal notranslate"><span class="pre">rem_tag</span></code> epoch or no sleep onset (with every scoring of the
+    unscored time); or a latency depends on the unscored time and
+    <code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code>.</p>
+</dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Sorted, validated input; arousal rows (both spellings) removed; <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> read
+as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>; <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> instead of <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> without REM. On a fully
+scored night the latencies are defined as before, from the sleep onset of
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="brainmaze_eeg.hypnogram.get_fell_asleep_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_fell_asleep_time()</span></code></a> (whose onset window changed in 3.0.0, see there). With
+unscored time (module docstring) a latency that depends on it is no longer returned:
+it is <code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code> with a warning (<code class="docutils literal notranslate"><span class="pre">on_unscored='warn'</span></code>), or <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> is
+raised (<code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code>); see <code class="docutils literal notranslate"><span class="pre">on_unscored</span></code> for how often this happens.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -754,7 +1189,10 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Total duration in seconds.</p>
+<dd class="field-even"><p>Total duration in the unit of the <code class="docutils literal notranslate"><span class="pre">duration</span></code> column (seconds by convention; a
+timedelta column gives a <code class="xref py py-class docutils literal notranslate"><span class="pre">pandas.Timedelta</span></code>). The <code class="docutils literal notranslate"><span class="pre">duration</span></code> column is
+summed as given, not checked against <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code>. <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code> are the same state, in <code class="docutils literal notranslate"><span class="pre">df</span></code> and in <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>float</p>
@@ -766,10 +1204,15 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.get_transition_counts">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">get_transition_counts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hyp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['AWAKE',</span> <span class="pre">'N1',</span> <span class="pre">'N2',</span> <span class="pre">'N3',</span> <span class="pre">'REM']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.get_transition_counts" title="Link to this definition">#</a></dt>
 <dd><p>Count transitions between sleep stages.</p>
+<p>Consecutive rows (in <code class="docutils literal notranslate"><span class="pre">start</span></code> order) form a transition; a row whose label is not in
+<code class="docutils literal notranslate"><span class="pre">states</span></code> breaks the chain (no transition is counted into or out of it). Time gaps
+between rows are not considered. On a hypnogram tiled into epochs the diagonal holds
+the epoch-to-epoch persistence; on merged bouts it is (nearly) zero.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>hyp</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’ column.</p></li>
+<li><p><strong>hyp</strong> (<em>pd.DataFrame</em>) – Hypnogram with an <code class="docutils literal notranslate"><span class="pre">annotation</span></code> column. With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns it is
+validated and sorted by <code class="docutils literal notranslate"><span class="pre">start</span></code>; without them the row order is used.</p></li>
 <li><p><strong>states</strong> (<em>list</em><em>, </em><em>optional</em>) – List of sleep states to include. Default is [‘AWAKE’, ‘N1’, ‘N2’, ‘N3’, ‘REM’].</p></li>
 </ul>
 </dd>
@@ -779,7 +1222,30 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>np.ndarray</p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>TypeError</strong> – With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns: on naive datetimes or other invalid time columns
+    (module docstring).</p></li>
+<li><p><strong>ValueError</strong> – With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns: if epochs overlap (after removing arousals, unless
+    they are listed in <code class="docutils literal notranslate"><span class="pre">states</span></code>) or <code class="docutils literal notranslate"><span class="pre">duration</span></code> does not equal <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code>; or if
+    <code class="docutils literal notranslate"><span class="pre">states</span></code> lists the same state twice.</p></li>
+</ul>
+</dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Rows are sorted by <code class="docutils literal notranslate"><span class="pre">start</span></code> (it used label-based indexing on the row order, which
+broke on a non-default index), and arousal rows (<code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code>/<code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code>) are
+ignored unless listed in <code class="docutils literal notranslate"><span class="pre">states</span></code> (an arousal between two epochs hid their
+transition). <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is read as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code> in <code class="docutils literal notranslate"><span class="pre">hyp</span></code> and in <code class="docutils literal notranslate"><span class="pre">states</span></code> (the
+matrix keeps the order and names of <code class="docutils literal notranslate"><span class="pre">states</span></code>). With <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns the
+input is now validated (v1.0.0 ignored the times): naive datetimes raise
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>; overlapping states (e.g. a frame that also holds channel
+annotations) and a <code class="docutils literal notranslate"><span class="pre">duration</span></code> that differs from <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> raise
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -814,7 +1280,8 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Mean transition matrix and standard deviation matrix.</p>
+<dd class="field-even"><p>Mean transition matrix and standard deviation matrix (rows of states that never
+occur in a hypnogram are left out of the mean of that row).</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>tuple</p>
@@ -829,38 +1296,86 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’ column.</p></li>
-<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code> (optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>).</p></li>
+<li><p><strong>awake_tag</strong> (<em>str</em><em>, </em><em>optional</em>) – Tag for awake state. Default is ‘AWAKE’ (<code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is the same state).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>True if sleep session starts and ends with awake state, False otherwise.</p>
+<dd class="field-even"><p>True if the earliest and the latest epoch (arousals excluded) are <code class="docutils literal notranslate"><span class="pre">awake_tag</span></code>.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>bool</p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>TypeError</strong> – On naive datetimes or other invalid time columns (module docstring).</p></li>
+<li><p><strong>ValueError</strong> – If the hypnogram is empty, epochs overlap (after removing arousals), or
+    <code class="docutils literal notranslate"><span class="pre">duration</span></code> does not equal <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code>.</p></li>
+</ul>
+</dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Uses the earliest and latest epoch by <code class="docutils literal notranslate"><span class="pre">start</span></code> (it used the first and last rows),
+ignores arousal rows, reads <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>, and raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> on
+an empty hypnogram. The input is now validated like everywhere else in the module
+(v1.0.0 ignored the times): naive datetimes raise <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>; overlapping states
+(e.g. a frame that also holds channel annotations) and a <code class="docutils literal notranslate"><span class="pre">duration</span></code> that differs
+from <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">-</span> <span class="pre">start</span></code> raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.plot_hypnogram">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">plot_hypnogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orig_df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hypnogram_values</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hypnogram_colors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fontsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">night_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">22</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.plot_hypnogram" title="Link to this definition">#</a></dt>
-<dd><p>Creates a Matplotlib figure of spectrogram from the annotations. Time must be in a time-zone aware format.</p>
+<dd><p>Creates a Matplotlib figure of the hypnogram from the annotations. Time must be in a time-zone aware format.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>orig_df</strong> (<em>annotations</em>)</p></li>
-<li><p><strong>hypnogram_values</strong> (<em>dict</em>) – dict of a y-axis values for each hypnogram state</p></li>
-<li><p><strong>hypnogram_colors</strong> (<em>dict</em>) – dict of color hex codes for each hypnogram state</p></li>
+<li><p><strong>orig_df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code> and timezone-aware <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> columns, in any
+row order (it is sorted by <code class="docutils literal notranslate"><span class="pre">start</span></code>). Arousal rows (<code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code>, or the legacy
+<code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code>) are drawn as events, not as states. The frame is not modified.</p></li>
+<li><p><strong>hypnogram_values</strong> (<em>dict</em>) – dict of a y-axis values for each hypnogram state. The default covers <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>
+(<code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is drawn as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code> unless the dict has a <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> key),
+<code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code>, <code class="docutils literal notranslate"><span class="pre">'SLP'</span></code> and <code class="docutils literal notranslate"><span class="pre">'N'</span></code> (inserted by <a class="reference internal" href="#brainmaze_eeg.hypnogram.fill_sleep_voids" title="brainmaze_eeg.hypnogram.fill_sleep_voids"><code class="xref py py-func docutils literal notranslate"><span class="pre">fill_sleep_voids()</span></code></a> and
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.fill_nonrem_voids" title="brainmaze_eeg.hypnogram.fill_nonrem_voids"><code class="xref py py-func docutils literal notranslate"><span class="pre">fill_nonrem_voids()</span></code></a>), <code class="docutils literal notranslate"><span class="pre">'REM'</span></code>, <code class="docutils literal notranslate"><span class="pre">'N1'</span></code>, <code class="docutils literal notranslate"><span class="pre">'N2'</span></code>, <code class="docutils literal notranslate"><span class="pre">'N3'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> (CyberPSG’s unscored label, drawn at 0).</p></li>
+<li><p><strong>hypnogram_colors</strong> (<em>dict</em>) – dict of color hex codes for each hypnogram state (default: the same labels)</p></li>
 <li><p><strong>fontsize</strong> (<em>int</em>) – Fontsize</p></li>
 <li><p><strong>fig</strong> (<em>figure</em>) – Already existing figure object.</p></li>
-<li><p><strong>night_start</strong> (<em>int</em>) – A hour when does the night begin</p></li>
+<li><p><strong>night_start</strong> (<em>int</em>) – Hour at which the night begins. Nights <code class="docutils literal notranslate"><span class="pre">[night_start,</span> <span class="pre">night_start</span> <span class="pre">+</span> <span class="pre">12</span> <span class="pre">h]</span></code> are
+shaded for every calendar date in the plotted range, on the <strong>wall clock of the
+timezone of the first</strong> <code class="docutils literal notranslate"><span class="pre">start</span></code> (UTC data is shaded at <code class="docutils literal notranslate"><span class="pre">night_start</span></code> UTC: convert
+it to the recording site’s timezone first, e.g. <code class="docutils literal notranslate"><span class="pre">df.start.dt.tz_convert(...)</span></code>).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>ImportError</strong> – If matplotlib is not installed (optional extra <code class="docutils literal notranslate"><span class="pre">brainmaze-eeg[plot]</span></code>).</p>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ImportError</strong> – If matplotlib is not installed (optional extra <code class="docutils literal notranslate"><span class="pre">brainmaze-eeg[plot]</span></code>).</p></li>
+<li><p><strong>TypeError</strong> – If <code class="docutils literal notranslate"><span class="pre">start</span></code>/<code class="docutils literal notranslate"><span class="pre">end</span></code> are not timezone-aware datetimes.</p></li>
+<li><p><strong>ValueError</strong> – If the hypnogram has no sleep-state epochs, or a label has no y value or colour.</p></li>
+</ul>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Works with pandas 2 (it used <code class="docutils literal notranslate"><span class="pre">DataFrame.append</span></code>, removed in pandas 2, and
+called the <code class="docutils literal notranslate"><span class="pre">datetime</span></code> module instead of <code class="docutils literal notranslate"><span class="pre">datetime.datetime</span></code>, so it always
+raised). It no longer adds <code class="docutils literal notranslate"><span class="pre">state_id</span></code>/<code class="docutils literal notranslate"><span class="pre">state_color</span></code> columns to the input
+frame, sorts the rows, and handles a one-epoch hypnogram. Night shading is drawn
+per calendar date over the plotted range (it was anchored to each <code class="docutils literal notranslate"><span class="pre">day</span></code> group’s
+first epoch, so a recording starting after midnight, or a state lasting over
+several days, lost its night shading); a <code class="docutils literal notranslate"><span class="pre">day</span></code> column is no longer used.
+Arousals are recognised as <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code> (the brainmaze-utils label, which was drawn
+as a sleep state) and <code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code> (which raised <code class="docutils literal notranslate"><span class="pre">KeyError</span></code> with the default
+maps). The default maps also cover <code class="docutils literal notranslate"><span class="pre">'N'</span></code>, <code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> and <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code>, so the
+output of <a class="reference internal" href="#brainmaze_eeg.hypnogram.correct_hypnogram" title="brainmaze_eeg.hypnogram.correct_hypnogram"><code class="xref py py-func docutils literal notranslate"><span class="pre">correct_hypnogram()</span></code></a> and of the brainmaze-utils loaders can be
+plotted. Other labels missing from the maps raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming them.</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -872,39 +1387,118 @@ fills wake-REM gaps, fills non-REM gaps, fills sleep gaps, and corrects REM anno
 <dd class="field-odd"><p><strong>score</strong> (<em>dict</em>) – Sleep score dictionary from score_night function.</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+Works with the floats that <a class="reference internal" href="#brainmaze_eeg.hypnogram.score_night" title="brainmaze_eeg.hypnogram.score_night"><code class="xref py py-func docutils literal notranslate"><span class="pre">score_night()</span></code></a> returns (it called <code class="docutils literal notranslate"><span class="pre">.seconds</span></code> on
+them). Durations keep whole days and negative latencies keep their sign. The
+relative times are fractions of the sleep period (sleep onset to awakening), which
+is now labelled as such (it was printed as “Total Sleep Time”).</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.hypnogram.score_night">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">score_night</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.score_night" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.hypnogram.</span></span><span class="sig-name descname"><span class="pre">score_night</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">on_unscored</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'warn'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gap_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.hypnogram.score_night" title="Link to this definition">#</a></dt>
 <dd><p>Compute comprehensive sleep metrics for a night’s hypnogram.</p>
+<p>The hypnogram is validated, sorted, arousal rows (<code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code>/<code class="docutils literal notranslate"><span class="pre">'Arrousal'</span></code>) are
+removed, <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> is read as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>, and touching epochs with the same label are
+merged into bouts (module docstring). Then, with the defaults of the individual functions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fell_asleep_time</span></code>: <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_fell_asleep_time" title="brainmaze_eeg.hypnogram.get_fell_asleep_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_fell_asleep_time()</span></code></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">awakening_time</span></code>: <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="brainmaze_eeg.hypnogram.get_awakening_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_awakening_time()</span></code></a> with <code class="docutils literal notranslate"><span class="pre">after=fell_asleep_time</span></code>.</p></li>
+<li><p>The <strong>sleep period</strong> is made of the bouts starting at or after <code class="docutils literal notranslate"><span class="pre">fell_asleep_time</span></code>
+and before <code class="docutils literal notranslate"><span class="pre">awakening_time</span></code>; the counts and stage times below are taken over it.</p></li>
+<li><p><strong>Unscored time</strong> (<code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> or any label that is neither a sleep stage nor
+AWAKE, and gaps longer than <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code>; module docstring): the whole score is
+computed with all unscored time scored as AWAKE, and as each of N1, N2, N3 and REM
+(the awakening is searched after the onset found with the same scoring). A field
+that is the same in all of them is returned; a field that differs is ambiguous and
+is <code class="docutils literal notranslate"><span class="pre">NaT</span></code>/<code class="docutils literal notranslate"><span class="pre">NaN</span></code> with <code class="docutils literal notranslate"><span class="pre">on_unscored='warn'</span></code> (default; one <code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code>
+names the fields, the unscored spans and the alternatives), or <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> is
+raised with <code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code>. Other fields stay computed. For example an
+<code class="docutils literal notranslate"><span class="pre">UNKNOWN</span></code> epoch inside the sleep usually leaves the onset, the awakening and the
+stage times unchanged but makes <code class="docutils literal notranslate"><span class="pre">n_awakenings</span></code> ambiguous (it may have been an
+awakening), and <code class="docutils literal notranslate"><span class="pre">...</span> <span class="pre">N2,</span> <span class="pre">UNKNOWN,</span> <span class="pre">AWAKE</span></code> makes <code class="docutils literal notranslate"><span class="pre">awakening_time</span></code> ambiguous.</p></li>
+<li><p><strong>Expect NaN on real nights with unscored time.</strong> Both REM latencies,
+<code class="docutils literal notranslate"><span class="pre">n_awakenings</span></code> and <code class="docutils literal notranslate"><span class="pre">n_complete_sleep_cycles</span></code> will often be <code class="docutils literal notranslate"><span class="pre">NaN</span></code>: a leading
+unscored segment before lights-off (or any unscored time before the first REM)
+could be the first REM; on a night without REM, unscored time even after the
+awakening could be a REM; an unscored epoch or gap inside the sleep could be an
+awakening or a REM bout. Remedies: <strong>drop leading/trailing unscored rows</strong> (time
+outside the recording is not unscored), <strong>relabel spans whose state is known</strong>, and
+<strong>raise</strong> <code class="docutils literal notranslate"><span class="pre">max_gap_s</span></code> for short harmless gaps. On the demo night (5 min
+<code class="docutils literal notranslate"><span class="pre">UNKNOWN</span></code> at the start, 12.5 min <code class="docutils literal notranslate"><span class="pre">UNKNOWN</span></code> in the sleep, one 2-min gap) the
+four fields are NaN; trimming the leading segment brings back the latencies, and
+relabelling the inner <code class="docutils literal notranslate"><span class="pre">UNKNOWN</span></code> plus <code class="docutils literal notranslate"><span class="pre">max_gap_s=120</span></code> brings back all fields. See
+the module docstring, “Unscored time in practice”.</p></li>
+<li><p>The <strong>stage times</strong> count the scored epochs only: unscored time inside the sleep
+period is in none of them (so they do not depend on how it is scored; compare
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_hypnogram_datarate" title="brainmaze_eeg.hypnogram.get_hypnogram_datarate"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_hypnogram_datarate()</span></code></a>). <code class="docutils literal notranslate"><span class="pre">sleep_complete</span></code> reads the first and last epoch
+as scored.</p></li>
+</ul>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram dataframe with ‘annotation’, ‘start’, ‘end’, and ‘duration’ columns.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Hypnogram with <code class="docutils literal notranslate"><span class="pre">annotation</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code> (optionally <code class="docutils literal notranslate"><span class="pre">duration</span></code>):
+timezone-aware datetimes or numeric POSIX timestamps in seconds.</p></li>
 <li><p><strong>plot</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, plot the hypnogram with sleep onset and awakening markers. Default is False.
-Needs matplotlib (optional extra <code class="docutils literal notranslate"><span class="pre">brainmaze-eeg[plot]</span></code>).</p></li>
+Needs matplotlib (optional extra <code class="docutils literal notranslate"><span class="pre">brainmaze-eeg[plot]</span></code>) and datetime input.</p></li>
+<li><p><strong>on_unscored</strong> (<em>{'warn'</em><em>, </em><em>'raise'}</em><em>, </em><em>optional</em>) – See above. New in 3.0.0.</p></li>
+<li><p><strong>max_gap_s</strong> (<em>float</em><em>, </em><em>optional</em>) – Time gaps between epochs longer than this (seconds) are unscored time; shorter gaps
+are ignored. Default 1.0. New in 3.0.0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><p>Dictionary containing sleep metrics including:</p>
-<ul class="simple">
-<li><p>sleep_complete: whether sleep session is complete</p></li>
-<li><p>fell_asleep_time: time of sleep onset</p></li>
-<li><p>rem_latency_fell_asleep: REM latency from sleep onset (seconds)</p></li>
-<li><p>rem_latency_last_awake: REM latency from last awake (seconds)</p></li>
-<li><p>awakening_time: time of final awakening</p></li>
-<li><p>n_complete_sleep_cycles: number of complete sleep cycles</p></li>
-<li><p>n_awakenings: number of awakenings</p></li>
+<dd class="field-even"><p><ul class="simple">
+<li><p>sleep_complete: the earliest and latest epochs are AWAKE (<a class="reference internal" href="#brainmaze_eeg.hypnogram.is_sleep_complete" title="brainmaze_eeg.hypnogram.is_sleep_complete"><code class="xref py py-func docutils literal notranslate"><span class="pre">is_sleep_complete()</span></code></a>)</p></li>
+<li><p>fell_asleep_time: time of sleep onset (type of <code class="docutils literal notranslate"><span class="pre">start</span></code>)</p></li>
+<li><p>rem_latency_fell_asleep: first REM start minus sleep onset, in seconds (float;
+negative if REM came first; NaN if there is no REM)</p></li>
+<li><p>rem_latency_last_awake: first REM start minus the end of the last AWAKE before it,
+in seconds (float; NaN if there is no REM); see <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_rem_latency" title="brainmaze_eeg.hypnogram.get_rem_latency"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_rem_latency()</span></code></a></p></li>
+<li><p>awakening_time: time of final awakening (type of <code class="docutils literal notranslate"><span class="pre">start</span></code>)</p></li>
+<li><p>n_complete_sleep_cycles: REM bouts in the sleep period,
+<a class="reference internal" href="#brainmaze_eeg.hypnogram.get_number_of_sleep_stages" title="brainmaze_eeg.hypnogram.get_number_of_sleep_stages"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_number_of_sleep_stages()</span></code></a> with <code class="docutils literal notranslate"><span class="pre">tags='REM',</span> <span class="pre">delay=30</span></code></p></li>
+<li><p>n_awakenings: <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_number_of_awakenings" title="brainmaze_eeg.hypnogram.get_number_of_awakenings"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_number_of_awakenings()</span></code></a> (defaults) over the sleep period:
+awakenings after N2, N3 or REM; N1/AWAKE alternation is not counted again (unlike
+the onset and the awakening, where N1 is sleep)</p></li>
 <li><p>n1_sleep_time, n2_sleep_time, n3_sleep_time, rem_sleep_time, awake_sleep_time:
-durations in seconds for each stage</p></li>
+scored time in each stage within the sleep period, in seconds</p></li>
 </ul>
+<p>An ambiguous field (see above) is <code class="docutils literal notranslate"><span class="pre">NaT</span></code> (datetime input) or <code class="docutils literal notranslate"><span class="pre">NaN</span></code> (numeric
+input) for <code class="docutils literal notranslate"><span class="pre">fell_asleep_time</span></code>/<code class="docutils literal notranslate"><span class="pre">awakening_time</span></code>, and <code class="docutils literal notranslate"><span class="pre">NaN</span></code> (a float) for the
+others.</p>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>dict</p>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the hypnogram is empty, invalid (module docstring), or no sleep onset or
+    awakening can be determined (with every scoring of the unscored time); or a field
+    is ambiguous and <code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code>.</p>
+</dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+v1.0.0 raised with brainmaze-utils 3 (its <code class="docutils literal notranslate"><span class="pre">merge_annotations</span></code> accepts only
+numeric timestamps, while the rest of the function needed datetimes). Now datetime
+and numeric input both work. Numbers that v1.0.0 would have got wrong are fixed:
+REM latencies used <code class="docutils literal notranslate"><span class="pre">timedelta.seconds</span></code> (a latency of -23 min became 85020 s; now
+negative values stay negative), the awakening ignored <code class="docutils literal notranslate"><span class="pre">t_sleep_threshold</span></code> units
+(see <a class="reference internal" href="#brainmaze_eeg.hypnogram.get_awakening_time" title="brainmaze_eeg.hypnogram.get_awakening_time"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_awakening_time()</span></code></a>), it missed a final awakening reached through N1
+(N2 -&gt; N1 -&gt; AWAKE) and then cut the sleep period at an earlier brief awakening,
+and it could be found before the sleep onset (now only after it). The onset and
+awakening windows count only the part of each bout inside them. <code class="docutils literal notranslate"><span class="pre">'Arousal'</span></code>
+rows were not removed, <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code> (NSRR) was not recognised as <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code>, and a
+night without REM raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> (now the latencies are NaN). Results that
+depend on unscored epochs or gaps are no longer returned silently (see
+<code class="docutils literal notranslate"><span class="pre">on_unscored</span></code>).</p>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -932,16 +1526,28 @@ durations in seconds for each stage</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>hypnograms</strong> (<em>list</em>) – List of hypnogram dataframes.</p></li>
-<li><p><strong>filt_dict</strong> (<em>dict</em>) – Dictionary mapping stage names to minimum duration thresholds.</p></li>
+<li><p><strong>filt_dict</strong> (<em>dict</em>) – Dictionary mapping stage names to minimum total duration (unit of the <code class="docutils literal notranslate"><span class="pre">duration</span></code>
+column, seconds by convention). A stage that does not occur has duration 0, so a
+threshold of 0 accepts a hypnogram without that stage.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Indices of hypnograms meeting all duration requirements.</p>
+<dd class="field-even"><p>Indices of hypnograms in which every listed stage lasts at least its threshold.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>list</p>
 </dd>
 </dl>
+<p class="rubric">Notes</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Changed in 3.0.0:</strong>
+v1.0.0 compared the total duration of the <strong>whole</strong> hypnogram (all stages) with
+each stage’s threshold, so e.g. <code class="docutils literal notranslate"><span class="pre">{'REM':</span> <span class="pre">3600}</span></code> accepted any night longer than
+1 h that contained any REM. v1.0.0 also rejected a hypnogram in which a listed stage
+does not occur, whatever its threshold; now an absent stage has duration 0, so it
+passes a threshold of 0 (and fails any positive one).</p>
+</div>
 </dd></dl>
 
 </section>
@@ -993,6 +1599,8 @@ durations in seconds for each stage</p></li>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.AROUSAL_TAGS"><code class="docutils literal notranslate"><span class="pre">AROUSAL_TAGS</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.LABEL_ALIASES"><code class="docutils literal notranslate"><span class="pre">LABEL_ALIASES</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.correct_hypnogram"><code class="docutils literal notranslate"><span class="pre">correct_hypnogram()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.correct_rem"><code class="docutils literal notranslate"><span class="pre">correct_rem()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.hypnogram.do_median_filtration"><code class="docutils literal notranslate"><span class="pre">do_median_filtration()</span></code></a></li>
