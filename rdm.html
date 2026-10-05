@@ -203,9 +203,10 @@
                 </a>
             </li>
         </ul>
-        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Projects</span></p>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Projects and demos</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="project_wave_detector.html">EEG Wave Detection and Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos.html">Demos</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Modules</span></p>
 <ul class="nav bd-sidenav">
@@ -272,7 +273,7 @@
 <div class="article-header-buttons">
 
 
-<a href="https://github.com/bnelair/brainmaze_eeg" target="_blank"
+<a href="https://github.com/bnelair/brainmaze-eeg" target="_blank"
    class="btn btn-sm btn-source-repository-button"
    title="Source repository"
    data-bs-placement="bottom" data-bs-toggle="tooltip"
@@ -394,6 +395,7 @@
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox - EEG</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-0-0">What’s new in 3.0.0</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#releasing">Releasing</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-documentation">Building Documentation</a></li>
@@ -426,7 +428,9 @@
 </section>
 <section id="documentation">
 <h1>Documentation<a class="headerlink" href="#documentation" title="Link to this heading">#</a></h1>
-<p>Documentation is available <a class="reference external" href="https://bnelair.github.io/brainmaze_eeg">here</a>.</p>
+<p>Documentation is available at <a class="reference external" href="https://bnelair.github.io/brainmaze-eeg/">https://bnelair.github.io/brainmaze-eeg/</a>.</p>
+<p>Runnable examples are in the <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/tree/main/demo">demo/</a> folder
+(see <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/blob/main/demo/README.md">demo/README.md</a>).</p>
 </section>
 <section id="installation">
 <h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h1>
@@ -437,6 +441,97 @@
 needs matplotlib, which is an optional extra:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"brainmaze-eeg[plot]"</span>
 </pre></div>
+</div>
+</section>
+<section id="what-s-new-in-3-0-0">
+<h1>What’s new in 3.0.0<a class="headerlink" href="#what-s-new-in-3-0-0" title="Link to this heading">#</a></h1>
+<p>brainmaze-eeg 3.0.0 is a major release: <strong>default outputs change</strong> (list below). It requires
+<code class="docutils literal notranslate"><span class="pre">brainmaze-utils&gt;=3.0.0</span></code>, which resamples correctly at every sampling rate and DC level and
+provides <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code> (its numerical changes are listed on the
+<a class="reference external" href="https://bnelair.github.io/brainmaze-utils/changes.html">utils changes page</a>). Full list of
+merged pull requests: <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/releases/tag/v3.0.0">release notes</a>.</p>
+<p><strong>New</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">detect_spikes_janca</span></code> / <code class="docutils literal notranslate"><span class="pre">JancaDetector</span></code> (Janca et al. 2015, eeg_forge formulation, with
+presets <code class="docutils literal notranslate"><span class="pre">'spike'</span></code> and <code class="docutils literal notranslate"><span class="pre">'ripple'</span></code>; the ripple preset is not validated on real ripples)
+and <code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code>, a wrapper that makes any spike detector safe for data with
+NaN gaps or constant-value dropouts and reports the valid time per channel. In 1.0.0 the
+package had only <code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code> and <code class="docutils literal notranslate"><span class="pre">detect_spikes_barkmeier</span></code>. The raw detectors
+require finite input. See the
+<a class="reference external" href="https://bnelair.github.io/brainmaze-eeg/spikes.html">Spike detectors</a> page and the
+<a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/blob/main/brainmaze_eeg/spikes/README.md">detailed README</a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">WaveDetector</span></code> features <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEDIAN</span></code> and <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code> (appended at the end,
+so the 1.0.0 feature names and positions are unchanged), the <code class="docutils literal notranslate"><span class="pre">trough='paper'</span></code> mode
+(Carvalho et al. 2024 Methods), NaN gaps handled, and 7.5-9x faster. The same
+<code class="docutils literal notranslate"><span class="pre">values,</span> <span class="pre">names</span> <span class="pre">=</span> <span class="pre">detector(x)</span></code> interface as the other feature extractors. See the
+<a class="reference external" href="https://bnelair.github.io/brainmaze-eeg/features.wave_detector.html">WaveDetector</a> and
+<a class="reference external" href="https://bnelair.github.io/brainmaze-eeg/project_wave_detector.html">slow-wave project</a> pages.</p></li>
+<li><p><strong>Out-of-distribution epochs</strong> in the sleep classifiers (<code class="docutils literal notranslate"><span class="pre">brainmaze_eeg.classifiers</span></code>) are
+labelled <code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> (NaN probabilities) instead of getting a confident label. The floor
+is not an artifact detector. See the
+<a class="reference external" href="https://bnelair.github.io/brainmaze-eeg/classifiers.html">Classifiers</a> page.</p></li>
+<li><p><strong>Demos</strong> for all three: <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/tree/main/demo">demo/</a>.</p></li>
+</ul>
+<p><strong>Changes in default output, and the way back</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 45.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Where</p></th>
+<th class="head"><p>What changes</p></th>
+<th class="head"><p>1.0.0 behaviour</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Sleep classifiers (KDE family, MultiChannel)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">standardize=True</span></code>: features are standardised before feature selection and PCA, so
+predictions differ wherever feature columns are not on a common scale.
+<code class="docutils literal notranslate"><span class="pre">log_lik_floor='auto'</span></code>: out-of-distribution epochs get label <code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> and NaN
+score rows (and <code class="docutils literal notranslate"><span class="pre">predict_signal</span></code> smoothing no longer crosses skipped epochs).
+Labels outside <code class="docutils literal notranslate"><span class="pre">AWAKE/N1/N2/N3/REM</span></code> and <code class="docutils literal notranslate"><span class="pre">'UNKNOWN'</span></code> training labels raise.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">standardize=False,</span> <span class="pre">log_lik_floor=None</span></code> reproduces 1.0.0 for feature-matrix input
+(differences below 1.4e-15). The smoothing change has no switch.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SleepStructureClassifier</span></code></p></td>
+<td><p>the default state label is <code class="docutils literal notranslate"><span class="pre">'AWAKE'</span></code></p></td>
+<td><p>was <code class="docutils literal notranslate"><span class="pre">'WAKE'</span></code>; pass it explicitly</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">WaveDetector</span></code></p></td>
+<td><p>Butterworth band-pass instead of the ringing FFT filter: the mean downslopes change by
+about -4 to -7 % (demo: slow oscillation 186.0 to 173.9 uV/s). <code class="docutils literal notranslate"><span class="pre">WAVE_RATE</span></code> uses
+the analysable time as the denominator (unbiased by dropout density; was 0.89-0.94 of
+the true rate with dropouts). Two features are appended: <code class="docutils literal notranslate"><span class="pre">WAVE_SLOPE_MEDIAN</span></code> and,
+with <code class="docutils literal notranslate"><span class="pre">datarate=True</span></code>, <code class="docutils literal notranslate"><span class="pre">ANALYSABLE_RATE</span></code>.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">trough='refine'</span></code> (the default) reproduces the 1.0.0 trough placement; adding
+<code class="docutils literal notranslate"><span class="pre">filter='fft'</span></code> also restores the filter (186.8 against 186.0 uV/s).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">detect_spikes_barkmeier</span></code></p></td>
+<td><p>the paper’s 1-35 Hz broad band (was 1-80 Hz) and one-minute blocks (<code class="docutils literal notranslate"><span class="pre">block_s=60</span></code>);
+the paper’s artifact-channel rule is <strong>off by default</strong> (opt-in:
+<code class="docutils literal notranslate"><span class="pre">artifact_sd</span></code> / <code class="docutils literal notranslate"><span class="pre">artifact_ratio</span></code>). NaN/inf raise.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">block_s=None</span></code> gives whole-record scaling; the 1-80 Hz band can be set explicitly
+through the band parameters</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></p></td>
+<td><p>the Chebyshev band-pass is now 10-60 Hz as specified (it was effectively 18-48 Hz), so
+detections change; the hum notch has the same width at every sampling rate; the ambiguous
+class (<code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">k2</span> <span class="pre">&lt;=</span> <span class="pre">k1</span></code>, as in v24) can fire (it never could); NaN/inf raise</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">f_type=2</span></code> reproduces the MATLAB v24 Butterworth switch; the old band has no switch</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">brainmaze_eeg.hypnogram</span></code></p></td>
+<td><p>reworked so every public function returns correct numbers or raises: REM periods counted
+per bout, data rate over multi-day spans, awakening/onset rules (N1 counts as sleep),
+<code class="docutils literal notranslate"><span class="pre">score_night</span></code> works with brainmaze-utils 3. Timestamps must be timezone-aware or POSIX
+seconds. Unscored time (<code class="docutils literal notranslate"><span class="pre">UNKNOWN</span></code> labels, gaps) is checked strictly: a value that
+depends on how the unscored time is filled becomes NaN/NaT with a warning
+(<code class="docutils literal notranslate"><span class="pre">on_unscored='raise'</span></code> to fail). Details in the module’s “Changes in 3.0.0” notes.</p></td>
+<td><p>no switch: the 1.0.0/2.0.0 results were wrong or the functions failed</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 </section>
 <section id="how-to-contribute">
@@ -475,31 +570,31 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 </section>
 <section id="license">
 <h1>License<a class="headerlink" href="#license" title="Link to this heading">#</a></h1>
-<p>This software is licensed under BSD-3Clause license. For details see the <a class="reference external" href="https://github.com/bnelair/brainmaze_utils/blob/master/LICENSE">LICENSE</a> file in the root directory of this project.</p>
+<p>This software is licensed under BSD-3Clause license. For details see the <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE">LICENSE</a> file in the root directory of this project.</p>
 </section>
 <section id="acknowledgment">
 <h1>Acknowledgment<a class="headerlink" href="#acknowledgment" title="Link to this heading">#</a></h1>
 <p>This code was developed and originally published for the first time by (Mivalt 2022, and Sladky 2022). Additionally, codes related to individual projects available in this repository are stated below. When using this toolbox, we appreciate you citing the papers related to the utilized functionality. Please, see the sections below for references to individual submodules.</p>
 <blockquote>
 <div><div class="line-block">
-<div class="line">F. Mivalt et V. Kremen et al., “Electrical brain stimulation and continuous behavioral state tracking in ambulatory humans,” J. Neural Eng., vol. 19, no. 1, p. 016019, Feb. 2022, doi: 10.1088/1741-2552/ac4bfd.</div>
+<div class="line">F. Mivalt et V. Kremen et al., “Electrical brain stimulation and continuous behavioral state tracking in ambulatory humans,” J. Neural Eng., vol. 19, no. 1, p. 016019, Feb. 2022, doi: <a class="reference external" href="https://doi.org/10.1088/1741-2552/ac4bfd">10.1088/1741-2552/ac4bfd</a>.</div>
 <div class="line"><br /></div>
-<div class="line">V. Sladky et al., “Distributed brain co-processor for tracking spikes, seizures and behaviour during electrical brain stimulation,” Brain Commun., vol. 4, no. 3, May 2022, doi: 10.1093/braincomms/fcac115.</div>
+<div class="line">V. Sladky et al., “Distributed brain co-processor for tracking spikes, seizures and behaviour during electrical brain stimulation,” Brain Commun., vol. 4, no. 3, May 2022, doi: <a class="reference external" href="https://doi.org/10.1093/braincomms/fcac115">10.1093/braincomms/fcac115</a>.</div>
 </div>
 </div></blockquote>
 <section id="sleep-classification-and-feature-extraction">
 <h2>Sleep classification and feature extraction<a class="headerlink" href="#sleep-classification-and-feature-extraction" title="Link to this heading">#</a></h2>
 <blockquote>
 <div><div class="line-block">
-<div class="line">F. Mivalt et V. Kremen et al., “Electrical brain stimulation and continuous behavioral state tracking in ambulatory humans,” J. Neural Eng., vol. 19, no. 1, p. 016019, Feb. 2022, doi: 10.1088/1741-2552/ac4bfd.</div>
+<div class="line">F. Mivalt et V. Kremen et al., “Electrical brain stimulation and continuous behavioral state tracking in ambulatory humans,” J. Neural Eng., vol. 19, no. 1, p. 016019, Feb. 2022, doi: <a class="reference external" href="https://doi.org/10.1088/1741-2552/ac4bfd">10.1088/1741-2552/ac4bfd</a>.</div>
 <div class="line"><br /></div>
-<div class="line">F. Mivalt et V. Sladky et al., “Automated sleep classification with chronic neural implants in freely behaving canines,” J. Neural Eng., vol. 20, no. 4, p. 046025, Aug. 2023, doi: 10.1088/1741-2552/aced21.</div>
+<div class="line">F. Mivalt et V. Sladky et al., “Automated sleep classification with chronic neural implants in freely behaving canines,” J. Neural Eng., vol. 20, no. 4, p. 046025, Aug. 2023, doi: <a class="reference external" href="https://doi.org/10.1088/1741-2552/aced21">10.1088/1741-2552/aced21</a>.</div>
 </div>
 </div></blockquote>
 <p>The work was based on the following references:</p>
 <blockquote>
 <div><div class="line-block">
-<div class="line">Gerla, V., Kremen, V., Macas, M., Dudysova, D., Mladek, A., Sos, P., &amp; Lhotska, L. (2019). Iterative expert-in-the-loop classification of sleep PSG recordings using a hierarchical clustering. Journal of Neuroscience Methods, 317(February), 61?70. <a class="reference external" href="https://doi.org/10.1016/j.jneumeth.2019.01.013">https://doi.org/10.1016/j.jneumeth.2019.01.013</a></div>
+<div class="line">Gerla, V., Kremen, V., Macas, M., Dudysova, D., Mladek, A., Sos, P., &amp; Lhotska, L. (2019). Iterative expert-in-the-loop classification of sleep PSG recordings using a hierarchical clustering. Journal of Neuroscience Methods, 317(February), 61–70. <a class="reference external" href="https://doi.org/10.1016/j.jneumeth.2019.01.013">https://doi.org/10.1016/j.jneumeth.2019.01.013</a></div>
 <div class="line"><br /></div>
 <div class="line">Kremen, V., Brinkmann, B. H., Van Gompel, J. J., Stead, S. (Matt) M., St Louis, E. K., &amp; Worrell, G. A. (2018). Automated Unsupervised Behavioral State Classification using Intracranial Electrophysiology. Journal of Neural Engineering. <a class="reference external" href="https://doi.org/10.1088/1741-2552/aae5ab">https://doi.org/10.1088/1741-2552/aae5ab</a></div>
 <div class="line"><br /></div>
@@ -511,7 +606,7 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <h2>Evoked Response Potential Analysis<a class="headerlink" href="#evoked-response-potential-analysis" title="Link to this heading">#</a></h2>
 <blockquote>
 <div><div class="line-block">
-<div class="line">K. J. Miller et al., “Canonical Response Parameterization: Quantifying the structure of responses to single-pulse intracranial electrical brain stimulation,” PLOS Comput. Biol., vol. 19, no. 5, p. e1011105, May 2023, doi: 10.1371/journal.pcbi.1011105.</div>
+<div class="line">K. J. Miller et al., “Canonical Response Parameterization: Quantifying the structure of responses to single-pulse intracranial electrical brain stimulation,” PLOS Comput. Biol., vol. 19, no. 5, p. e1011105, May 2023, doi: <a class="reference external" href="https://doi.org/10.1371/journal.pcbi.1011105">10.1371/journal.pcbi.1011105</a>.</div>
 </div>
 </div></blockquote>
 </section>
@@ -519,10 +614,10 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <h2>EEG Slow Wave Detection and Analysis<a class="headerlink" href="#eeg-slow-wave-detection-and-analysis" title="Link to this heading">#</a></h2>
 <blockquote>
 <div><div class="line-block">
-<div class="line">Carvalho DZ, Kremen V, Mivalt F, St Louis EK, McCarter SJ, Bukartyk J, Przybelski SA, Kamykowski MG, Spychalla AJ, Machulda MM, Boeve BF, Petersen RC, Jack CR Jr, Lowe VJ, Graff-Radford J, Worrell GA, Somers VK, Varga AW, Vemuri P. Non-rapid eye movement sleep slow-wave activity features are associated with amyloid accumulation in older adults with obstructive sleep apnoea. Brain Commun. 2024 Oct 7;6(5):fcae354. doi: 10.1093/braincomms/fcae354. PMID: 39429245; PMCID: PMC11487750.</div>
+<div class="line">Carvalho DZ, Kremen V, Mivalt F, St Louis EK, McCarter SJ, Bukartyk J, Przybelski SA, Kamykowski MG, Spychalla AJ, Machulda MM, Boeve BF, Petersen RC, Jack CR Jr, Lowe VJ, Graff-Radford J, Worrell GA, Somers VK, Varga AW, Vemuri P. Non-rapid eye movement sleep slow-wave activity features are associated with amyloid accumulation in older adults with obstructive sleep apnoea. Brain Commun. 2024 Oct 7;6(5):fcae354. doi: <a class="reference external" href="https://doi.org/10.1093/braincomms/fcae354">10.1093/braincomms/fcae354</a>. PMID: 39429245; PMCID: PMC11487750.</div>
 </div>
 </div></blockquote>
-<p>Readme to the EEG Slow Detection project available in this repository in this repository: <a class="reference external" href="https://github.com/bnelair/best-toolbox/blob/master/projects/slow_wave_detection/readme.rst">projects/slow_wave_detection/readme</a>.</p>
+<p>The slow-wave detection project is documented on the <a class="reference external" href="https://bnelair.github.io/brainmaze-eeg/project_wave_detector.html">EEG Slow Wave Detection and Analysis</a> page; the runnable example is <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/tree/main/demo/eeg_wave_detection">demo/eeg_wave_detection</a>. The original project readme from the BEST toolbox: <a class="reference external" href="https://github.com/bnelair/best-toolbox/blob/master/projects/slow_wave_detection/readme.rst">projects/slow_wave_detection/readme.rst</a>.</p>
 </section>
 </section>
 <section id="funding">
@@ -530,7 +625,7 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <p>Individual sections of this code were developed under different projects including:</p>
 <ul class="simple">
 <li><p>NIH Brain Initiative UH2&amp;3 NS095495 - <em>Neurophysiologically-Based Brain State Tracking &amp; Modulation in Focal Epilepsy</em>,</p></li>
-<li><p>NIH U01-NS128612 - <em>An Ecosystem of Techmology and Protocols for Adaptive Neuromodulation Research in Humans</em>,</p></li>
+<li><p>NIH U01-NS128612 - <em>An Ecosystem of Technology and Protocols for Adaptive Neuromodulation Research in Humans</em>,</p></li>
 <li><p>DARPA - HR0011-20-2-0028 <em>Manipulating and Optimizing Brain Rhythms for Enhancement of Sleep (Morpheus)</em>.</p></li>
 <li><p>FEKT-K-22-7649 realized within the project Quality Internal Grants of the Brno University of Technology (KInG BUT), Reg. No. CZ.02.2.69/0.0/0.0/19_073/0016948, which is financed from the OP RDE.</p></li>
 </ul>
@@ -568,6 +663,7 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox - EEG</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-0-0">What’s new in 3.0.0</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#releasing">Releasing</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-documentation">Building Documentation</a></li>
