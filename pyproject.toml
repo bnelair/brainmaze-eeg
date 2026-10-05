@@ -15,12 +15,17 @@ dependencies = [
     # brainmaze_utils >= 3.0.0 (utils PR #28) resamples correctly at every input rate and
     # DC level; 2.0.0 corrupts some rates (the classifiers then raise ValueError).
     "brainmaze_utils>=3.0.0",
-    "numpy>=1.20.0",
+    # Lower bounds = the lowest versions the full test suite has been run against
+    # (uv --resolution lowest-direct, Python 3.10: numpy 1.24.0, scipy 1.10.0,
+    # pandas 2.2.0, scikit-learn 1.6.1). numpy/scipy match brainmaze_utils 3.0.0's own
+    # floors; the old "numpy>=1.20.0" and unbounded scipy were never installable together
+    # with brainmaze_utils/pandas 2.2 and were not tested.
+    "numpy>=1.24",
     "pandas>=2.2.0",
     "pytz",
     "python-dateutil",
     "scikit-learn>=1.6.1",
-    "scipy",
+    "scipy>=1.10",
     "tqdm",
 ]
 license = { text = "BSD-3-Clause" }
@@ -42,10 +47,14 @@ urls = { "Homepage" = "https://github.com/bnelair/brainmaze-eeg" }
 [project.optional-dependencies]
 # Plotting in brainmaze_eeg.hypnogram (plot_hypnogram, score_night(plot=True)).
 plot = [
-    "matplotlib",
+    "matplotlib>=3.7",
 ]
 test = [
-    "pytest",
+    # >= 8.2: older pytest in --import-mode=importlib (used by the family compatibility
+    # workflow) cannot import the shared helper brainmaze_eeg.tests.spike_synth.
+    "pytest>=8.2",
+    # so that CI runs the plotting tests (Agg backend) instead of skipping them
+    "matplotlib>=3.7",
 ]
 docs = [
     "sphinx>=8.0.0,<9.0.0",
