@@ -418,16 +418,18 @@ over **valid samples only**:
   brute-force evaluation, including NaN exactly where the coverage is too low.
 - Cumulative sums: O(n) time and memory for any window.
 
-24 h at 500 Hz, 0.1 spikes/s (`synth_ieeg`), 50 dropouts of 1–600 s stored as 0
-(`scratch/janca-baseline/bench24h.py`):
+24 h at 500 Hz, 0.1 spikes/s (`synth_ieeg`), 50 dropouts of 1–600 s stored as 0, without
+and with a 500 µV DC offset (`scratch/janca-baseline/bench24h.py`, `r2/bench24h_r2.out`; the
+3600 s row lost 2 detections, 2 spikes, in round 2 because detections in the
+`stats_margin_s` margins are no longer reported):
 
-| call | `window_s` | detections | spikes found | false | time | peak RSS |
-|---|---|---|---|---|---|---|
-| original | 5 | 5734 | 4530 | 1230 (at the dropouts) | 58 s | 2.2 GB |
-| original | 3600 | 385 563 | 6793 | 378 805 | 66 s | 2.2 GB |
-| `gap_aware_stats=True` | 5 | 4490 | 4515 | 0 | 66 s | 2.3 GB |
-| `gap_aware_stats=True` | 3600 | 4496 | 4521 | 0 | 65 s | 2.3 GB |
-| `GapAwareSpikeDetector(JancaDetector(window_s=3600, gap_aware_stats=True))` | 3600 | 4496 | 4521 | 0 | 26 s | 3.0 GB |
+| call | `window_s` | DC offset | detections | spikes found | false | time | peak RSS |
+|---|---|---|---|---|---|---|---|
+| original | 5 | 0 / 500 µV | 5734 / 5683 | 4530 / 4530 | 1230 / 1179 (at the dropouts) | 58–62 s | 2.2 GB |
+| original | 3600 | 0 / 500 µV | 385 563 / 385 699 | 6793 / 6792 | 378 805 / 378 942 | 64–66 s | 2.2 GB |
+| `gap_aware_stats=True` | 5 | 0 / 500 µV | 4490 / 4490 | 4515 / 4515 | 0 / 0 | 65–66 s | 2.3 GB |
+| `gap_aware_stats=True` | 3600 | 0 / 500 µV | 4494 / 4494 | 4519 / 4519 | 0 / 0 | 64–71 s | 2.3 GB |
+| `GapAwareSpikeDetector(JancaDetector(window_s=3600, gap_aware_stats=True))` | 3600 | 0 / 500 µV | 4494 / 4494 | 4519 / 4519 | 0 / 0 | 27 s | 3.0 GB |
 
 (7056 injected spikes outside the dropouts, amplitudes 80–300 µV, so ~64 % are found by any
 setting; "spikes found" counts injected spikes with a detection within 50 ms, close pairs
