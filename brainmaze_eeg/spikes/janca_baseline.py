@@ -135,6 +135,10 @@ class JancaBaseline:
         JancaBaseline(mu=[3.4, 3.1], sd=[0.55, 0.6], fs=500)           # 'spike' path at 500 Hz
         JancaBaseline(mu=3.4, sd=0.55, fs_analysis=250, powerline=60)
 
+    The values are exposed as read-only properties (``mu``, ``sd``, ``n_channels``,
+    ``params``, ``preset``, ``fs_analysis``, ``fs``, ``valid_s``, ``channel_names``, ``units``,
+    ``info``).
+
     Parameters
     ----------
     mu, sd : float or array_like
@@ -161,20 +165,6 @@ target_fs, decimation, eps_rel
         the detection input, which carries no unit).
     info : dict, optional
         Further JSON-serialisable provenance (``from_signal`` fills it).
-
-    Attributes
-    ----------
-    mu, sd : np.ndarray (read-only)
-    n_channels : int
-    params : dict
-        The resolved signal-path parameters (:data:`~brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS`).
-    preset : str
-    fs_analysis : float
-    fs : float or None
-    valid_s : np.ndarray or None
-    channel_names : tuple of str or None
-    units : str or None
-    info : dict
     """
 
     def __init__(self, mu, sd, *, fs_analysis=None, fs=None, preset='spike', band=_P,

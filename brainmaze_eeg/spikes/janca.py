@@ -119,6 +119,18 @@ rate ``fs``):
 Channels are processed one at a time, so the working memory is a few times one channel,
 not a few times the whole montage.
 
+Optional extensions (3.1.0; off by default, the steps above are then unchanged)
+-------------------------------------------------------------------------------
+- **Reference baseline** (``baseline=``, ``combine=``): step 6 with ``mu``, ``sd`` measured on
+  a reference recording (:class:`~brainmaze_eeg.spikes.janca_baseline.JancaBaseline`)
+  instead of the sliding window, or the lower / higher of the two thresholds. For channels
+  that spike so often that the local window learns the spikes as background. The
+  signal-path parameters (:data:`SIGNAL_PATH_PARAMS`) and the analysis rate must match the
+  baseline's.
+- **Gap-aware statistics** (``gap_aware_stats=True``): step 5 over valid samples only, with a
+  minimum valid fraction per window, in O(n) for any window length (long windows on long
+  records with dropouts).
+
 Known differences from the eeg_forge reference (all deliberate fixes)
 ---------------------------------------------------------------------
 - **Filters in ``sos`` form.** The reference designs ``b, a`` transfer functions; at high
