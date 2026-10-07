@@ -20,7 +20,13 @@ Janca
 -----
 
 .. automodule:: brainmaze_eeg.spikes.janca
-   :members: detect_spikes_janca, JancaDetector, JANCA_PRESETS, janca_params, design_janca_filters, janca_resampling, janca_decimation_factor, resampler_gain_db, MAX_RESAMPLER_LOSS_DB, SpikeDetectorHilbert
+   :members: detect_spikes_janca, JancaDetector, JANCA_PRESETS, janca_params, design_janca_filters, janca_resampling, janca_decimation_factor, resampler_gain_db, MAX_RESAMPLER_LOSS_DB, janca_threshold, SIGNAL_PATH_PARAMS, DECISION_PARAMS, COMBINE_MODES, DEFAULT_MIN_VALID_FRACTION, DEFAULT_STATS_MARGIN_S, BASELINE_LEVEL_WARN_RATIO, MONTAGE_LEVEL_WARN_RATIO, MONTAGE_LEVEL_QUANTILE, SpikeDetectorHilbert
+
+Janca reference baseline (3.1.0)
+--------------------------------
+
+.. automodule:: brainmaze_eeg.spikes.janca_baseline
+   :members: JancaBaseline, BASELINE_SCHEMA, BASELINE_SCHEMA_VERSION
 
 Barkmeier
 ---------
@@ -35,7 +41,7 @@ Gap handling
    :members: GapAwareSpikeDetector
 
 .. automodule:: brainmaze_eeg.spikes._gaps
-   :members: find_gaps, gap_intervals, fill_gaps, mask_in_gaps, drop_in_gaps, pink_noise
+   :members: find_gaps, gap_intervals, fill_gaps, mask_in_gaps, drop_in_gaps, pink_noise, flat_runs, FLAT_AS_GAP_S
 
 Filter design
 -------------
