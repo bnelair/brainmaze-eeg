@@ -42,9 +42,12 @@ How the statistics are made (:meth:`JancaBaseline.from_signal`)
 4. ``eps = eps_rel * median(e)`` over the pooled valid envelope samples of the channel, then
    ``mu = mean(log(e + eps))``, ``sd = std(log(e + eps))`` (population SD) over the pooled
    samples: the definition of the local model with the window being the whole valid
-   reference. ``robust=True`` uses ``median`` and ``1.4826 * MAD`` instead (less influenced by
-   occasional spikes or artifacts in the reference; equal to mean/SD for a log-normal
-   background).
+   reference. ``robust=True`` uses ``median`` and ``1.4826 * MAD`` instead. This is a
+   **different statistic**, not a drop-in: the log of a real (band-passed noise) envelope is
+   skewed, so on clean background the robust threshold is about 14 % higher than the
+   mean/SD one (synthetic background, 500 Hz). It is pulled up somewhat less by spikes in
+   the reference (3 spikes/s in the reference: threshold x1.31 vs x1.44). Prefer a clean
+   reference over relying on it.
 
 The valid reference time per channel is stored (``valid_s``); less than ``min_valid_s``
 (60 s) warns, none raises.
@@ -300,7 +303,8 @@ target_fs, decimation, eps_rel
             Seconds dropped at both ends of every valid run (default 0.5).
         robust : bool
             ``False`` (default): mean and SD of the log-envelope (the definition of the
-            local model). ``True``: median and ``1.4826 * MAD``.
+            local model). ``True``: median and ``1.4826 * MAD`` (a different statistic: about
+            14 % higher threshold on clean background; see the module docstring).
         channel_names : sequence of str, optional
         units : str, optional
             Metadata stored with the baseline.
