@@ -126,12 +126,13 @@ returns the resolved values.
 | `eps_rel` | `1e-6` | – | ours | offset before the log, relative to the median envelope (the reference uses an absolute 1e-6) |
 | `return_details` | `False` | – | ours | also return the envelope, threshold curve, filters and rates |
 | `baseline` | `None` | – | ours (3.1.0) | a `JancaBaseline` (reference statistics); `None` = the original local model. See [Reference baseline](#reference-baseline-jancabaseline-310) |
-| `combine` | `'reference'` | – | ours (3.1.0) | with a baseline: `'reference'` (fixed threshold), `'min'` (lower of local and reference: more sensitive), `'max'` (higher: stricter) |
+| `combine` | `'reference'` | – | ours (3.1.0) | with a baseline: `'reference'` (fixed threshold), `'min'` (lower of local and reference: more sensitive; the reference where the local threshold is undefined), `'max'` (higher: stricter; undefined where the local one is) |
 | `broadcast_baseline` | `False` | – | ours (3.1.0) | allow a 1-channel baseline for every channel |
 | `gap_aware_stats` | `False` | – | ours (3.1.0) | local statistics over valid samples only, O(n) for any window; see [Long windows and data drops](#long-windows-and-data-drops-gap_aware_stats-310) |
 | `valid` | `None` | – | ours (3.1.0) | with `gap_aware_stats`: boolean mask of usable samples (default: all but constant runs ≥ 0.1 s) |
 | `min_valid_fraction` | `0.5` | – | ours (3.1.0) | with `gap_aware_stats`: minimum valid fraction of a window, else no threshold (no detections) |
-| `stats_margin_s` | `0.5` | s | ours (3.1.0, measured) | with `gap_aware_stats`: margin around invalid samples excluded from the statistics |
+| `stats_margin_s` | `0.5` | s | ours (3.1.0, measured) | with `gap_aware_stats`: margin around invalid samples excluded from the statistics and from detection |
+| `channel_names` | `None` | – | ours (3.1.0) | with a baseline: names of the rows of `x`; must equal the baseline's `channel_names` in order, if it has them (`ValueError`) |
 
 **Validation.** Every parameter is checked for type, finiteness (NaN and ±inf are rejected;
 `None` means "off" for `powerline` and `target_fs`) and range when it is resolved, i.e.
@@ -289,7 +290,10 @@ input unit (`exp(mu)` is about 1.06 × the SD of the band-passed background).
 The analysis rate follows from the input rate: with the default `decimation='integer'`, a
 500 Hz baseline (analysis 250 Hz) does not fit a 1000 Hz recording (200 Hz); use
 `decimation='exact'` for both to share one analysis rate across input rates (tested: a
-512 Hz baseline on a 1000 Hz recording, ≥ 95 % sensitivity).
+512 Hz baseline on a 1000 Hz recording, ≥ 95 % sensitivity). With `'exact'` the analysis
+rates are compared to a relative 2e-6 (each is `target_fs` to within 1e-6), so baselines
+made at 511.99 Hz (analysis 200.00008 Hz) or 24414.0625 Hz (199.99982 Hz) fit a 1000 Hz
+recording (200 Hz); with `'integer'` they must agree to 1e-9 (tested).
 
 **Channels.** The baseline's channel count must equal the input's. A 1-channel baseline is
 applied to every channel only with `broadcast_baseline=True` (explicit, because channels
@@ -297,6 +301,10 @@ usually differ in amplitude); a multichannel baseline is never broadcast. Use
 `base.select(...)` (indices or names) to match a montage. Through `GapAwareSpikeDetector`
 the detector receives the caller's channel indices (detector protocol `accepts_channels`),
 so channels fed one at a time or all-missing channels left out stay aligned (tested).
+Pass `channel_names=` (to `detect_spikes_janca`, or the full montage's names to
+`JancaDetector`) to have the order checked against the baseline's names: a different order
+or a different set raises `ValueError` (with a `base.select([...])` hint). `detect()` also
+accepts `channels` as names; channel indices must be integers (floats and bools raise).
 
 **How the baseline is measured** (`from_signal`)
 
@@ -342,14 +350,48 @@ offsets give the threshold of the offset-free data within 1 %).
   shrinks makes it under-detect. Refresh the baseline from a recent quiet stretch, or use
   `combine='max'` (never more sensitive than the local model: guards against drift up) or
   `combine='min'` (never less sensitive: keeps detecting where the local model goes blind).
-- **Unit, gain, montage and channel order must be the baseline's.** They are not recorded in
-  the signal and cannot be checked. As a safety net, a `UserWarning` is issued when a
-  channel's envelope level differs from the baseline's by more than ×10 (e.g. V vs µV);
-  `return_details` reports the ratio (`level_ratio`, ~1 when they match).
+- **Unit, gain, montage and channel order must be the baseline's.** Unit, gain and montage
+  are not recorded in the signal and cannot be checked; the channel order is checked when
+  both sides have names (`channel_names=`, see Channels). Two safety nets (`UserWarning`):
+  1. a channel's envelope level (`level_ratio` = exp(mean log-envelope − `mu`)) differs from
+     the baseline's by more than ×10 (`BASELINE_LEVEL_WARN_RATIO`; e.g. V vs µV);
+  2. the **median over channels** of the background level (`background_ratio`: the 0.1
+     quantile of the log-envelope vs the baseline model's, `mu + ndtri(0.1)·sd`) differs
+     by more than ×3 either way (`MONTAGE_LEVEL_WARN_RATIO`; gain or montage mismatch).
+     A low quantile measures the background between the spikes, so dense spiking moves it
+     much less than `level_ratio`, and the median ignores a minority of spiking or broken
+     channels. Through `GapAwareSpikeDetector` the detector sees one channel at a time, so
+     there the median is over that channel.
+
+  `return_details` reports both ratios (~1 when everything matches). Tuning of check 2
+  (`scratch/janca-baseline/r2/r3_probe.py`, `.out`; 300 s at 500 Hz, two spike generators,
+  mean/SD and robust baselines):
+
+  | case | `level_ratio` | `background_ratio` | warns |
+  |---|---|---|---|
+  | same gain | 0.86–1.13 | 0.77–1.11 | no |
+  | gain ×2 / ×2.5 | 1.7–2.3 / 2.1–2.8 | 1.6–2.2 / 1.9–2.8 | no |
+  | gain ×3 | 2.6–3.4 | 2.3–3.3 | only where ≥ 3 (one of four settings) |
+  | gain ×0.3 | 0.26–0.33 | 0.23–0.32 | yes |
+  | dense spiking on every channel: 1–10/s of 150 µV, 1–3/s of 600 µV (in 30 µV background), 5/s of 600 µV with the reviewer's spike shape | 1.2–4.8 | 0.94–2.86 | no |
+  | discharges covering most of the record (5/s of 600 µV sharp-and-slow waves, 10/s of 600 µV) | 6.4–13.7 | 2.9–9.9 | 5 of 6 |
+  | 4-channel montage in reversed order (amplitudes 10–100 µV) | 0.1–9.6 | median 1.0–1.2 | ×10 per channel only |
+
+  So check 2 catches a gain or montage mismatch from about ×3 (×2.7–3.8 depending on the
+  background shape and the baseline statistic) and is not triggered by dense spiking up to
+  `level_ratio` ×4.4; it does fire when discharges cover most of the record (then a fixed
+  threshold from a quiet baseline should be checked anyway). On the real 6.8 h Fz-Cz
+  recording, baselines from one hour applied to another warned in 3 of 60 hour pairs, all
+  between hours whose own thresholds differ ×2.7–2.9 (a change of the background level). A channel
+  permutation without names is only caught by check 1 when amplitudes differ ×10.
 - **A reference with spikes or artifacts** raises the baseline threshold (×1.44 with
   3 spikes/s). Choose quiet data (`segments=`), or `robust=True` (partly).
-- **Combined with `gap_aware_stats`**, `'min'`/`'max'` are undefined where the local model is
-  (no detections there); `'reference'` is defined everywhere.
+- **Combined with `gap_aware_stats`**: where the local threshold is undefined (window
+  coverage below `min_valid_fraction`) `'min'` uses the reference threshold (`np.fmin`:
+  never less sensitive than `'reference'`), `'max'` stays undefined (no detections: never
+  more sensitive than the local model). Samples excluded from the statistics (invalid, or
+  within `stats_margin_s` of an invalid sample) are undefined in every mode, `'reference'`
+  included: no detections on a dropout or its edges (tested).
 
 ### Long windows and data drops: `gap_aware_stats` (3.1.0)
 
@@ -363,6 +405,11 @@ over **valid samples only**:
   ≥ 0.1 s. `GapAwareSpikeDetector` passes its gap mask (detector protocol
   `accepts_valid`), so filled samples never enter the statistics.
 - Analysis samples within `stats_margin_s` (0.5 s) of an invalid sample are left out too.
+- Samples left out of the statistics are never detected (threshold NaN there): the filter
+  transient of a step into or out of a dropout is not a spike. Without this, zero dropouts
+  in a signal with a DC offset (DC-coupled amplifier, raw ADC counts) gave 30–107 false
+  detections at the dropout edges with windows ≥ 30 s (review of PR #75, R1); now 0 (tested
+  with offsets of 500 and 5000 µV, windows 30 / 60 / 600 s).
 - A window needs at least `min_valid_fraction` (0.5) of its samples valid; elsewhere the
   threshold is NaN and nothing is detected (`details['threshold']`, `details['stats_valid']`).
 - Same definition as the reference otherwise (window centred, ends reflected, `sd` around

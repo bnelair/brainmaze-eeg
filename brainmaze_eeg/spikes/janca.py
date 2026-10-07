@@ -129,7 +129,7 @@ Optional extensions (3.1.0; off by default, the steps above are then unchanged)
   baseline's.
 - **Gap-aware statistics** (``gap_aware_stats=True``): step 5 over valid samples only, with a
   minimum valid fraction per window, in O(n) for any window length (long windows on long
-  records with dropouts).
+  records with dropouts); samples left out of the statistics are not detected either.
 
 Known differences from the eeg_forge reference (all deliberate fixes)
 ---------------------------------------------------------------------
@@ -174,7 +174,7 @@ from scipy.fft import next_fast_len
 from scipy.interpolate import interp1d
 from scipy.ndimage import uniform_filter1d
 from scipy.signal import find_peaks, firwin, hilbert, resample_poly, sosfiltfilt, filtfilt
-from scipy.special import erf
+from scipy.special import erf, ndtri
 
 from brainmaze_eeg.spikes import _checks as chk
 from brainmaze_eeg.spikes import _filters as flt
@@ -185,7 +185,7 @@ __all__ = ['detect_spikes_janca', 'JancaDetector', 'JANCA_PRESETS', 'janca_param
            'resampler_gain_db', 'MAX_RESAMPLER_LOSS_DB', 'janca_threshold',
            'SIGNAL_PATH_PARAMS', 'DECISION_PARAMS', 'COMBINE_MODES',
            'DEFAULT_MIN_VALID_FRACTION', 'DEFAULT_STATS_MARGIN_S', 'BASELINE_LEVEL_WARN_RATIO',
-           'SpikeDetectorHilbert', 'spike_detector_hilbert_v24']
+           'MONTAGE_LEVEL_WARN_RATIO', 'MONTAGE_LEVEL_QUANTILE', 'SpikeDetectorHilbert', 'spike_detector_hilbert_v24']
 
 
 # ============================================================================ presets
@@ -514,6 +514,17 @@ DEFAULT_STATS_MARGIN_S = 0.5
 #: A reference baseline whose envelope level (``exp(mu)``) differs from the record's by more
 #: than this factor (either way) triggers a ``UserWarning``: units/gain/montage mismatch?
 BASELINE_LEVEL_WARN_RATIO = 10.0
+#: Second, montage-wide level check: the **median across channels** of the background level
+#: ratio at the :data:`MONTAGE_LEVEL_QUANTILE` quantile of the log-envelope (record vs the
+#: baseline model ``mu + ndtri(q) * sd``) beyond this factor (either way) triggers a
+#: ``UserWarning``: gain or montage mismatch of about x3. A low quantile measures the
+#: background between spikes, so dense spiking moves it much less than the mean-log
+#: ``level_ratio`` (5 spikes/s of 600 uV in 30 uV background: x1.9 vs x4.4); the median
+#: across channels ignores a minority of channels that spike or are off. Tuning and
+#: evidence: README, "Reference baseline".
+MONTAGE_LEVEL_WARN_RATIO = 3.0
+#: Quantile of the log-envelope used by the montage-wide level check.
+MONTAGE_LEVEL_QUANTILE = 0.1
 
 
 def _signal_path(p, fs):
@@ -565,13 +576,30 @@ def janca_threshold(mu, sd, threshold):
 
 def _sliding_sum(a, win):
     """Centred sliding sum over ``win`` (odd) samples, ends reflected like
-    ``scipy.ndimage`` ``mode='reflect'`` (``d c b a | a b c d | d c b a``); O(n) via cumsum."""
+    ``scipy.ndimage`` ``mode='reflect'`` (``d c b a | a b c d | d c b a``, repeated for
+    windows longer than the record); O(n) time and memory via cumsum, for any ``win``."""
     h = win // 2
-    ap = np.pad(a, h, mode='symmetric')
-    cs = np.cumsum(ap, dtype=np.int64 if a.dtype.kind in 'bi' else np.float64)
-    out = cs[win - 1:].copy()
-    out[1:] -= cs[:-win]
-    return out
+    n = a.size
+    dtype = np.int64 if a.dtype.kind in 'bi' else np.float64
+    if h <= n:
+        ap = np.pad(a, h, mode='symmetric')
+        cs = np.cumsum(ap, dtype=dtype)
+        out = cs[win - 1:].copy()
+        out[1:] -= cs[:-win]
+        return out
+    # Window longer than twice the record: the reflected extension is periodic with period
+    # 2n (a, reversed a), so a window sum is whole periods plus a partial one; padding by h
+    # would need O(win) memory.
+    period = np.concatenate((a, a[::-1]))
+    cs = np.concatenate((np.zeros(1, dtype=dtype), np.cumsum(period, dtype=dtype)))
+    total = cs[-1]
+    i = np.arange(n, dtype=np.int64)
+
+    def prefix(m):                       # sum of the extension over [0, m) for any integer m
+        q, r = np.divmod(m, 2 * n)
+        return q * total + cs[r]
+
+    return prefix(i + h + 1) - prefix(i - h)
 
 
 def _masked_log_stats(log_e, ok, win, min_valid_fraction):
@@ -708,13 +736,44 @@ def _baseline_rows(baseline, n_ch, broadcast_baseline):
                      + hint)
 
 
+def _names_tuple(channel_names, n_ch=None):
+    """``channel_names`` as a tuple of unique str (length ``n_ch`` if given), or ``None``."""
+    if channel_names is None:
+        return None
+    if isinstance(channel_names, str):
+        channel_names = [channel_names]
+    names = tuple(channel_names)
+    if not all(isinstance(c, str) for c in names) or len(set(names)) != len(names):
+        raise ValueError(f'channel_names must be unique strings, got {channel_names!r}')
+    if n_ch is not None and len(names) != n_ch:
+        raise ValueError(f'channel_names has {len(names)} name(s) for {n_ch} channel(s) of x')
+    return names
+
+
+def _check_channel_names(baseline, names, broadcast_baseline):
+    """
+    Raise ``ValueError`` if the record's channel ``names`` (tuple) differ from the baseline's
+    (order included). Not checkable (no-op) when the baseline has no names or a 1-channel
+    baseline is broadcast.
+    """
+    bn = baseline.channel_names
+    if bn is None or (baseline.n_channels == 1 and broadcast_baseline):
+        return
+    if names != bn:
+        hint = (f' Use baseline.select({list(names)!r}) to reorder the baseline.'
+                if set(names) <= set(bn) else '')
+        raise ValueError(f'the channels of x {list(names)} do not match the baseline\'s '
+                         f'{list(bn)} (names and order must be equal: row i of x uses row i of '
+                         'the baseline).' + hint)
+
+
 # ============================================================================ detector
 def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powerline=_P,
                         notch_width=_P, notch_order=_P, notch_harmonics=_P, target_fs=_P,
                         decimation=_P, window_s=_P, threshold=_P, min_distance_s=_P,
                         eps_rel=_P, return_details=False, baseline=None, combine='reference',
                         broadcast_baseline=False, gap_aware_stats=False, valid=None,
-                        min_valid_fraction=None, stats_margin_s=None):
+                        min_valid_fraction=None, stats_margin_s=None, channel_names=None):
     """
     Janca envelope-distribution detector (eeg_forge formulation, fixed), for spikes or, with
     ``preset='ripple'``, the ripple band.
@@ -807,14 +866,21 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
         ``min_distance_s``, ``window_s``, ``combine``) are free. The amplitude unit, gain and
         montage of ``x`` must be the baseline's (not checkable; a ``UserWarning`` is issued
         when a channel's envelope level differs from the baseline's by more than
-        :data:`BASELINE_LEVEL_WARN_RATIO`).
+        :data:`BASELINE_LEVEL_WARN_RATIO` (x10), and when the median over channels of the
+        background level (low quantile of the log-envelope, robust to dense spiking)
+        differs by more than :data:`MONTAGE_LEVEL_WARN_RATIO` (x3)). The channel order is
+        checked when ``channel_names`` is given and the baseline has names.
     combine : {'reference', 'min', 'max'}
         With a baseline: ``'reference'`` (default) uses the baseline's fixed threshold only;
         ``'min'`` the lower of the local and the baseline threshold at each sample (more
         sensitive: a detection above either threshold); ``'max'`` the higher (stricter:
         above both). A value other than ``'reference'`` without a baseline raises. Where the
-        local threshold is undefined (``gap_aware_stats`` coverage), ``'min'`` and ``'max'``
-        are undefined too: no detections there.
+        local threshold is undefined (``gap_aware_stats`` window coverage too low),
+        ``'min'`` uses the baseline threshold (``np.fmin``: never less sensitive than
+        ``'reference'``) and ``'max'`` is undefined (no detections: never more sensitive
+        than the local model). With ``gap_aware_stats``, samples excluded from the
+        statistics (invalid or within ``stats_margin_s`` of an invalid sample) are undefined
+        in every mode.
     broadcast_baseline : bool
         Allow a **1-channel** baseline to be applied to every channel of ``x`` (default
         False: the baseline's channel count must equal ``x``'s, else ``ValueError``). A
@@ -824,9 +890,11 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
         sliding ``mu``/``sd`` skip invalid samples (``valid``; analysis samples within
         ``stats_margin_s`` of an invalid one are skipped too) and need at least
         ``min_valid_fraction`` of each window valid; elsewhere the local threshold is NaN
-        and nothing is detected. Computed with cumulative sums, O(n) for any ``window_s``
-        (e.g. 600-3600 s on 24 h records). Without invalid samples the result equals the
-        original to rounding.
+        and nothing is detected. Samples excluded from the statistics are never detected
+        either (threshold NaN there, whatever ``combine``): no detections on a dropout or
+        on the filter transient at its edges. Computed with cumulative sums, O(n) for any
+        ``window_s`` (e.g. 600-3600 s on 24 h records). Without invalid samples the result
+        equals the original to rounding.
     valid : np.ndarray of bool or None
         Only with ``gap_aware_stats=True``: True on samples that may enter the statistics,
         shape of ``x``. :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` passes
@@ -838,7 +906,11 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
         window (default :data:`DEFAULT_MIN_VALID_FRACTION` = 0.5).
     stats_margin_s : float or None
         Only with ``gap_aware_stats=True``: margin (s) around invalid samples excluded from
-        the statistics (default :data:`DEFAULT_STATS_MARGIN_S` = 0.5).
+        the statistics, and from detection (default :data:`DEFAULT_STATS_MARGIN_S` = 0.5).
+    channel_names : sequence of str or None
+        Only with a baseline: the names of the rows of ``x``. If the baseline has
+        ``channel_names`` too, they must be equal, in order (``ValueError`` otherwise, with
+        a ``baseline.select(...)`` hint), except for a broadcast 1-channel baseline.
 
     Returns
     -------
@@ -857,7 +929,10 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
         baseline's fixed threshold, float, or ``None``), ``combine``, ``stats_valid`` (bool
         analysis-rate mask of the samples in the statistics, or ``None``) and, with a
         baseline, ``level_ratio`` (``exp(mean log-envelope of the record - baseline mu)``;
-        about 1 when the units match).
+        about 1 when the units match; dense spiking raises it) and ``background_ratio``
+        (the same at the :data:`MONTAGE_LEVEL_QUANTILE` quantile: record vs the baseline
+        model ``mu + ndtri(q) * sd``; about 1 when gain and montage match, little moved by
+        spikes). Both are ``None`` for an all-zero envelope.
 
     Raises
     ------
@@ -907,11 +982,17 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
     if baseline is not None:
         baseline.check_compatible(p, fs_a)
         mu_b, sd_b = _baseline_rows(baseline, X.shape[0], broadcast_baseline)
+        names = _names_tuple(channel_names, X.shape[0])
+        if names is not None:
+            _check_channel_names(baseline, names, broadcast_baseline)
+    elif channel_names is not None:
+        raise ValueError('channel_names only apply with a baseline (they are checked against '
+                         "the baseline's channel_names)")
     V = _stats_valid_mask(valid, X, fs, one_d) if gap_aware_stats else None
     margin_a = int(np.ceil(stats_margin_s * fs_a - 1e-9))
     extended = baseline is not None or gap_aware_stats
 
-    results, details, off_level = [], [], []
+    results, details, off_level, bg_ratios = [], [], [], []
     for c in range(X.shape[0]):
         # -- preprocessing, one channel at a time (bounded memory) ------------------------
         e = _channel_envelope(X[c], filters, up, down)
@@ -920,7 +1001,7 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
         # -- threshold: local model (reference), baseline, or a combination ----------------
         thr_local = (_local_threshold(e, p['threshold'], p['eps_rel'], win, ok,
                                       min_valid_fraction) if uses_local else None)
-        t_ref, level_ratio = None, None
+        t_ref, level_ratio, bg_ratio = None, None, None
         if baseline is None:
             thr_curve = thr_local
         else:
@@ -928,17 +1009,28 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
             if combine == 'reference':
                 thr_curve = np.full(e.shape, t_ref)
             elif combine == 'min':
-                thr_curve = np.minimum(thr_local, t_ref)      # NaN (undefined) propagates
+                # np.fmin: where the local threshold is undefined (gap_aware_stats coverage)
+                # the reference applies, so 'min' is never less sensitive than 'reference'
+                thr_curve = np.fmin(thr_local, t_ref)
             else:
-                thr_curve = np.maximum(thr_local, t_ref)
+                thr_curve = np.maximum(thr_local, t_ref)      # NaN (undefined) propagates
             ev = e if ok is None else e[ok]
             scale = _envelope_scale(ev)
             if scale > 0:
-                level_ratio = float(np.exp(np.mean(np.log(ev + p['eps_rel'] * scale))
-                                           - mu_b[c]))
+                log_ev = np.log(ev + p['eps_rel'] * scale)
+                level_ratio = float(np.exp(np.mean(log_ev) - mu_b[c]))
                 if not (1 / BASELINE_LEVEL_WARN_RATIO <= level_ratio
                         <= BASELINE_LEVEL_WARN_RATIO):
                     off_level.append((c, level_ratio))
+                q = MONTAGE_LEVEL_QUANTILE
+                bg_ratio = float(np.exp(np.quantile(log_ev, q)
+                                        - (mu_b[c] + ndtri(q) * sd_b[c])))
+                bg_ratios.append(bg_ratio)
+        if ok is not None:
+            # gap_aware_stats: samples excluded from the statistics (invalid, or within
+            # stats_margin_s of an invalid sample) are undefined for every combine mode:
+            # never a detection on a dropout or on the transient at its edges
+            thr_curve = np.where(ok, thr_curve, np.nan)
 
         # -- detections: envelope maxima above the threshold (none where it is NaN) -------
         idx = np.zeros(0, dtype=np.int64)
@@ -958,7 +1050,8 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
             if extended:
                 d.update({'threshold_local': thr_local, 'threshold_reference': t_ref,
                           'combine': combine if baseline is not None else None,
-                          'stats_valid': ok, 'level_ratio': level_ratio})
+                          'stats_valid': ok, 'level_ratio': level_ratio,
+                          'background_ratio': bg_ratio})
             details.append(d)
 
     if off_level:
@@ -969,6 +1062,17 @@ def detect_spikes_janca(x, fs, *, preset='spike', band=_P, filter_order=_P, powe
             'Check that x has the unit, gain and montage of the baseline recording (e.g. uV '
             'vs V) and that the channels are in the same order; a mismatched baseline gives '
             'a meaningless threshold.', UserWarning, stacklevel=2)
+    if bg_ratios:
+        med = float(np.median(bg_ratios))
+        lo, hi = 1 / MONTAGE_LEVEL_WARN_RATIO, MONTAGE_LEVEL_WARN_RATIO
+        if not lo <= med <= hi:
+            warnings.warn(
+                f'the background envelope level of x is x{med:.3g} the baseline\'s (median '
+                f'over {len(bg_ratios)} channel(s) of the level at the '
+                f'{MONTAGE_LEVEL_QUANTILE:g} quantile of the log-envelope; expected '
+                f'x{lo:.3g}-x{hi:g}). Check the gain, unit and montage/reference of x against '
+                'the baseline recording; a mismatched baseline gives a meaningless threshold.',
+                UserWarning, stacklevel=2)
     if one_d:
         results = results[0]
         details = details[0] if details else details
@@ -1008,6 +1112,11 @@ class JancaDetector:
       channel is compared with its own baseline row even when the wrapper feeds channels one
       at a time or leaves all-missing channels out.
 
+    ``channel_names`` (only with a baseline): names of the **full montage** given to
+    :meth:`detect` (or to the wrapper). If the baseline has names too they must be equal, in
+    order (checked here, ``ValueError``); :meth:`detect` passes the names of the rows it
+    receives to :func:`detect_spikes_janca`.
+
     Examples::
 
         JancaDetector()                                  # spikes, eeg_forge values
@@ -1023,7 +1132,7 @@ class JancaDetector:
 
     def __init__(self, preset='spike', *, baseline=None, combine='reference',
                  broadcast_baseline=False, gap_aware_stats=False, min_valid_fraction=None,
-                 stats_margin_s=None, **overrides):
+                 stats_margin_s=None, channel_names=None, **overrides):
         if 'return_details' in overrides:
             raise TypeError('return_details is not a detector parameter; call '
                             'detect_spikes_janca directly for details')
@@ -1036,6 +1145,17 @@ class JancaDetector:
                          min_valid_fraction, stats_margin_s)
         if baseline is not None:
             baseline.check_compatible(self.params)
+        names = _names_tuple(channel_names)
+        if names is not None:
+            if baseline is None:
+                raise ValueError('channel_names only apply with a baseline (they are checked '
+                                 "against the baseline's channel_names)")
+            if not (baseline.n_channels == 1 and broadcast_baseline):
+                if len(names) != baseline.n_channels:
+                    raise ValueError(f'channel_names has {len(names)} name(s), the baseline '
+                                     f'{baseline.n_channels} channel(s)')
+                _check_channel_names(baseline, names, broadcast_baseline)
+        self.channel_names = names
         self.baseline = baseline
         self.combine = combine
         self.broadcast_baseline = bool(broadcast_baseline)
@@ -1058,6 +1178,8 @@ class JancaDetector:
         if self.baseline is not None:
             opts.update(baseline=self.baseline, combine=self.combine,
                         broadcast_baseline=self.broadcast_baseline)
+            if self.channel_names is not None:
+                opts.update(channel_names=self.channel_names)
         if self.gap_aware_stats:
             opts.update(gap_aware_stats=True, min_valid_fraction=self.min_valid_fraction,
                         stats_margin_s=self.stats_margin_s)
@@ -1076,9 +1198,12 @@ class JancaDetector:
         ``valid`` (with ``gap_aware_stats=True`` only): boolean mask of ``x``'s shape, True on
         samples that may enter the local statistics. ``channels`` / ``n_channels`` (used by
         :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` when there is a
-        baseline): the rows of ``x`` are channels ``channels`` of a montage of
-        ``n_channels``; the baseline must have ``n_channels`` rows (or 1 with
+        baseline): the rows of ``x`` are channels ``channels`` (integer indices) of a montage
+        of ``n_channels``; the baseline must have ``n_channels`` rows (or 1 with
         ``broadcast_baseline=True``) and row ``channels[i]`` is used for ``x[i]``.
+        ``channels`` may instead be channel **names** (str) of a baseline with
+        ``channel_names`` (``n_channels`` is then not needed). Anything else (floats, bools)
+        raises ``TypeError``.
         """
         x = np.asarray(x)
         if x.ndim != 2:
@@ -1089,9 +1214,17 @@ class JancaDetector:
                 raise ValueError('valid is only used with gap_aware_stats=True')
             opts['valid'] = valid
         if channels is not None and self.baseline is not None:
-            channels = np.asarray(channels, dtype=np.int64).reshape(-1)
-            if channels.size != x.shape[0]:
-                raise ValueError(f'channels has {channels.size} entries for {x.shape[0]} rows')
+            channels = [channels] if isinstance(channels, (str, int, np.integer)) else list(
+                np.asarray(channels, dtype=object).reshape(-1))
+            if len(channels) != x.shape[0]:
+                raise ValueError(f'channels has {len(channels)} entries for {x.shape[0]} rows')
+            if channels and all(isinstance(c, str) for c in channels):
+                return self._detect_named(x, fs, channels, opts)
+            if not all(isinstance(c, (int, np.integer)) and not isinstance(c, (bool, np.bool_))
+                       for c in channels):
+                raise TypeError(f'channels must be integer indices (or channel names), got '
+                                f'{channels!r}')
+            channels = np.asarray(channels, dtype=np.int64)
             if n_channels is None:
                 raise TypeError('n_channels (the size of the full montage) is required with '
                                 'channels')
@@ -1104,6 +1237,23 @@ class JancaDetector:
                 opts['baseline'] = self.baseline.select(channels)
             elif not (nb == 1 and self.broadcast_baseline):
                 _baseline_rows(self.baseline, n_channels, self.broadcast_baseline)  # raises
+            if self.channel_names is not None:
+                if len(self.channel_names) != n_channels:
+                    raise ValueError(f'channel_names has {len(self.channel_names)} name(s) '
+                                     f'for a montage of {n_channels}')
+                opts['channel_names'] = [self.channel_names[k] for k in channels]
+        return detect_spikes_janca(x, fs, preset=self.preset, **self.params, **opts)
+
+    def _detect_named(self, x, fs, names, opts):
+        """:meth:`detect` with ``channels`` given as names of the baseline's channels."""
+        if self.channel_names is not None and not set(names) <= set(self.channel_names):
+            raise ValueError(f'channels {names} are not all in channel_names '
+                             f'{list(self.channel_names)}')
+        if not (self.baseline.n_channels == 1 and self.broadcast_baseline):
+            if self.baseline.channel_names is None:
+                raise ValueError('channels given as names need a baseline with channel_names')
+            opts['baseline'] = self.baseline.select(names)        # KeyError if unknown
+        opts['channel_names'] = list(names)
         return detect_spikes_janca(x, fs, preset=self.preset, **self.params, **opts)
 
 

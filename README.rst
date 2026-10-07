@@ -44,11 +44,14 @@ bit-identical to 3.0.0 and to the eeg_forge reference).
   use that fixed threshold instead of, or combined with, the local one. For channels that
   spike permanently: on synthetic iEEG with 1 / 3 / 5 spikes/s the local model finds
   93 / 42 / 0.5 % of the spikes, the reference baseline 97 / 97 / 96 %, with no false
-  detections. The signal-path parameters must match the baseline's (checked); the amplitude
-  unit and montage must too (not checkable; a warning flags a ×10 level mismatch).
+  detections. The signal-path parameters must match the baseline's (checked), and so must
+  the channel order when both sides have channel names (checked); the amplitude unit, gain
+  and montage must too (not checkable; warnings flag a ×10 level mismatch on a channel and
+  a ×3 mismatch of the montage's background level).
 - **Long Janca windows on data with drops**: ``gap_aware_stats=True`` computes the local
-  statistics over valid samples only (O(n) for any window, e.g. ``window_s=3600`` on 24 h),
-  and ``GapAwareSpikeDetector`` passes its gap mask so filled samples never enter them.
+  statistics over valid samples only (O(n) for any window, e.g. ``window_s=3600`` on 24 h)
+  and never detects on samples left out of them (dropouts and their edges);
+  ``GapAwareSpikeDetector`` passes its gap mask so filled samples never enter them.
 
 See `Reference baseline <https://github.com/bnelair/brainmaze-eeg/blob/main/brainmaze_eeg/spikes/README.md#reference-baseline-jancabaseline-310>`_
 in the spike detectors README for when to use it, what must match, and the limitations.

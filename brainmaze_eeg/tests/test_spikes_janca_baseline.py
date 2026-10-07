@@ -552,16 +552,56 @@ def test_gap_aware_valid_mask_and_parameters():
     assert np.isnan(d['threshold'][int(30.5 * 250)])
 
 
-def test_gap_aware_min_combine_undefined_where_local_undefined(baseline):
-    x, _ = dense_ieeg(FS, dur=200.0, rate=2, seed=8)
+def test_gap_aware_combine_where_local_undefined(baseline):
+    """Local threshold undefined (window coverage too low, but the sample itself usable):
+    'min' falls back to the reference (np.fmin: never less sensitive than 'reference'),
+    'max' stays undefined; samples excluded from the statistics are undefined in every mode."""
+    x, pos = dense_ieeg(FS, dur=200.0, rate=2, seed=8)
     x[50 * FS:120 * FS] = 0.0
-    _, d = detect_spikes_janca(x, FS, baseline=baseline, combine='min', window_s=60.0,
-                               gap_aware_stats=True, return_details=True)
-    k = int(85 * d['fs_analysis'])
-    assert np.isnan(d['threshold_local'][k]) and np.isnan(d['threshold'][k])
-    _, r = detect_spikes_janca(x, FS, baseline=baseline, gap_aware_stats=True,
-                               return_details=True)
-    assert np.isfinite(r['threshold']).all()
+    valid = np.ones(x.size, bool)
+    valid[50 * FS:120 * FS] = False
+    x[50 * FS:120 * FS] = dense_ieeg(FS, dur=70.0, rate=2, seed=18)[0]   # finite, excluded
+    out = {}
+    for mode in ('reference', 'min', 'max'):
+        out[mode] = detect_spikes_janca(x, FS, baseline=baseline, combine=mode, window_s=60.0,
+                                        gap_aware_stats=True, valid=valid, stats_margin_s=0.0,
+                                        min_valid_fraction=0.8, return_details=True)
+    fa = out['min'][1]['fs_analysis']
+    t_ref = out['min'][1]['threshold_reference']
+    k = int(85 * fa)                          # inside the excluded run: undefined everywhere
+    for mode in out:
+        assert np.isnan(out[mode][1]['threshold'][k])
+    loc = out['min'][1]['threshold_local']
+    j = np.flatnonzero(np.isnan(loc) & out['min'][1]['stats_valid'])
+    assert j.size > 0                         # usable samples where the local model is undefined
+    assert np.all(out['min'][1]['threshold'][j] == t_ref)
+    assert np.all(np.isnan(out['max'][1]['threshold'][j]))
+    thr_min, thr_ref = out['min'][1]['threshold'], out['reference'][1]['threshold']
+    both = ~np.isnan(thr_ref)
+    np.testing.assert_array_equal(np.isnan(thr_min), np.isnan(thr_ref))
+    assert np.all(thr_min[both] <= thr_ref[both])
+    assert set(out['reference'][0].tolist()) <= set(out['min'][0].tolist())
+    for mode in out:                          # never inside the excluded run
+        d = out[mode][0]
+        assert not np.any((d >= 50 * FS) & (d < 120 * FS))
+
+
+@pytest.mark.filterwarnings('ignore:window_s=600 s')
+@pytest.mark.parametrize('dc', [500.0, 5000.0])
+@pytest.mark.parametrize('window_s', [30.0, 60.0, 600.0])
+def test_gap_aware_dc_offset_zero_dropouts_no_false_detections(dc, window_s):
+    """Review R1: zero dropouts in a signal with a DC offset (DC-coupled amplifier, raw ADC
+    counts) step by the offset at both edges; the filter transient there must not be
+    detected (those samples are excluded from the statistics and from detection)."""
+    x = dense_ieeg(FS, dur=600.0, rate=0, seed=0)[0] + dc
+    rng = np.random.default_rng(3)
+    for a in rng.integers(10 * FS, x.size - 30 * FS, 20):
+        x[a:a + rng.integers(FS, 10 * FS)] = 0.0
+    det, d = detect_spikes_janca(x, FS, window_s=window_s, gap_aware_stats=True,
+                                 return_details=True)
+    assert det.size == 0
+    # without the fix the transients were detected (the original path: hundreds)
+    assert detect_spikes_janca(x, FS, window_s=window_s).size > 100
 
 
 # ============================================================ through GapAwareSpikeDetector
@@ -670,3 +710,184 @@ def test_masked_stats_are_linear_time_for_long_windows():
     t_short = time.perf_counter() - t
     assert t_long < 3 * t_short + 1.0
     assert t_long < 10.0
+
+
+# ============================================================ round-2 review fixes
+def _montage(scales, dur=120.0, seed=0, rate=0, amp_factor=5.0):
+    """Channels of background rms 30 * scale; with ``rate``, spikes of ``amp_factor`` x 30 uV
+    (before the channel's scale)."""
+    return np.vstack([dense_ieeg(FS, dur=dur, rate=rate, amp=amp_factor * 30.0,
+                                 seed=seed + k)[0] * sc for k, sc in enumerate(scales)])
+
+
+SCALES = (0.3, 1.0, 2.0, 3.0)
+
+
+@pytest.fixture(scope='module')
+def montage_baseline():
+    return JancaBaseline.from_signal(_montage(SCALES, dur=300.0, seed=50), FS,
+                                     channel_names=['A', 'B', 'C', 'D'])
+
+
+def _warnings(fn):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        out = fn()
+    return out, [str(m.message) for m in w]
+
+
+def test_montage_level_warning_gain_mismatch(montage_baseline):
+    """Review R3: a gain mismatch of x3.5 (below the per-channel x10) warns via the montage
+    median of the background level; matching gain and x2 do not."""
+    b = montage_baseline
+    x = _montage(SCALES, seed=60)
+    (_, d), msgs = _warnings(lambda: detect_spikes_janca(x, FS, baseline=b,
+                                                         return_details=True))
+    assert msgs == []
+    assert all(0.8 < c['background_ratio'] < 1.25 for c in d)
+    _, msgs = _warnings(lambda: detect_spikes_janca(x * 2.0, FS, baseline=b))
+    assert msgs == []
+    for g in (3.5, 1 / 3.5):
+        _, msgs = _warnings(lambda: detect_spikes_janca(x * g, FS, baseline=b))
+        assert len(msgs) == 1 and 'background envelope level' in msgs[0]
+
+
+@pytest.mark.parametrize('rate,amp_factor', [(5, 5.0), (10, 5.0), (3, 20.0)])
+def test_montage_level_warning_not_fooled_by_dense_spiking(montage_baseline, rate, amp_factor):
+    """Dense spiking on every channel raises the mean-log level ratio up to ~x4 (beyond the
+    x3 limit) but the low-quantile background level much less: no warning (README,
+    scratch/janca-baseline/r2/r3_probe.out)."""
+    x = _montage(SCALES, seed=60, rate=rate, amp_factor=amp_factor)
+    (_, d), msgs = _warnings(lambda: detect_spikes_janca(x, FS, baseline=montage_baseline,
+                                                         return_details=True))
+    assert msgs == []
+    assert max(c['level_ratio'] for c in d) > 1.4
+    assert np.median([c['background_ratio'] for c in d]) < 3.0
+    if (rate, amp_factor) == (3, 20.0):
+        assert np.median([c['level_ratio'] for c in d]) > 3.0    # mean-log would have warned
+
+
+def test_channel_names_order_checked(montage_baseline):
+    b = montage_baseline
+    x = _montage(SCALES, seed=60)
+    ok = detect_spikes_janca(x, FS, baseline=b, channel_names=['A', 'B', 'C', 'D'])
+    np.testing.assert_array_equal(ok[2], detect_spikes_janca(x, FS, baseline=b)[2])
+    with pytest.raises(ValueError, match=r"select\(\['D', 'C', 'B', 'A'\]\)"):
+        detect_spikes_janca(x[::-1], FS, baseline=b, channel_names=['D', 'C', 'B', 'A'])
+    with pytest.raises(ValueError, match='do not match'):
+        detect_spikes_janca(x, FS, baseline=b, channel_names=['A', 'B', 'C', 'X'])
+    with pytest.raises(ValueError, match='4 channel'):
+        detect_spikes_janca(x, FS, baseline=b, channel_names=['A', 'B'])
+    with pytest.raises(ValueError, match='only apply with a baseline'):
+        detect_spikes_janca(x, FS, channel_names=['A', 'B', 'C', 'D'])
+    rev = b.select(['D', 'C', 'B', 'A'])
+    out = detect_spikes_janca(x[::-1], FS, baseline=rev, channel_names=['D', 'C', 'B', 'A'])
+    np.testing.assert_array_equal(out[3], ok[0])
+    # a broadcast 1-channel baseline is not name-checked
+    detect_spikes_janca(x[1:2], FS, baseline=b.select('B'), broadcast_baseline=True,
+                        channel_names=['other'])
+    # baseline without names: nothing to check against
+    nameless = JancaBaseline(mu=b.mu, sd=b.sd, fs=FS)
+    detect_spikes_janca(x, FS, baseline=nameless, channel_names=['D', 'C', 'B', 'A'])
+
+
+@pytest.mark.filterwarnings(r'ignore:channel\(s\) \[1\] contain no usable sample')
+def test_detector_channel_names_and_channel_types(montage_baseline):
+    b = montage_baseline
+    x = _montage(SCALES, seed=60)
+    with pytest.raises(ValueError, match='do not match'):
+        JancaDetector(baseline=b, channel_names=['D', 'C', 'B', 'A'])
+    with pytest.raises(ValueError, match='only apply with a baseline'):
+        JancaDetector(channel_names=['A'])
+    det = JancaDetector(baseline=b, channel_names=['A', 'B', 'C', 'D'])
+    ref = detect_spikes_janca(x, FS, baseline=b)
+    xg = x.copy()
+    xg[1] = np.nan                                    # wrapper feeds channels singly, skips 1
+    out = GapAwareSpikeDetector(det).detect(xg, FS)
+    np.testing.assert_array_equal(out[2], ref[2])
+    # review C1: channel ids must be integers (or names), never truncated floats / bools
+    with pytest.raises(TypeError, match='integer'):
+        det.detect(x[:1], FS, channels=[1.9], n_channels=4)
+    with pytest.raises(TypeError, match='integer'):
+        det.detect(x[:1], FS, channels=[True], n_channels=4)
+    np.testing.assert_array_equal(det.detect(x[2:3], FS, channels=np.array([2]),
+                                             n_channels=4)[0], ref[2])
+    np.testing.assert_array_equal(det.detect(x[2:4], FS, channels=['C', 'D'])[1], ref[3])
+    with pytest.raises(KeyError):
+        JancaDetector(baseline=b).detect(x[:1], FS, channels=['Z'])
+    with pytest.raises(ValueError, match='channel_names'):
+        JancaDetector(baseline=JancaBaseline(mu=b.mu, sd=b.sd, fs=FS)).detect(
+            x[:1], FS, channels=['A'])
+
+
+def test_from_dict_missing_or_invalid_keys_raise_value_error(baseline):
+    d = baseline.to_dict()
+    for key in ('params', 'mu', 'sd', 'fs_analysis', 'preset', 'n_channels'):
+        bad = dict(d)
+        del bad[key]
+        with pytest.raises(ValueError, match=f"missing key.*'{key}'"):
+            JancaBaseline.from_dict(bad)
+    for key, val in (('params', [1, 2]), ('mu', 3.0), ('mu', []), ('preset', 'nope'),
+                     ('fs_analysis', 'x')):
+        bad = dict(d)
+        bad[key] = val
+        with pytest.raises(ValueError):
+            JancaBaseline.from_dict(bad)
+
+
+@pytest.mark.parametrize('W', [4001, 40001, 4_000_001])
+def test_sliding_sum_long_window_bounded_memory(W):
+    """Review C2: windows much longer than the record give the reflected (repeated) result
+    of scipy's uniform_filter1d, with O(record) memory."""
+    import tracemalloc
+    L = np.random.default_rng(2).normal(2.0, 0.6, 1000)
+    ok = np.ones(L.size, bool)
+    tracemalloc.start()
+    mu, sd = _masked_log_stats(L, ok, W, 0.5)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 2e6
+    m0 = uniform_filter1d(L, W, mode='reflect')
+    s0 = np.sqrt(uniform_filter1d((L - m0) ** 2, W, mode='reflect'))
+    np.testing.assert_allclose(mu, m0, rtol=1e-10)
+    np.testing.assert_allclose(sd, s0, rtol=1e-9)
+
+
+def test_sliding_sum_unchanged_for_windows_up_to_twice_the_record():
+    from brainmaze_eeg.spikes.janca import _sliding_sum
+    a = np.random.default_rng(4).normal(size=300)
+    for W in (3, 301, 601):
+        h = W // 2
+        cs = np.cumsum(np.pad(a, h, mode='symmetric'))
+        ref = cs[W - 1:].copy()
+        ref[1:] -= cs[:-W]
+        np.testing.assert_array_equal(_sliding_sum(a, W), ref)
+    for W in (603, 1201, 5001):                   # periodic path vs explicit padding
+        h = W // 2
+        ap = np.pad(a, h, mode='symmetric')
+        ref = np.array([ap[i:i + W].sum() for i in range(a.size)])
+        np.testing.assert_allclose(_sliding_sum(a, W), ref, rtol=1e-10, atol=1e-9)
+        b = (a > 0)
+        bp = np.pad(b, h, mode='symmetric')
+        np.testing.assert_array_equal(_sliding_sum(b, W),
+                                      [bp[i:i + W].sum() for i in range(b.size)])
+
+
+@pytest.mark.parametrize('fs_b', [511.99, 24414.0625, 512.0])
+def test_exact_decimation_baseline_across_input_rates(fs_b):
+    """Review C3: with decimation='exact' baselines made at 511.99 / 24414.0625 Hz (analysis
+    200.00008 / 199.99982 Hz) apply to a 1000 Hz recording (200 Hz)."""
+    b = JancaBaseline(mu=2.0, sd=0.6, fs=fs_b, decimation='exact')
+    x, _ = dense_ieeg(1000, dur=30.0, rate=1, seed=1)
+    detect_spikes_janca(x, 1000, decimation='exact', baseline=b)
+    JancaBaseline(mu=2.0, sd=0.6, fs=fs_b, fs_analysis=200.0, decimation='exact')
+
+
+def test_analysis_rate_mismatch_message_has_enough_digits():
+    b = JancaBaseline(mu=2.0, sd=0.6, fs_analysis=200.001, decimation='exact')
+    x, _ = dense_ieeg(1000, dur=30.0, rate=1, seed=1)
+    with pytest.raises(ValueError, match=r'200\.001 Hz, detector 200 Hz'):
+        detect_spikes_janca(x, 1000, decimation='exact', baseline=b)
+    bi = JancaBaseline(mu=2.0, sd=0.6, fs_analysis=200.000001)        # integer: strict
+    with pytest.raises(ValueError, match=r'200\.000001 Hz'):
+        detect_spikes_janca(x, 1000, baseline=bi)

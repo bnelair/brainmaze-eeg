@@ -64,8 +64,12 @@ detector raises ``ValueError`` naming every mismatch. The **decision** parameter
 ``threshold``, ``min_distance_s``, ``window_s`` (local model), ``combine``.
 
 Not checkable, and the user's responsibility: the amplitude **unit** and gain (uV vs V), the
-**montage**/reference and the **channel order**. The detector warns when a channel's envelope
-level differs from the baseline's by more than 10x (``BASELINE_LEVEL_WARN_RATIO``).
+**montage**/reference and the **channel order**. Safety nets: the detector warns when a
+channel's envelope level differs from the baseline's by more than 10x
+(``BASELINE_LEVEL_WARN_RATIO``), and when the median over channels of the background level
+(a low quantile of the log-envelope, little moved by dense spiking) differs by more than 3x
+(``MONTAGE_LEVEL_WARN_RATIO``). The channel order is checked (``ValueError``) when the
+detector is given ``channel_names`` and the baseline has them.
 
 Limitations
 -----------
@@ -85,8 +89,8 @@ import numpy as np
 
 from brainmaze_eeg.spikes import _checks as chk
 from brainmaze_eeg.spikes._gaps import FLAT_AS_GAP_S, flat_runs
-from brainmaze_eeg.spikes.janca import (_P, DEFAULT_STATS_MARGIN_S, SIGNAL_PATH_PARAMS,
-                                        _as_channels_first, _channel_envelope,
+from brainmaze_eeg.spikes.janca import (_P, _RATIO_REL_TOL, DEFAULT_STATS_MARGIN_S,
+                                        SIGNAL_PATH_PARAMS, _as_channels_first, _channel_envelope,
                                         _envelope_scale, _signal_path, janca_params,
                                         janca_resampling, janca_threshold)
 
@@ -99,6 +103,17 @@ BASELINE_SCHEMA_VERSION = 1
 
 _NOTCH_PARAMS = ('notch_width', 'notch_order', 'notch_harmonics')
 _FS_REL_TOL = 1e-9
+#: With ``decimation='exact'`` every analysis rate is ``target_fs`` to within the rational
+#: approximation's relative ``_RATIO_REL_TOL`` (1e-6), so two of them agree to twice that
+#: (511.99 Hz -> 200.00008 Hz, 24414.0625 Hz -> 199.99982 Hz, 1000 Hz -> 200 Hz).
+_FS_REL_TOL_EXACT = 2 * _RATIO_REL_TOL
+
+
+def _same_fs_analysis(a, b, decimation):
+    """Whether analysis rates ``a`` and ``b`` are the same for the signal path's
+    ``decimation`` (relative 1e-9 for ``'integer'``, 2e-6 for ``'exact'``)."""
+    tol = _FS_REL_TOL_EXACT if decimation == 'exact' else _FS_REL_TOL
+    return math.isclose(a, b, rel_tol=tol)
 _MAD_TO_SD = 1.4826
 
 
@@ -200,10 +215,10 @@ target_fs, decimation, eps_rel
             fa = janca_resampling(fs, p['target_fs'], p['decimation'])[2]
             if fs_analysis is not None:
                 fs_analysis = chk.number('fs_analysis', fs_analysis, gt=0)
-                if not math.isclose(fa, fs_analysis, rel_tol=_FS_REL_TOL):
-                    raise ValueError(f'fs={fs:g} Hz gives an analysis rate of {fa:g} Hz with '
-                                     f"target_fs={p['target_fs']}, decimation="
-                                     f"{p['decimation']!r}, not fs_analysis={fs_analysis:g}")
+                if not _same_fs_analysis(fa, fs_analysis, p['decimation']):
+                    raise ValueError(f'fs={fs:.12g} Hz gives an analysis rate of {fa:.12g} Hz '
+                                     f"with target_fs={p['target_fs']}, decimation="
+                                     f"{p['decimation']!r}, not fs_analysis={fs_analysis:.12g}")
             fs_analysis = fa
         fs_analysis = chk.number('fs_analysis', fs_analysis, gt=0)
         if not p['band'][1] < fs_analysis / 2:
@@ -411,12 +426,12 @@ target_fs, decimation, eps_rel
                 a, b = tuple(a), tuple(b)
             if a != b:
                 bad.append(f'{k}: baseline {a!r}, detector {b!r}')
-        if fs_analysis is not None and not math.isclose(self._fs_analysis, fs_analysis,
-                                                        rel_tol=_FS_REL_TOL):
-            bad.append(f'fs_analysis: baseline {self._fs_analysis:g} Hz, detector '
-                       f'{fs_analysis:g} Hz (it follows from the input rate, target_fs and '
-                       "decimation; decimation='exact' gives the same analysis rate for "
-                       'different input rates)')
+        if fs_analysis is not None and not _same_fs_analysis(self._fs_analysis, fs_analysis,
+                                                             self._params['decimation']):
+            bad.append(f'fs_analysis: baseline {self._fs_analysis:.12g} Hz, detector '
+                       f'{fs_analysis:.12g} Hz (it follows from the input rate, target_fs and '
+                       "decimation; decimation='exact' gives the same analysis rate, to a "
+                       'relative 2e-6, for different input rates)')
         if bad:
             raise ValueError('the baseline was made with a different signal path: '
                              + '; '.join(bad) + '. The signal-path parameters '
@@ -487,7 +502,8 @@ target_fs, decimation, eps_rel
 
     @classmethod
     def from_dict(cls, d):
-        """Inverse of :meth:`to_dict` (schema checked)."""
+        """Inverse of :meth:`to_dict` (schema checked; ``ValueError`` naming a missing or
+        invalid key)."""
         if not isinstance(d, dict) or d.get('format') != BASELINE_SCHEMA:
             raise ValueError(f'not a JancaBaseline (format must be {BASELINE_SCHEMA!r})')
         ver = d.get('schema_version')
@@ -496,16 +512,30 @@ target_fs, decimation, eps_rel
         if ver > BASELINE_SCHEMA_VERSION:
             raise ValueError(f'schema_version {ver} is newer than this brainmaze_eeg '
                              f'supports ({BASELINE_SCHEMA_VERSION}); upgrade brainmaze_eeg')
+        required = ('n_channels', 'mu', 'sd', 'fs_analysis', 'preset', 'params')
+        missing_keys = [k for k in required if k not in d]
+        if missing_keys:
+            raise ValueError(f'invalid JancaBaseline dict: missing key(s) {missing_keys}')
+        for k in ('mu', 'sd'):
+            if not isinstance(d[k], (list, tuple)) or not d[k]:
+                raise ValueError(f'invalid JancaBaseline dict: {k!r} must be a non-empty list, '
+                                 f'got {d[k]!r}')
+        if not isinstance(d['params'], dict):
+            raise ValueError(f"invalid JancaBaseline dict: 'params' must be a dict, got "
+                             f"{d['params']!r}")
         params = dict(d['params'])
         unknown = set(params) - set(SIGNAL_PATH_PARAMS)
         missing = set(SIGNAL_PATH_PARAMS) - set(params)
         if unknown or missing:
             raise ValueError(f'params: unknown {sorted(unknown)}, missing {sorted(missing)}')
-        params['band'] = tuple(params['band'])
-        b = cls(d['mu'], d['sd'], fs_analysis=d['fs_analysis'], fs=d.get('fs'),
-                preset=d['preset'], **params, valid_s=d.get('valid_s'),
-                channel_names=d.get('channel_names'), units=d.get('units'),
-                info=d.get('info'))
+        try:
+            params['band'] = tuple(params['band'])
+            b = cls(d['mu'], d['sd'], fs_analysis=d['fs_analysis'], fs=d.get('fs'),
+                    preset=d['preset'], **params, valid_s=d.get('valid_s'),
+                    channel_names=d.get('channel_names'), units=d.get('units'),
+                    info=d.get('info'))
+        except (TypeError, KeyError) as err:
+            raise ValueError(f'invalid JancaBaseline dict: {err}') from err
         if b.n_channels != d.get('n_channels') or len(d['mu']) != len(d['sd']):
             raise ValueError(f"n_channels {d.get('n_channels')!r} does not match mu/sd "
                              f"({len(d['mu'])}/{len(d['sd'])})")
