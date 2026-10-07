@@ -7,6 +7,8 @@ Detectors
   distribution-modelling detector (Janca et al. 2015), eeg_forge formulation with verified
   filters; presets ``'spike'`` (default) and ``'ripple'`` (80-250 Hz, not validated on real
   ripples) of one implementation. Layout ``(n_samples,)`` or ``(n_channels, n_samples)``.
+  Optional (3.1.0): a reference baseline (:class:`~brainmaze_eeg.spikes.janca_baseline.JancaBaseline`)
+  for permanently spiking channels, and gap-aware local statistics for long windows.
 - :class:`~brainmaze_eeg.spikes.janca.SpikeDetectorHilbert` (alias
   ``spike_detector_hilbert_v24``) -- port of the MATLAB ``spike_detector_hilbert_v24`` with
   its full output. Layout ``(n_samples, n_channels)`` (MATLAB convention).
@@ -33,15 +35,18 @@ and the comparison with the reference implementations.
 from brainmaze_eeg.spikes.barkmeier import (DEFAULT_THRESHOLDS, BarkmeierDetector,
                                             design_barkmeier_filters, detect_spikes_barkmeier)
 from brainmaze_eeg.spikes.gap_aware import GapAwareSpikeDetector
-from brainmaze_eeg.spikes.janca import (JANCA_PRESETS, MAX_RESAMPLER_LOSS_DB, JancaDetector,
+from brainmaze_eeg.spikes.janca import (COMBINE_MODES, JANCA_PRESETS, MAX_RESAMPLER_LOSS_DB,
+                                        SIGNAL_PATH_PARAMS, JancaDetector,
                                         SpikeDetectorHilbert, design_janca_filters,
                                         detect_spikes_janca, janca_decimation_factor,
-                                        janca_params, janca_resampling, resampler_gain_db,
-                                        spike_detector_hilbert_v24)
+                                        janca_params, janca_resampling, janca_threshold,
+                                        resampler_gain_db, spike_detector_hilbert_v24)
+from brainmaze_eeg.spikes.janca_baseline import JancaBaseline
 
 __all__ = [
     'GapAwareSpikeDetector',
     'detect_spikes_janca', 'JancaDetector', 'JANCA_PRESETS', 'janca_params',
+    'JancaBaseline', 'janca_threshold', 'SIGNAL_PATH_PARAMS', 'COMBINE_MODES',
     'design_janca_filters', 'janca_decimation_factor', 'janca_resampling', 'resampler_gain_db',
     'MAX_RESAMPLER_LOSS_DB', 'SpikeDetectorHilbert', 'spike_detector_hilbert_v24',
     'detect_spikes_barkmeier', 'BarkmeierDetector', 'design_barkmeier_filters',

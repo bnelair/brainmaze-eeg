@@ -58,7 +58,7 @@ import warnings
 import numpy as np
 
 __all__ = ['FILL_METHODS', 'find_gaps', 'gap_intervals', 'fill_gaps', 'pink_noise',
-           'mask_in_gaps', 'drop_in_gaps', 'gap_mask']
+           'mask_in_gaps', 'drop_in_gaps', 'gap_mask', 'flat_runs', 'FLAT_AS_GAP_S']
 
 FILL_METHODS = ('pink', 'mirror', 'linear')
 
@@ -100,6 +100,36 @@ def gap_mask(gaps, n_samples):
     for s, e in np.asarray(gaps, dtype=np.int64).reshape(-1, 2):
         m[s:e] = True
     return m
+
+
+#: Default minimum length (s) of a run of exactly equal samples that counts as missing data
+#: (``GapAwareSpikeDetector(flat_as_gap_s=...)``; see its module docstring for the evidence).
+FLAT_AS_GAP_S = 0.1
+
+
+def flat_runs(x, fs, flat_as_gap_s=FLAT_AS_GAP_S):
+    """
+    Runs of exactly equal consecutive samples lasting at least ``flat_as_gap_s`` seconds
+    (at least 2 samples) in a 1-D signal: the rule by which
+    :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` treats constant stretches
+    (dropouts stored as a constant, clipping) as missing data. NaN never equals anything, so
+    NaN runs are not reported here (use :func:`find_gaps`). ``flat_as_gap_s=None`` disables
+    the rule (no runs). Not part of ``brainmaze_utils.gaps``.
+
+    Returns
+    -------
+    np.ndarray, shape (n_runs, 2), int64
+        ``[start, stop)`` sample indices.
+    """
+    y = np.asarray(x)
+    if flat_as_gap_s is None or y.size < 2:
+        return np.zeros((0, 2), np.int64)
+    min_len = max(int(np.ceil(flat_as_gap_s * fs - 1e-9)), 2)
+    eq = y[1:] == y[:-1]                       # NaN never equals anything
+    d = np.diff(np.concatenate(([0], eq.astype(np.int8), [0])))
+    st, en = np.flatnonzero(d == 1), np.flatnonzero(d == -1) + 1   # sample runs
+    keep = (en - st) >= min_len
+    return np.stack([st[keep], en[keep]], axis=1).astype(np.int64)
 
 
 def pink_noise(n, beta=1.0, fmin_bins=1, rng=None):
