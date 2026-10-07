@@ -597,9 +597,11 @@ Steps:
    so they cannot bias cross-channel statistics such as Barkmeier's median scaling. They
    are flagged and give no detections.
 3. **Detect.** The detector runs on the filled montage. Detectors with
-   `accepts_valid = True` (Barkmeier) also receive the gap mask and keep filled samples out
-   of their statistics. Detectors with `channel_independent = True` (Janca, v24) are fed
-   one channel at a time, which bounds memory.
+   `accepts_valid = True` (Barkmeier; `JancaDetector(gap_aware_stats=True)`) also receive
+   the gap mask and keep filled samples out of their statistics. Detectors with
+   `channel_independent = True` (Janca, v24) are fed one channel at a time, which bounds
+   memory; `JancaDetector(baseline=...)` also receives the channel indices
+   (`accepts_channels`) so that each channel uses its own baseline row.
 4. **Remove.** Every detection inside a gap, or within `edge_margin_s` (0.2 s) of one, is
    dropped, for short (interpolated) gaps as well as long ones.
 5. **Report.** With `return_info=True`, per channel:
@@ -625,9 +627,11 @@ detectors).
 - **Output:** one entry per channel. Each entry is either an int array of sample indices,
   or a list of dicts with `'peak_index'`.
 - **Optional:** `accepts_valid = True` makes the wrapper call `detect(x, fs, valid=mask)`.
-
 - **Optional:** `channel_independent = True` makes the wrapper call `detect` once per
   channel (bounded memory).
+- **Optional (3.1.0):** `accepts_channels = True` makes the wrapper also pass
+  `channels=` (indices of the passed rows in the caller's array) and `n_channels=` (the
+  caller's channel count), for detectors with per-channel state such as a baseline.
 
 So any detector, e.g. the ripple preset `JancaDetector('ripple')`, works without changes to
 the wrapper.
