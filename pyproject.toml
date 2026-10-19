@@ -49,6 +49,14 @@ urls = { "Homepage" = "https://github.com/bnelair/brainmaze-eeg" }
 plot = [
     "matplotlib>=3.7",
 ]
+# The trained models (seizure probability, sleep spindles; ONNX Runtime, no PyTorch) are a
+# separate package, brainmaze-eeg-models, imported as `brainmaze_eeg_models`. brainmaze_eeg
+# never imports it; this extra only installs it next to brainmaze-eeg. It depends on
+# brainmaze-utils>=3.0.0, numpy>=1.24 and scipy>=1.10 (the same floors as here) and NOT on
+# brainmaze-eeg, so there is no circular dependency.
+models = [
+    "brainmaze-eeg-models>=0.1.0",
+]
 test = [
     # >= 8.2: older pytest in --import-mode=importlib (used by the family compatibility
     # workflow) cannot import the shared helper brainmaze_eeg.tests.spike_synth.

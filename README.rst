@@ -31,6 +31,20 @@ needs matplotlib, which is an optional extra:
 
     pip install "brainmaze-eeg[plot]"
 
+The trained models (seizure probability on iEEG, OpenSpindleNet sleep-spindle detection) are
+in a separate package, `brainmaze-eeg-models <https://github.com/bnelair/brainmaze-eeg-models>`_
+(`documentation <https://bnelair.github.io/brainmaze-eeg-models/>`_). They run on ONNX Runtime
+and do not need PyTorch. The ``models`` extra installs that package next to brainmaze-eeg:
+
+.. code-block:: bash
+
+    pip install "brainmaze-eeg[models]"          # same as: pip install brainmaze-eeg brainmaze-eeg-models
+    pip install "brainmaze-eeg[plot,models]"
+
+The models are imported from their own package (``import brainmaze_eeg_models``), not from
+``brainmaze_eeg``, which works the same with or without them. For an NVIDIA GPU, see the
+GPU section of the brainmaze-eeg-models documentation (there is deliberately no GPU extra).
+
 What's new in 3.1.0
 """""""""""""""""""""""""""
 
