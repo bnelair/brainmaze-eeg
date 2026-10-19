@@ -1,4 +1,5 @@
-"""Gap helpers (brainmaze_eeg.spikes._gaps, a stand-in for brainmaze_utils.gaps)."""
+"""Gap helpers (brainmaze_eeg.spikes._gaps: its own fill_gaps, the rest re-exported from
+brainmaze_utils.gaps)."""
 
 import numpy as np
 import pytest
@@ -162,3 +163,45 @@ def test_fill_nd_axis_copy_and_dtype():
         fill_gaps(Z, fs, all_nan='raise')
     with pytest.raises(ValueError):
         fill_gaps(X, fs, axis=2)
+
+
+# ---------------------------------------------------------------- relation to brainmaze_utils.gaps
+def test_shared_helpers_are_brainmaze_utils_gaps():
+    """find_gaps, gap_intervals, pink_noise, mask_in_gaps and drop_in_gaps are re-exported from
+    brainmaze_utils.gaps (they were bit-identical copies before)."""
+    import brainmaze_utils.gaps as ug
+    import brainmaze_eeg.spikes._gaps as eg
+    for name in ('find_gaps', 'gap_intervals', 'pink_noise', 'mask_in_gaps', 'drop_in_gaps'):
+        assert getattr(eg, name) is getattr(ug, name), name
+
+
+def test_fill_gaps_is_this_packages_own_and_unchanged():
+    """fill_gaps must stay eeg's own: brainmaze_utils.gaps.fill_gaps' 'mirror'/'pink' give
+    different values, which would change GapAwareSpikeDetector's detections near gaps.
+    Golden values from brainmaze-eeg 3.1.0 (identical before and after the switch of the other
+    helpers to brainmaze_utils.gaps)."""
+    import brainmaze_utils.gaps as ug
+    import brainmaze_eeg.spikes._gaps as eg
+    assert eg.fill_gaps is not ug.fill_gaps
+    rng = np.random.default_rng(0)
+    fs = 100.0
+    x = np.sin(2 * np.pi * 3 * np.arange(400) / fs) * 10 + rng.standard_normal(400)
+    x[150:170] = np.nan
+    golden = {
+        'mirror': [2.852620332840005, 2.575500414948935, 4.728515399293041, 4.011226272455118,
+                   6.654918134831659, 7.938620895156165, 8.662556631574013, 9.464982366034725,
+                   9.07149316814137, 9.71481097487407, 10.44860771433561, 7.084013657945581,
+                   11.472281504397595, 9.062374929855409, 9.934885772157747, 10.116486458958578,
+                   9.470021020521962, 9.137134015192807, 7.222333498474291, 6.916145409074142],
+        'pink': [3.583286064792442, 6.117605601743989, 9.744114635523607, 7.765643173016351,
+                 8.616828485513862, -4.694680934752631, 3.31670755532776, 19.665147714904236,
+                 13.29070050397142, 4.342817734680092, 15.668651406060391, -7.6276481783232555,
+                 1.7488892847078705, -14.201595933671152, -18.20317147948741, -6.998799291318073,
+                 7.394753034343818, 6.565562386388333, 3.115175247336629, 6.753947744522344],
+    }
+    for method, want in golden.items():
+        y = eg.fill_gaps(x, fs, method=method, max_interp_s=0.02, context_s=1.0, taper_s=0.05,
+                         seed=0)
+        np.testing.assert_allclose(y[150:170], want, rtol=1e-9, atol=1e-9, err_msg=method)
+        np.testing.assert_array_equal(y[:150], x[:150])
+        np.testing.assert_array_equal(y[170:], x[170:])

@@ -37,52 +37,38 @@ Three steps around an unchanged detector:
 
 Relation to ``brainmaze_utils.gaps``
 ------------------------------------
-The canonical gap helpers of the BrainMaze family are being added to brainmaze-utils
-(``brainmaze_utils.gaps``, PR bnelair/brainmaze-utils#26, to ship in brainmaze-utils 3.0.0).
-This module is a deliberately thin, self-contained stand-in with the same names, signatures
-and semantics as that module's final API: ``find_gaps``, ``gap_intervals``,
-``fill_gaps(x, fs, *, max_interp_s, method, context_s, taper_s, beta, seed, axis, all_nan,
-copy)``, ``pink_noise``, and ``mask_in_gaps``/``drop_in_gaps(det, gaps, fs, *, units,
-gap_units, margin_s=0.1, end=None)`` with explicit, separate units for the detections and the
-gaps (both required). The one difference: there is **no**
-``'spectral'`` fill here (the default there), so this module's default ``method`` is
-``'mirror'``. :class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` always passes
-``method`` explicitly, so switching to ``from brainmaze_utils.gaps import ...`` is a one-line
-change (follow-up, once brainmaze-utils 3.0.0 is released; then benchmark ``'spectral'`` as the wrapper
-default).
+:func:`find_gaps`, :func:`gap_intervals`, :func:`pink_noise`, :func:`mask_in_gaps` and
+:func:`drop_in_gaps` **are** ``brainmaze_utils.gaps``' functions (imported from
+brainmaze-utils >= 3.0.0 and re-exported here; this module used to carry copies of them, and
+they gave bit-identical results; the one difference is input validation: ``fs`` given as a
+numeric string such as ``'256'`` is now accepted instead of raising ``ValueError``).
+
+:func:`fill_gaps` stays here on purpose. ``brainmaze_utils.gaps.fill_gaps`` has the same
+signature, but its ``'mirror'`` and ``'pink'`` fills are a later, different design (odd
+reflection at the edges and a correlation-aware cross-fade normalisation for ``'mirror'``;
+kriging-conditioned edges, a different per-gap seeding and a ``'spectral'`` default for the
+noise fills). Switching would change the fill values, and with them the detections of
+:class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector` next to gaps (on synthetic and
+real data, 66 of 68 tested ``'mirror'``/``'pink'`` configurations differ in the kept
+detections, the Barkmeier records or ``info['n_removed']``; all ``'linear'`` ones are
+identical). The detections of this package must not change in a minor release, so the
+wrapper keeps the fill it was validated with. Only ``'linear'`` and short-gap interpolation are identical in both.
+Differences from ``brainmaze_utils.gaps.fill_gaps``: no ``'spectral'`` method, default
+``method='mirror'`` (there ``'spectral'``), and different fill values for ``'mirror'`` and
+``'pink'``. :func:`gap_mask` and :func:`flat_runs` are specific to this package.
 """
 
 import hashlib
 import warnings
 
 import numpy as np
+# Identical in brainmaze_utils.gaps (>= 3.0.0): use the family's implementation.
+from brainmaze_utils.gaps import drop_in_gaps, find_gaps, gap_intervals, mask_in_gaps, pink_noise
 
 __all__ = ['FILL_METHODS', 'find_gaps', 'gap_intervals', 'fill_gaps', 'pink_noise',
            'mask_in_gaps', 'drop_in_gaps', 'gap_mask', 'flat_runs', 'FLAT_AS_GAP_S']
 
 FILL_METHODS = ('pink', 'mirror', 'linear')
-
-
-def find_gaps(x):
-    """
-    Runs of non-finite samples (NaN, +inf, -inf) in a 1-D signal.
-
-    Returns
-    -------
-    np.ndarray, shape (n_gaps, 2), int64
-        ``[start, stop)`` sample indices of each run (``stop`` exclusive), in order.
-    """
-    x = np.asarray(x)
-    if x.ndim != 1:
-        raise ValueError(f'find_gaps expects a 1-D signal, got shape {x.shape}')
-    d = np.diff(np.concatenate(([0], (~np.isfinite(x)).astype(np.int8), [0])))
-    return np.stack([np.flatnonzero(d == 1), np.flatnonzero(d == -1)], axis=1).astype(np.int64)
-
-
-def gap_intervals(x, fs):
-    """Gaps of a 1-D signal as ``[start, stop)`` times in **seconds**, shape (n_gaps, 2)."""
-    _check_fs(fs)
-    return find_gaps(x) / float(fs)
 
 
 def _check_fs(fs):
@@ -130,21 +116,6 @@ def flat_runs(x, fs, flat_as_gap_s=FLAT_AS_GAP_S):
     st, en = np.flatnonzero(d == 1), np.flatnonzero(d == -1) + 1   # sample runs
     keep = (en - st) >= min_len
     return np.stack([st[keep], en[keep]], axis=1).astype(np.int64)
-
-
-def pink_noise(n, beta=1.0, fmin_bins=1, rng=None):
-    """Zero-mean, unit-variance ``1/f**beta`` noise of length ``n`` (spectral synthesis).
-    Frequency bins below ``fmin_bins`` are zeroed."""
-    rng = np.random.default_rng(rng)
-    if n <= 1:
-        return np.zeros(max(n, 0))
-    k = np.arange(n // 2 + 1, dtype=float)
-    amp = np.zeros_like(k)
-    keep = k >= max(fmin_bins, 1)
-    amp[keep] = k[keep] ** (-beta / 2.0)
-    y = np.fft.irfft(amp * np.exp(2j * np.pi * rng.random(k.size)), n)
-    sd = y.std()
-    return (y - y.mean()) / sd if sd > 0 else np.zeros(n)
 
 
 def _robust_sd(v):
@@ -333,111 +304,3 @@ def fill_gaps(x, fs, *, max_interp_s=0.1, method='mirror', context_s=30.0, taper
                       + ('left unchanged' if all_nan == 'keep' else 'set to zeros'),
                       RuntimeWarning, stacklevel=2)
     return out
-
-
-_INTEGRAL_TOL = 1e-6             # |v - round(v)| accepted as an integer sample index
-
-
-def _to_seconds(name, v, units, fs, units_name):
-    """Positions in ``units`` -> float seconds (same validation as brainmaze_utils.gaps)."""
-    v = np.asarray(v)
-    if not np.issubdtype(v.dtype, np.number) or np.issubdtype(v.dtype, np.complexfloating):
-        raise TypeError(f'{name} must be real numbers, got dtype {v.dtype}')
-    vf = v.astype(np.float64)
-    if not np.isfinite(vf).all():
-        raise ValueError(f'{name} contains NaN/inf')
-    if units == 'seconds':
-        if vf.size and np.issubdtype(v.dtype, np.integer):
-            raise ValueError(
-                f"{name} is integer-typed (sample indices?) but {units_name}='seconds'. "
-                f"Use {units_name}='samples' for sample indices; if they really are whole "
-                f"seconds, pass them as floats (np.asarray({name}, float)).")
-        return vf
-    if not np.issubdtype(v.dtype, np.integer):
-        r = np.round(vf)
-        if np.any(np.abs(vf - r) > _INTEGRAL_TOL):
-            raise ValueError(
-                f"{name} has non-integer values but {units_name}='samples'. Are they in "
-                f"seconds? Then use {units_name}='seconds'. (Values within {_INTEGRAL_TOL:g} "
-                "of an integer, e.g. t * fs, are accepted as sample indices.)")
-        vf = r
-    return vf / fs
-
-
-def mask_in_gaps(det, gaps, fs, *, units, gap_units, margin_s=0.1, end=None):
-    """
-    Boolean mask of detections overlapping a gap widened by ``margin_s`` on each side.
-
-    Parameters
-    ----------
-    det : array_like
-        Detection positions, or interval starts, in ``units``.
-    gaps : array_like, shape (n_gaps, 2)
-        ``[start, stop)`` of each gap in ``gap_units``: :func:`find_gaps` gives samples,
-        :func:`gap_intervals` gives seconds.
-    fs : float
-        Sampling frequency (Hz), required.
-    units : {'seconds', 'samples'}
-        Units of ``det`` (and ``end``); required, never inferred.
-    gap_units : {'seconds', 'samples'}
-        Units of ``gaps``; required, never inferred. Integer-typed values with
-        ``'seconds'`` raise ``ValueError`` (pass whole seconds as floats); with
-        ``'samples'``, float values must be integral within 1e-6 (``t * fs`` is fine) or
-        ``ValueError`` is raised (a units mix-up must not silently mask nothing).
-    margin_s : float
-        Exclusion margin in **seconds** (default 0.1).
-    end : array_like, optional
-        Interval ends (same shape as ``det``, ``end >= det``).
-
-    Returns
-    -------
-    np.ndarray of bool
-        True where ``[det, end]`` overlaps ``[gap_start - margin, gap_stop + margin)``.
-    """
-    for nm, u in (('units', units), ('gap_units', gap_units)):
-        if u not in ('samples', 'seconds'):
-            raise ValueError(f"{nm} must be 'seconds' or 'samples', got {u!r}")
-    _check_fs(fs)
-    fs = float(fs)
-    if not (np.isfinite(margin_s) and margin_s >= 0):
-        raise ValueError(f'margin_s must be finite >= 0, got {margin_s}')
-    g_raw = np.asarray(gaps)
-    if g_raw.size == 0:
-        g_raw = g_raw.reshape(0, 2)
-    if g_raw.ndim != 2 or g_raw.shape[1] != 2:
-        raise ValueError(f'gaps must have shape (n_gaps, 2), got {g_raw.shape}')
-    g = _to_seconds('gaps', g_raw, gap_units, fs, 'gap_units')
-    if np.any(g[:, 1] < g[:, 0]):
-        raise ValueError('gaps must have stop >= start')
-    t0 = np.atleast_1d(_to_seconds('det', det, units, fs, 'units'))
-    if end is None:
-        t1 = t0
-    else:
-        t1 = np.atleast_1d(_to_seconds('end', end, units, fs, 'units'))
-        if t1.shape != t0.shape:
-            raise ValueError(f'end has shape {t1.shape}, det has shape {t0.shape}')
-        if np.any(t1 < t0):
-            raise ValueError('end must be >= det for every detection')
-    out = np.zeros(t0.shape, dtype=bool)
-    if g.size == 0 or t0.size == 0:
-        return out
-    lo = g[:, 0] - margin_s
-    order = np.argsort(lo)
-    lo, hi = lo[order], np.maximum.accumulate(g[order, 1] + margin_s)
-    k = np.searchsorted(lo, t1, side='right') - 1          # last widened gap starting <= end
-    ok = k >= 0
-    out[ok] = t0[ok] < hi[k[ok]]
-    return out
-
-
-def drop_in_gaps(det, gaps, fs, *, units, gap_units, margin_s=0.1, end=None):
-    """
-    ``det`` without the detections flagged by :func:`mask_in_gaps` (original dtype), or
-    ``(det, end)`` when ``end`` is given.
-    """
-    det_a = np.atleast_1d(np.asarray(det))
-    keep = ~mask_in_gaps(det_a, gaps, fs, units=units, gap_units=gap_units,
-                         margin_s=margin_s, end=end)
-    if end is None:
-        return det_a[keep]
-    return det_a[keep], np.atleast_1d(np.asarray(end))[keep]

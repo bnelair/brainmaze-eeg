@@ -41,7 +41,17 @@ Gap handling
    :members: GapAwareSpikeDetector
 
 .. automodule:: brainmaze_eeg.spikes._gaps
-   :members: find_gaps, gap_intervals, fill_gaps, mask_in_gaps, drop_in_gaps, pink_noise, flat_runs, FLAT_AS_GAP_S
+   :members: fill_gaps, flat_runs, FLAT_AS_GAP_S
+
+``brainmaze_eeg.spikes._gaps`` also re-exports these functions of ``brainmaze_utils.gaps``
+(brainmaze-utils >= 3.0.0), documented there:
+`find_gaps <https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.find_gaps>`_,
+`gap_intervals <https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.gap_intervals>`_,
+`mask_in_gaps <https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.mask_in_gaps>`_,
+`drop_in_gaps <https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.drop_in_gaps>`_ and
+`pink_noise <https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.pink_noise>`_.
+Its ``fill_gaps`` (above) is this package's own and differs from
+``brainmaze_utils.gaps.fill_gaps`` (see the module description).
 
 Filter design
 -------------

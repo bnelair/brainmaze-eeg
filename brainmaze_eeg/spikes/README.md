@@ -738,15 +738,17 @@ its band powers, measured on spiky context, are re-synthesised as continuous noi
 default stays `'mirror'`, passed explicitly, also after switching to `brainmaze_utils.gaps`.
 
 **Helpers.** `brainmaze_eeg/spikes/_gaps.py` provides `find_gaps`, `gap_intervals`,
-`fill_gaps`, `mask_in_gaps(det, gaps, fs, *, units, margin_s, end)` and `drop_in_gaps`.
-Units are always explicit; a units mix-up raises instead of silently masking nothing.
+`fill_gaps`, `mask_in_gaps(det, gaps, fs, *, units, gap_units, margin_s, end)` and
+`drop_in_gaps`. Units are always explicit; a units mix-up raises instead of silently masking
+nothing.
 
-These helpers are a thin stand-in with the same names and semantics as the final API of
-`brainmaze_utils.gaps` (brainmaze-utils PR #26, not yet released). The stand-in has no
-`'spectral'` fill; that fill matches the neighbours' spectrum and is the default there.
-
-Follow-up: replace `_gaps.py` with `brainmaze_utils.gaps` once it is released, keeping
-`fill='mirror'` explicit (see above).
+`find_gaps`, `gap_intervals`, `pink_noise`, `mask_in_gaps` and `drop_in_gaps` are
+`brainmaze_utils.gaps`' own functions (brainmaze-utils >= 3.0.0), re-exported. `fill_gaps`
+stays in this package: `brainmaze_utils.gaps.fill_gaps` has the same signature, but its
+`'mirror'` and `'pink'` fills are a later design that produces different fill values, and
+switching would change the wrapper's detections next to gaps. This package also has no
+`'spectral'` fill (the default there). The wrapper keeps the fill it was validated with,
+`fill='mirror'`, passed explicitly (see above).
 
 ## Filter verification
 
