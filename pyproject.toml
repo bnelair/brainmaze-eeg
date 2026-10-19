@@ -51,9 +51,8 @@ plot = [
 ]
 # The trained models (seizure probability, sleep spindles; ONNX Runtime, no PyTorch) are a
 # separate package, brainmaze-eeg-models, imported as `brainmaze_eeg_models`. brainmaze_eeg
-# never imports it; this extra only installs it next to brainmaze-eeg. It depends on
-# brainmaze-utils>=3.0.0, numpy>=1.24 and scipy>=1.10 (the same floors as here) and NOT on
-# brainmaze-eeg, so there is no circular dependency.
+# never imports it; this extra only installs it next to brainmaze-eeg. Invariant: the models
+# package must never depend on brainmaze-eeg (that would make this extra circular).
 models = [
     "brainmaze-eeg-models>=0.1.0",
 ]

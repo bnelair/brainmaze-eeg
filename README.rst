@@ -42,8 +42,12 @@ and do not need PyTorch. The ``models`` extra installs that package next to brai
     pip install "brainmaze-eeg[plot,models]"
 
 The models are imported from their own package (``import brainmaze_eeg_models``), not from
-``brainmaze_eeg``, which works the same with or without them. For an NVIDIA GPU, see the
-GPU section of the brainmaze-eeg-models documentation (there is deliberately no GPU extra).
+``brainmaze_eeg``, which works the same with or without them. For an NVIDIA GPU, follow
+`NVIDIA GPU <https://bnelair.github.io/brainmaze-eeg-models/installation.html#nvidia-gpu>`_
+in the brainmaze-eeg-models documentation (there is deliberately no GPU extra). Note that
+after that swap, **any** later ``pip install "brainmaze-eeg[models]"`` (not only ``-U``)
+installs the CPU ``onnxruntime`` again, which then shadows the GPU build; repeat the swap
+afterwards.
 
 What's new in 3.1.0
 """""""""""""""""""""""""""
