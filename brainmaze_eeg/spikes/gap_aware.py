@@ -76,7 +76,11 @@ If the object has ``accepts_valid = True``, ``detect`` is called as
 ``detect(x, fs, valid=mask)`` with a boolean ``(n_channels, n_samples)`` mask that is False
 on filled samples, so the detector can exclude them from its statistics. If it has
 ``channel_independent = True`` (its result for one channel never depends on the others),
-the wrapper calls it once per channel with a ``(1, n_samples)`` array.
+the wrapper calls it once per channel with a ``(1, n_samples)`` array. If it has
+``accepts_channels = True`` (e.g. a detector with a per-channel reference baseline),
+``detect`` is also given ``channels=`` (the indices, in the caller's array, of the rows
+passed) and ``n_channels=`` (the caller's channel count), so per-channel state stays aligned
+when channels are fed singly or all-missing channels are left out.
 
 Implementations: :class:`~brainmaze_eeg.spikes.janca.JancaDetector` (also with
 ``preset='ripple'``), :class:`~brainmaze_eeg.spikes.barkmeier.BarkmeierDetector` and
@@ -95,7 +99,8 @@ import warnings
 import numpy as np
 
 from brainmaze_eeg.spikes import _checks as chk
-from brainmaze_eeg.spikes._gaps import FILL_METHODS, fill_gaps, find_gaps, gap_mask, mask_in_gaps
+from brainmaze_eeg.spikes._gaps import (FILL_METHODS, fill_gaps, find_gaps, flat_runs, gap_mask,
+                                        mask_in_gaps)
 
 __all__ = ['GapAwareSpikeDetector']
 
@@ -207,14 +212,7 @@ class GapAwareSpikeDetector:
         ``flat_as_gap_s`` set to NaN, and those runs as ``[start, stop)`` samples.
         """
         y = np.array(row, dtype=np.float64, copy=True)
-        if self.flat_as_gap_s is None or y.size < 2:
-            return y, np.zeros((0, 2), np.int64)
-        min_len = max(int(np.ceil(self.flat_as_gap_s * fs - 1e-9)), 2)
-        eq = y[1:] == y[:-1]                       # NaN never equals anything
-        d = np.diff(np.concatenate(([0], eq.astype(np.int8), [0])))
-        st, en = np.flatnonzero(d == 1), np.flatnonzero(d == -1) + 1   # sample runs
-        keep = (en - st) >= min_len
-        runs = np.stack([st[keep], en[keep]], axis=1).astype(np.int64)
+        runs = flat_runs(y, fs, self.flat_as_gap_s)
         for a, b in runs:
             y[a:b] = np.nan
         return y, runs
@@ -295,15 +293,18 @@ class GapAwareSpikeDetector:
         out = [None] * n_ch
         records_hint = getattr(self.detector, 'output', None) == 'records'
         accepts_valid = getattr(self.detector, 'accepts_valid', False)
+        accepts_channels = getattr(self.detector, 'accepts_channels', False)
         n_removed = np.zeros(n_ch, dtype=np.int64)
         res = {}
         if live.size and getattr(self.detector, 'channel_independent', False):
             for c in live:                       # one channel at a time: bounded memory
                 yc = filled(c)[np.newaxis, :]
+                kw = {}
                 if accepts_valid:
-                    r = self.detector.detect(yc, fs, valid=~gap_mask(gaps[c], n)[None])
-                else:
-                    r = self.detector.detect(yc, fs)
+                    kw['valid'] = ~gap_mask(gaps[c], n)[None]
+                if accepts_channels:
+                    kw.update(channels=np.array([c]), n_channels=n_ch)
+                r = self.detector.detect(yc, fs, **kw)
                 self._check_result(r, 1)
                 res[c] = r[0]
                 del yc
@@ -311,11 +312,12 @@ class GapAwareSpikeDetector:
             y = np.empty((live.size, n), dtype=np.float64)
             for k, c in enumerate(live):
                 y[k] = filled(c)
+            kw = {}
             if accepts_valid:
-                valid = np.vstack([~gap_mask(gaps[c], n) for c in live])
-                r = self.detector.detect(y, fs, valid=valid)
-            else:
-                r = self.detector.detect(y, fs)
+                kw['valid'] = np.vstack([~gap_mask(gaps[c], n) for c in live])
+            if accepts_channels:
+                kw.update(channels=live.copy(), n_channels=n_ch)
+            r = self.detector.detect(y, fs, **kw)
             del y
             self._check_result(r, live.size)
             res = {c: r[k] for k, c in enumerate(live)}

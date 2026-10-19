@@ -55,7 +55,9 @@ amplitudes); it is designed for a multichannel iEEG montage.
 
 All amplitude-dependent steps are scale-invariant: Janca models the envelope relative to its
 own background, Barkmeier rescales each block to a fixed median amplitude. The input unit
-does not matter (µV and V give the same detections; tested).
+does not matter (µV and V give the same detections; tested). The one exception is the
+optional Janca **reference baseline** (3.1.0): it is an absolute level, so the detection
+input must have the baseline recording's unit and gain.
 
 **Filter edges.** Every `band` parameter is the filter's **design edge**: the −3 dB point of
 the single-pass Butterworth. All detectors apply their filters forward-backward (zero
@@ -123,6 +125,14 @@ returns the resolved values.
 | `min_distance_s` | `0.1` | s | reference | minimum distance between detections |
 | `eps_rel` | `1e-6` | – | ours | offset before the log, relative to the median envelope (the reference uses an absolute 1e-6) |
 | `return_details` | `False` | – | ours | also return the envelope, threshold curve, filters and rates |
+| `baseline` | `None` | – | ours (3.1.0) | a `JancaBaseline` (reference statistics); `None` = the original local model. See [Reference baseline](#reference-baseline-jancabaseline-310) |
+| `combine` | `'reference'` | – | ours (3.1.0) | with a baseline: `'reference'` (fixed threshold), `'min'` (lower of local and reference: more sensitive; the reference where the local threshold is undefined), `'max'` (higher: stricter; undefined where the local one is) |
+| `broadcast_baseline` | `False` | – | ours (3.1.0) | allow a 1-channel baseline for every channel |
+| `gap_aware_stats` | `False` | – | ours (3.1.0) | local statistics over valid samples only, O(n) for any window; see [Long windows and data drops](#long-windows-and-data-drops-gap_aware_stats-310) |
+| `valid` | `None` | – | ours (3.1.0) | with `gap_aware_stats`: boolean mask of usable samples (default: all but constant runs ≥ 0.1 s) |
+| `min_valid_fraction` | `0.5` | – | ours (3.1.0) | with `gap_aware_stats`: minimum valid fraction of a window, else no threshold (no detections) |
+| `stats_margin_s` | `0.5` | s | ours (3.1.0, measured) | with `gap_aware_stats`: margin around invalid samples excluded from the statistics and from detection |
+| `channel_names` | `None` | – | ours (3.1.0) | with a baseline: names of the rows of `x`; must equal the baseline's `channel_names` in order, if it has them (`ValueError`) |
 
 **Validation.** Every parameter is checked for type, finiteness (NaN and ±inf are rejected;
 `None` means "off" for `powerline` and `target_fs`) and range when it is resolved, i.e.
@@ -205,6 +215,229 @@ resampling with tones), its alias rejection (< −40 dB), its validation (reject
 input and analysis rates that put 250 Hz near the resampling Nyquist), and that it finds
 synthetic 120 Hz bursts in 1/f noise. The threshold, window and minimum distance were
 tuned for spikes; their suitability for ripples is unknown.
+
+### Reference baseline: `JancaBaseline` (3.1.0)
+
+The Janca threshold is `threshold × (mode + median)` of a log-normal model of the envelope
+in a sliding window (5 s): `mode = exp(mu − sd²)`, `median = exp(mu)`, where `mu`, `sd` are
+the mean and SD of `log(envelope)`. The model assumes that spikes are rare in the window. On a
+channel that spikes **permanently** (several per second, e.g. after an injury) the window
+learns the spikes as background, the threshold rises with the spike rate, and the detector
+goes blind. A longer window does not help (5, 30 and 120 s give the same result: the
+spiking is everywhere).
+
+A `JancaBaseline` holds `mu` and `sd` per channel measured on a **reference** recording of
+the same channels (quiet, or before the injury); the detector then uses that fixed
+threshold, alone or combined with the local one. **The original algorithm stays the
+default** (`baseline=None`): detection indices and threshold curves are bit-identical to
+3.0.0 (66 golden arrays, numpy 1.24 and 2.5) and to eeg_forge (1494 = 1494 on the real
+6.8 h recording).
+
+**When to use it**
+
+- channels with permanent or very frequent spiking (the local model under-detects there);
+- comparing a recording with a baseline (pre-injury, pre-treatment) recording of the same
+  electrodes: "how far above the old background are these events?".
+
+**Evidence** (synthetic iEEG, 300 s at 500 Hz: 150 µV sharp-and-slow waves in pink
+background of SD 30 µV, ~12 µV in the 10–60 Hz band; reference = 300 s of the same
+background without spikes; `scratch/janca-baseline/dense_eval.py`, reproducing the prototype
+`scratch/janca-dense/` exactly):
+
+| spikes/s | local (original) | `combine='reference'` | `'min'` | `'max'` | false detections |
+|---|---|---|---|---|---|
+| 1 | 92.6 % | 97.0 % | 97.3 % | 92.3 % | 0 in every cell |
+| 3 | 41.6 % | 96.9 % | 96.9 % | 41.6 % | 0 |
+| 5 | 0.5 % | 96.2 % | 96.2 % | 0.5 % | 0 |
+
+The test-suite checks this with fixed seeds (≥ 95 % with the reference, 0 false; the local
+model ≤ 60 % at 3/s and ≤ 10 % at 5/s).
+
+**Worked example**
+
+```python
+from brainmaze_eeg.spikes import JancaBaseline, JancaDetector, GapAwareSpikeDetector, detect_spikes_janca
+
+# 1. measure the baseline once, on a quiet / pre-injury recording (n_channels, n_samples), µV.
+#    NaN gaps and constant dropouts are excluded; 'segments' picks spike-free stretches.
+base = JancaBaseline.from_signal(x_pre, fs, powerline=60, channel_names=names, units='uV',
+                                 segments=[(600, 1800), (5400, 7200)])
+print(base)                       # mu, sd, analysis rate, valid seconds per channel
+print(base.envelope_levels(threshold=3.65))   # median / mode / threshold envelope in µV
+base.save('pre_injury_baseline.json')
+
+# 2. detect later recordings of the same channels against it (same signal path!)
+base = JancaBaseline.load('pre_injury_baseline.json')
+spikes = detect_spikes_janca(x_post, fs, powerline=60, baseline=base)              # fixed threshold
+spikes = detect_spikes_janca(x_post, fs, powerline=60, baseline=base, combine='max')  # stricter
+# with gaps: the wrapper keeps every channel aligned with its baseline row
+det = GapAwareSpikeDetector(JancaDetector(powerline=60, baseline=base))
+spikes, info = det.detect(x_post_with_nans, fs, return_info=True)
+# a channel subset / another order: base.select(['LA1', 'LA3'])
+```
+
+A baseline can also be given directly: `JancaBaseline(mu=[...], sd=[...], fs=500)` (or
+`fs_analysis=250`), e.g. from values reported elsewhere. `janca_threshold(mu, sd, k)` and
+`base.envelope_levels()` translate between the log statistics and envelope levels in the
+input unit (`exp(mu)` is about 1.06 × the SD of the band-passed background).
+
+**What must match, what is free**
+
+| must equal the baseline's (else `ValueError` naming every mismatch) | free |
+|---|---|
+| `band`, `filter_order`, `powerline`, `notch_width`, `notch_order`, `notch_harmonics` (notch settings ignored when both have `powerline=None`), `target_fs`, `decimation`, `eps_rel` (`SIGNAL_PATH_PARAMS`), and the analysis rate `fs_analysis` | `threshold` (applies to the baseline model too), `min_distance_s`, `window_s` (local model), `combine` |
+
+The analysis rate follows from the input rate: with the default `decimation='integer'`, a
+500 Hz baseline (analysis 250 Hz) does not fit a 1000 Hz recording (200 Hz); use
+`decimation='exact'` for both to share one analysis rate across input rates (tested: a
+512 Hz baseline on a 1000 Hz recording, ≥ 95 % sensitivity). With `'exact'` the analysis
+rates are compared to a relative 2e-6 (each is `target_fs` to within 1e-6), so baselines
+made at 511.99 Hz (analysis 200.00008 Hz) or 24414.0625 Hz (199.99982 Hz) fit a 1000 Hz
+recording (200 Hz); with `'integer'` they must agree to 1e-9 (tested).
+
+**Channels.** The baseline's channel count must equal the input's. A 1-channel baseline is
+applied to every channel only with `broadcast_baseline=True` (explicit, because channels
+usually differ in amplitude); a multichannel baseline is never broadcast. Use
+`base.select(...)` (indices or names) to match a montage. Through `GapAwareSpikeDetector`
+the detector receives the caller's channel indices (detector protocol `accepts_channels`),
+so channels fed one at a time or all-missing channels left out stay aligned (tested).
+Pass `channel_names=` (to `detect_spikes_janca`, or the full montage's names to
+`JancaDetector`) to have the order checked against the baseline's names: a different order
+or a different set raises `ValueError` (with a `base.select([...])` hint). `detect()` also
+accepts `channels` as names; channel indices must be integers (floats and bools raise).
+
+**How the baseline is measured** (`from_signal`)
+
+1. Missing data is **excluded**, never filled: NaN/inf, and constant runs ≥ `flat_as_gap_s`
+   (0.1 s, the wrapper's rule). The values inside a dropout cannot influence the result
+   (tested with NaN, inf, 0 and 1e6 dropouts: identical baselines).
+2. Every valid contiguous run is filtered, resampled and enveloped on its own, exactly as
+   the detector does.
+3. `stats_margin_s` = 0.5 s is dropped at both ends of every run (also the record ends), so
+   filter/Hilbert transients at the edges stay out. Runs too short for the zero-phase
+   filters or the two margins are skipped.
+4. `mu`, `sd` = mean and population SD of `log(e + eps_rel·median(e))` over all pooled
+   samples (the local model's definition, with the whole valid reference as the window).
+   `robust=True`: median and 1.4826·MAD.
+5. The valid time per channel is stored (`valid_s`); less than `min_valid_s` (60 s) warns,
+   none raises. `x_ref` may be a list of segments of any lengths (pooled; a list is always
+   segments, never channels).
+
+Why 0.5 s (`scratch/janca-baseline/margin_probe2.out`): runs of 5–20 s enveloped separately
+vs the envelope of the uninterrupted signal (pink noise; 500, 5000 Hz spike, 2 kHz ripple):
+
+| margin | 0 s | 0.1 s | 0.25 s | 0.5 s | 1 s |
+|---|---|---|---|---|---|
+| threshold ratio (5 s runs, 500 Hz) | 1.0000 | 1.0001 | 1.0001 | 1.0000 | 1.0000 |
+| mean \|Δe\| / median(e) (5 s runs, 500 Hz) | 1.36 % | 0.45 % | 0.27 % | 0.18 % | 0.10 % |
+
+The statistics are insensitive to the edges already at 0.1 s on clean noise; 0.5 s adds a
+margin for DC steps and amplifier recovery after a dropout (tested: runs at ±5000 µV
+offsets give the threshold of the offset-free data within 1 %).
+
+`robust=True` is a different statistic, not a drop-in (`scratch/janca-baseline/robust_probe.out`):
+
+| | mean / SD (default) | median / 1.4826·MAD |
+|---|---|---|
+| threshold on clean background | 61.3 µV | 70.0 µV (+14 %: the log of a noise envelope is skewed) |
+| threshold inflation, reference with 1 / 3 spikes/s | ×1.10 / ×1.44 | ×1.08 / ×1.31 |
+
+**Limitations**
+
+- **Slow amplitude drift is not followed.** A fixed baseline does not track changes of the
+  background amplitude over hours to days (electrode impedance, gain, sleep/wake,
+  medication). A background that grows makes a reference baseline over-detect, one that
+  shrinks makes it under-detect. Refresh the baseline from a recent quiet stretch, or use
+  `combine='max'` (never more sensitive than the local model: guards against drift up) or
+  `combine='min'` (never less sensitive: keeps detecting where the local model goes blind).
+- **Unit, gain, montage and channel order must be the baseline's.** Unit, gain and montage
+  are not recorded in the signal and cannot be checked; the channel order is checked when
+  both sides have names (`channel_names=`, see Channels). Two safety nets (`UserWarning`):
+  1. a channel's envelope level (`level_ratio` = exp(mean log-envelope − `mu`)) differs from
+     the baseline's by more than ×10 (`BASELINE_LEVEL_WARN_RATIO`; e.g. V vs µV);
+  2. the **median over channels** of the background level (`background_ratio`: the 0.1
+     quantile of the log-envelope vs the baseline model's, `mu + ndtri(0.1)·sd`) differs
+     by more than ×3 either way (`MONTAGE_LEVEL_WARN_RATIO`; gain or montage mismatch).
+     A low quantile measures the background between the spikes, so dense spiking moves it
+     much less than `level_ratio`, and the median ignores a minority of spiking or broken
+     channels. Through `GapAwareSpikeDetector` the detector sees one channel at a time, so
+     there the median is over that channel.
+
+  `return_details` reports both ratios (~1 when everything matches). Tuning of check 2
+  (`scratch/janca-baseline/r2/r3_probe.py`, `.out`; 300 s at 500 Hz, two spike generators,
+  mean/SD and robust baselines):
+
+  | case | `level_ratio` | `background_ratio` | warns |
+  |---|---|---|---|
+  | same gain | 0.86–1.13 | 0.77–1.11 | no |
+  | gain ×2 / ×2.5 | 1.7–2.3 / 2.1–2.8 | 1.6–2.2 / 1.9–2.8 | no |
+  | gain ×3 | 2.6–3.4 | 2.3–3.3 | only where ≥ 3 (one of four settings) |
+  | gain ×0.3 | 0.26–0.33 | 0.23–0.32 | yes |
+  | dense spiking on every channel: 1–10/s of 150 µV, 1–3/s of 600 µV (in 30 µV background), 5/s of 600 µV with the reviewer's spike shape | 1.2–4.8 | 0.94–2.86 | no |
+  | discharges covering most of the record (5/s of 600 µV sharp-and-slow waves, 10/s of 600 µV) | 6.4–13.7 | 2.9–9.9 | 5 of 6 |
+  | 4-channel montage in reversed order (amplitudes 10–100 µV) | 0.1–9.6 | median 1.0–1.2 | ×10 per channel only |
+
+  So check 2 catches a gain or montage mismatch from about ×3 (×2.7–3.8 depending on the
+  background shape and the baseline statistic) and is not triggered by dense spiking up to
+  `level_ratio` ×4.4; it does fire when discharges cover most of the record (then a fixed
+  threshold from a quiet baseline should be checked anyway). On the real 6.8 h Fz-Cz
+  recording, baselines from one hour applied to another warned in 3 of 60 hour pairs, all
+  between hours whose own thresholds differ ×2.7–2.9 (a change of the background level). A channel
+  permutation without names is only caught by check 1 when amplitudes differ ×10.
+- **A reference with spikes or artifacts** raises the baseline threshold (×1.44 with
+  3 spikes/s). Choose quiet data (`segments=`), or `robust=True` (partly).
+- **Combined with `gap_aware_stats`**: where the local threshold is undefined (window
+  coverage below `min_valid_fraction`) `'min'` uses the reference threshold (`np.fmin`:
+  never less sensitive than `'reference'`), `'max'` stays undefined (no detections: never
+  more sensitive than the local model). Samples excluded from the statistics (invalid, or
+  within `stats_margin_s` of an invalid sample) are undefined in every mode, `'reference'`
+  included: no detections on a dropout or its edges (tested).
+
+### Long windows and data drops: `gap_aware_stats` (3.1.0)
+
+A long local window (e.g. `window_s=600`–3600) smooths the background model, but in long
+recordings it nearly always contains dropouts. With the original statistics a dropout
+stored as a constant (or filled by the wrapper) enters the model: the background drops
+and the detector fires everywhere. `gap_aware_stats=True` computes the sliding `mu`/`sd`
+over **valid samples only**:
+
+- `valid` (bool, shape of `x`) marks usable samples; by default all except constant runs
+  ≥ 0.1 s. `GapAwareSpikeDetector` passes its gap mask (detector protocol
+  `accepts_valid`), so filled samples never enter the statistics.
+- Analysis samples within `stats_margin_s` (0.5 s) of an invalid sample are left out too.
+- Samples left out of the statistics are never detected (threshold NaN there): the filter
+  transient of a step into or out of a dropout is not a spike. Without this, zero dropouts
+  in a signal with a DC offset (DC-coupled amplifier, raw ADC counts) gave 30–107 false
+  detections at the dropout edges with windows ≥ 30 s (review of PR #75, R1); now 0 (tested
+  with offsets of 500 and 5000 µV, windows 30 / 60 / 600 s).
+- A window needs at least `min_valid_fraction` (0.5) of its samples valid; elsewhere the
+  threshold is NaN and nothing is detected (`details['threshold']`, `details['stats_valid']`).
+- Same definition as the reference otherwise (window centred, ends reflected, `sd` around
+  the per-sample local mean); without invalid samples the threshold equals the original to
+  1e-10 and the detections are identical (all parity fixtures; tested). Checked against a
+  brute-force evaluation, including NaN exactly where the coverage is too low.
+- Cumulative sums: O(n) time and memory for any window.
+
+24 h at 500 Hz, 0.1 spikes/s (`synth_ieeg`), 50 dropouts of 1–600 s stored as 0, without
+and with a 500 µV DC offset (`scratch/janca-baseline/bench24h.py`, `r2/bench24h_r2.out`; the
+3600 s row lost 2 detections, 2 spikes, in round 2 because detections in the
+`stats_margin_s` margins are no longer reported):
+
+| call | `window_s` | DC offset | detections | spikes found | false | time | peak RSS |
+|---|---|---|---|---|---|---|---|
+| original | 5 | 0 / 500 µV | 5734 / 5683 | 4530 / 4530 | 1230 / 1179 (at the dropouts) | 58–62 s | 2.2 GB |
+| original | 3600 | 0 / 500 µV | 385 563 / 385 699 | 6793 / 6792 | 378 805 / 378 942 | 64–66 s | 2.2 GB |
+| `gap_aware_stats=True` | 5 | 0 / 500 µV | 4490 / 4490 | 4515 / 4515 | 0 / 0 | 65–66 s | 2.3 GB |
+| `gap_aware_stats=True` | 3600 | 0 / 500 µV | 4494 / 4494 | 4519 / 4519 | 0 / 0 | 64–71 s | 2.3 GB |
+| `GapAwareSpikeDetector(JancaDetector(window_s=3600, gap_aware_stats=True))` | 3600 | 0 / 500 µV | 4494 / 4494 | 4519 / 4519 | 0 / 0 | 27 s | 3.0 GB |
+
+(7056 injected spikes outside the dropouts, amplitudes 80–300 µV, so ~64 % are found by any
+setting; "spikes found" counts injected spikes with a detection within 50 ms, close pairs
+can share one. The signal alone takes 0.86 GB.) The sliding statistics themselves take
+2.8 s for 21.6 M analysis samples with a 3600 s window and 2.8 s with a 5 s window. Most of
+the time is filtering: through long runs of exact zeros the IIR filters decay into subnormal
+numbers, which is ~30× slower on x86 (`denormal_probe.out`); the wrapper fills the dropouts
+first, hence its 26 s. This affects the original detector equally and is unchanged here.
 
 ## `SpikeDetectorHilbert` (MATLAB v24 port)
 
@@ -413,9 +646,11 @@ Steps:
    so they cannot bias cross-channel statistics such as Barkmeier's median scaling. They
    are flagged and give no detections.
 3. **Detect.** The detector runs on the filled montage. Detectors with
-   `accepts_valid = True` (Barkmeier) also receive the gap mask and keep filled samples out
-   of their statistics. Detectors with `channel_independent = True` (Janca, v24) are fed
-   one channel at a time, which bounds memory.
+   `accepts_valid = True` (Barkmeier; `JancaDetector(gap_aware_stats=True)`) also receive
+   the gap mask and keep filled samples out of their statistics. Detectors with
+   `channel_independent = True` (Janca, v24) are fed one channel at a time, which bounds
+   memory; `JancaDetector(baseline=...)` also receives the channel indices
+   (`accepts_channels`) so that each channel uses its own baseline row.
 4. **Remove.** Every detection inside a gap, or within `edge_margin_s` (0.2 s) of one, is
    dropped, for short (interpolated) gaps as well as long ones.
 5. **Report.** With `return_info=True`, per channel:
@@ -441,9 +676,11 @@ detectors).
 - **Output:** one entry per channel. Each entry is either an int array of sample indices,
   or a list of dicts with `'peak_index'`.
 - **Optional:** `accepts_valid = True` makes the wrapper call `detect(x, fs, valid=mask)`.
-
 - **Optional:** `channel_independent = True` makes the wrapper call `detect` once per
   channel (bounded memory).
+- **Optional (3.1.0):** `accepts_channels = True` makes the wrapper also pass
+  `channels=` (indices of the passed rows in the caller's array) and `n_channels=` (the
+  caller's channel count), for detectors with per-channel state such as a baseline.
 
 So any detector, e.g. the ripple preset `JancaDetector('ripple')`, works without changes to
 the wrapper.
