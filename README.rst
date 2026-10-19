@@ -182,7 +182,7 @@ The generated HTML documentation will be in the ``docs/`` directory. Note that t
 License
 """"""""""""""""""
 
-This software is licensed under BSD-3Clause license. For details see the `LICENSE <https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE>`_ file in the root directory of this project.
+This software is licensed under the BSD 3-Clause license. For details see the `LICENSE <https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE>`_ file in the root directory of this project.
 
 
 Acknowledgment

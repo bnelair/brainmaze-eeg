@@ -13,17 +13,19 @@ python train_predict_unknown.py            # ~1-2 min; figure in ./demo_output
 ## What it does
 
 ```python
+import numpy as np
 from brainmaze_eeg.classifiers import KDEBayesianModel, UNKNOWN_LABEL
 
 model = KDEBayesianModel(fs=200, segm_size=30, n_jobs=1)
 X = model.extract_features_bulk(list_of_30s_epochs, [fs] * n_epochs)[0]  # resampled to 200 Hz
-model.fit(X, labels)                       # 'AWAKE', 'N2', 'N3', 'REM'; never 'UNKNOWN'
+model.fit(X, np.asarray(labels))           # 'AWAKE', 'N2', 'N3', 'REM'; never 'UNKNOWN'
 table = model.predict_signal(signal, fs)   # annotation, start, end, duration (s)
 scores = model.predict_signal_scores(signal, fs)  # per-epoch probabilities
 model.max_log_lik_, model.log_lik_floor_   # per-epoch best-state log-likelihood, floor
 ```
 
-- **Labels.** N1 is not trained (the models know AWAKE/N2/N3/REM, as in
+- **Labels.** `y` must be a NumPy array of strings (`fit` raises `AttributeError` for a
+  plain list in 3.1.0). N1 is not trained (the models know AWAKE/N2/N3/REM, as in
   `SleepClassifierWrapper`). Training labels must not contain `'UNKNOWN'` (`fit` raises).
 - **Missing data.** The file stores dropouts as a constant; they are set to NaN from its
   `data_present` mask. `predict_signal` skips epochs with less than 85 % non-NaN samples
@@ -56,7 +58,7 @@ floor raises no false alarm here.
 The training and prediction calls show tqdm progress bars on stderr; the script hides them
 (the classes have no switch for them). They appear when you call the methods yourself.
 
-## Output (brainmaze-eeg 2.0.0, brainmaze-utils 3.0.0, numpy 2.5)
+## Output (brainmaze-eeg 3.1.0, brainmaze-utils 3.0.0, numpy 2.5; identical with 2.0.0)
 
 ```
 6.8 h at 500 Hz, 811 epochs of 30 s; train: epochs 0-404, test: epochs 405-810

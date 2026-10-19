@@ -1,7 +1,7 @@
 # brainmaze-eeg demos
 
-Runnable examples for [brainmaze-eeg](https://github.com/bnelair/brainmaze-eeg) 2.0.0
-(with brainmaze-utils 3.0.0). Documentation: <https://bnelair.github.io/brainmaze-eeg/>.
+Runnable examples for [brainmaze-eeg](https://github.com/bnelair/brainmaze-eeg) 3.1.0
+(with brainmaze-utils 3.0.0; the printed outputs are unchanged since 2.0.0). Documentation: <https://bnelair.github.io/brainmaze-eeg/>.
 
 | folder | what it shows | data |
 |---|---|---|
@@ -13,7 +13,7 @@ Runnable examples for [brainmaze-eeg](https://github.com/bnelair/brainmaze-eeg) 
 
 ```bash
 python -m venv venv && . venv/bin/activate
-pip install "brainmaze-eeg>=2.0.0" matplotlib     # matplotlib only for the figures
+pip install "brainmaze-eeg[plot]>=3.1.0"          # [plot] = matplotlib, only for the figures
 git clone https://github.com/bnelair/brainmaze-eeg.git   # the demo folder and its data
 cd brainmaze-eeg/demo
 ```

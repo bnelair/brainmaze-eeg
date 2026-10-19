@@ -1,6 +1,6 @@
 # Spike detection demos
 
-Examples for `brainmaze_eeg.spikes` (brainmaze-eeg 2.0.0). API reference: the
+Examples for `brainmaze_eeg.spikes` (brainmaze-eeg 3.1.0). API reference: the
 [Spike detectors](https://bnelair.github.io/brainmaze-eeg/spikes.html) page; algorithms,
 parameters and validation: the [detector README](../../brainmaze_eeg/spikes/README.md).
 
@@ -56,7 +56,7 @@ bark = detect_spikes_barkmeier(x, fs)              # one dict per detection, who
 - Barkmeier scales each one-minute block of **the whole montage** to a common amplitude:
   pass all channels together, not one at a time.
 
-Output (brainmaze-eeg 2.0.0, numpy 2.5):
+Output (brainmaze-eeg 3.1.0, numpy 2.5; identical with 2.0.0):
 
 ```
 channel planted | Janca hits false | Barkmeier hits false
