@@ -743,8 +743,13 @@ default stays `'mirror'`, passed explicitly, also after switching to `brainmaze_
 nothing.
 
 `find_gaps`, `gap_intervals`, `pink_noise`, `mask_in_gaps` and `drop_in_gaps` are
-`brainmaze_utils.gaps`' own functions (brainmaze-utils >= 3.0.0), re-exported. `fill_gaps`
-stays in this package: `brainmaze_utils.gaps.fill_gaps` has the same signature, but its
+`brainmaze_utils.gaps`' own functions (brainmaze-utils >= 3.0.0), re-exported. Their
+results are identical to 3.1.0's copies; their input validation is utils' and differs in
+edge cases of direct calls (numeric strings for `fs`/`margin_s` accepted, a 1-element-array
+`margin_s` rejected, some `TypeError`s are now `ValueError`, different check order; full
+list in the `_gaps` module docstring).
+
+`fill_gaps` stays in this package, with 3.1.0's validation (numeric `fs` only): `brainmaze_utils.gaps.fill_gaps` has the same signature, but its
 `'mirror'` and `'pink'` fills are a later design that produces different fill values, and
 switching would change the wrapper's detections next to gaps. This package also has no
 `'spectral'` fill (the default there). The wrapper keeps the fill it was validated with,

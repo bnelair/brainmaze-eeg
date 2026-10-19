@@ -40,8 +40,25 @@ Relation to ``brainmaze_utils.gaps``
 :func:`find_gaps`, :func:`gap_intervals`, :func:`pink_noise`, :func:`mask_in_gaps` and
 :func:`drop_in_gaps` **are** ``brainmaze_utils.gaps``' functions (imported from
 brainmaze-utils >= 3.0.0 and re-exported here; this module used to carry copies of them, and
-they gave bit-identical results; the one difference is input validation: ``fs`` given as a
-numeric string such as ``'256'`` is now accepted instead of raising ``ValueError``).
+they gave bit-identical results). Their **input validation** is now utils', which differs
+from 3.1.0's copies in edge cases of direct calls (unreachable through
+:class:`~brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector`, which validates ``fs`` and
+``edge_margin_s`` itself first; no numerical result changes):
+
+- ``fs`` given as a numeric ``str`` or ``bytes`` (e.g. ``'256'``, ``b'256'``) is accepted
+  (3.1.0: ``ValueError``);
+- ``margin_s`` given as a numeric string (``'0.1'``) is accepted (3.1.0: ``TypeError``);
+- ``margin_s`` given as a 1-element array (``np.array([0.1])``) raises ``ValueError``
+  (3.1.0: accepted) -- pass a scalar;
+- ``margin_s=None`` and an array ``fs`` (``np.array([256.])``) raise ``ValueError``
+  instead of ``TypeError``;
+- the checks run in a different order (``fs`` before ``units``), so with several bad
+  arguments another error can come first (e.g. a ``str`` ``det`` with ``fs='256'``:
+  ``TypeError`` instead of ``ValueError``).
+
+This module's own :func:`fill_gaps` keeps 3.1.0's validation and still requires a numeric
+``fs`` (``fill_gaps(x, '256')`` raises ``ValueError`` while ``gap_intervals(x, '256')``
+works).
 
 :func:`fill_gaps` stays here on purpose. ``brainmaze_utils.gaps.fill_gaps`` has the same
 signature, but its ``'mirror'`` and ``'pink'`` fills are a later, different design (odd
