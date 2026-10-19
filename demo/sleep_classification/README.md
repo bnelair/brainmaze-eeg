@@ -25,7 +25,8 @@ model.max_log_lik_, model.log_lik_floor_   # per-epoch best-state log-likelihood
 
 - **Labels.** A list or a NumPy array of strings (a plain list raised `AttributeError`
   in 3.1.0 and earlier; pass `np.asarray(labels)` there). N1 is not trained (the models
-  know AWAKE/N2/N3/REM, as in `SleepClassifierWrapper`). Training labels must not contain `'UNKNOWN'` (`fit` raises).
+  know AWAKE/N2/N3/REM, as in `SleepClassifierWrapper`). Training labels must not contain
+  `'UNKNOWN'` (`fit` raises).
 - **Missing data.** The file stores dropouts as a constant; they are set to NaN from its
   `data_present` mask. `predict_signal` skips epochs with less than 85 % non-NaN samples
   (`datarate_threshold`); they leave a gap in the table, and the smoothing does not cross

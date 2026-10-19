@@ -1126,7 +1126,7 @@ class KDEBayesianCausalModel(KDEBayesianModel):
         self.MarkovFilter = None
 
     def fit(self, X, y):
-        X, y = _as_training_arrays(X, y)
+        X, y = _as_training_arrays(X, y)       # X, y are reused below (scores, Markov filter)
         super().fit(X, y)
         # training scores for the filter: no OOD flagging, no filter, rows consecutive
         scores = self._scores_impl(X, apply_floor=False, apply_filter=False)
@@ -1780,6 +1780,8 @@ class Mapper:
         feature matrix and the semi-supervised cost was computed on nonsense "labels"
         without any error (issue #57).
         """
+        if isinstance(x, (list, tuple)):
+            x = np.asarray(x)                  # up to 3.1.0 a list x raised here or below
         if not isinstance(y, type(None)):
             x = deepcopy(x)
             y = deepcopy(np.asarray(y))

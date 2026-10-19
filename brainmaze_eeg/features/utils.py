@@ -308,24 +308,27 @@ def balance_classes(x, y, std_factor=0.0):
     Parameters
     ----------
     x : array_like
-        shape[n_samples, n_features] (converted with ``np.asarray``)
+        shape[n_samples, n_features]
     y : array_like
-        string or int indexes for each category (list or numpy array; converted with
-        ``np.asarray``; up to 3.1.0 a list raised ``AttributeError``)
+        string or int indexes for each category (list, tuple, numpy array or pandas Series;
+        up to 3.1.0 a list or tuple raised ``AttributeError``)
     std_factor : float
         Amount of noise introduced into duplicated features relatively to std of a given feature within a category.
 
     Returns
     -------
-    numpy ndarray
-        x - samples
-    list
-        y - categories
+    x, y
+        If no class needed duplicates (already balanced), ``x`` and ``y`` exactly as given
+        (the same objects, e.g. a pandas Series stays a Series, as in 3.1.0). Otherwise
+        numpy ndarrays: ``x`` (n_balanced, n_features) and ``y`` (n_balanced,).
     """
-
-    # array-likes (e.g. lists) -> ndarray; an ndarray passes through unchanged (same object)
+    # Compute on ndarray views of the input (lists/tuples/pandas included; an ndarray is the
+    # same object), but return the inputs themselves when nothing is added, so callers get
+    # the same types as in 3.1.0.
+    x_in, y_in = x, y
     x = np.asarray(x)
     y = np.asarray(y)
+    added = False
     # Data augmentation
     cat_members = np.array([(y == c).sum() for c in np.unique(y)])
     for idx, cat in enumerate(np.unique(y)):
@@ -339,6 +342,9 @@ def balance_classes(x, y, std_factor=0.0):
             x_aug = x_aug[:generate]
             x = np.concatenate((x,  x_aug[:generate]), axis=0)
             y = np.array(list(y) + [cat] * generate)
+            added = True
+    if not added:
+        return x_in, y_in
     return x, y
 
 

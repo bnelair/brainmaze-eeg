@@ -31,6 +31,14 @@ needs matplotlib, which is an optional extra:
 
     pip install "brainmaze-eeg[plot]"
 
+Unreleased
+"""""""""""""""""""""""""""
+
+- ``fit`` of the KDE classifiers (``KDEBayesianModel`` and its subclasses,
+  ``KDEBayesianModelNC``), ``features.utils.balance_classes`` and ``Mapper.fit_map`` accept
+  plain lists/tuples for ``X``/``y`` (a list of labels raised ``AttributeError`` up to
+  3.1.0). Results and return types for ndarray and pandas input are unchanged.
+
 What's new in 3.1.0
 """""""""""""""""""""""""""
 
