@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -28,7 +28,8 @@ dependencies = [
     "scipy>=1.10",
     "tqdm",
 ]
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Development Status :: 3 - Alpha",
@@ -38,7 +39,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: BSD License",
     "Intended Audience :: Healthcare Industry",
     "Intended Audience :: Science/Research",
 ]
