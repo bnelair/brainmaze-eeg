@@ -447,6 +447,21 @@ needs matplotlib, which is an optional extra:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"brainmaze-eeg[plot]"</span>
 </pre></div>
 </div>
+<p>The trained models (seizure probability on iEEG, OpenSpindleNet sleep-spindle detection) are
+in a separate package, <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg-models">brainmaze-eeg-models</a>
+(<a class="reference external" href="https://bnelair.github.io/brainmaze-eeg-models/">documentation</a>). They run on ONNX Runtime
+and do not need PyTorch. The <code class="docutils literal notranslate"><span class="pre">models</span></code> extra installs that package next to brainmaze-eeg:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"brainmaze-eeg[models]"</span><span class="w">          </span><span class="c1"># same as: pip install brainmaze-eeg brainmaze-eeg-models</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"brainmaze-eeg[plot,models]"</span>
+</pre></div>
+</div>
+<p>The models are imported from their own package (<code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">brainmaze_eeg_models</span></code>), not from
+<code class="docutils literal notranslate"><span class="pre">brainmaze_eeg</span></code>, which works the same with or without them. For an NVIDIA GPU, follow
+<a class="reference external" href="https://bnelair.github.io/brainmaze-eeg-models/installation.html#nvidia-gpu">NVIDIA GPU</a>
+in the brainmaze-eeg-models documentation (there is deliberately no GPU extra). Note that
+after that swap, <strong>any</strong> later <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;brainmaze-eeg[models]&quot;</span></code> (not only <code class="docutils literal notranslate"><span class="pre">-U</span></code>)
+installs the CPU <code class="docutils literal notranslate"><span class="pre">onnxruntime</span></code> again, which then shadows the GPU build; repeat the swap
+afterwards.</p>
 </section>
 <section id="what-s-new-in-3-1-0">
 <h2>What’s new in 3.1.0<a class="headerlink" href="#what-s-new-in-3-1-0" title="Link to this heading">#</a></h2>
