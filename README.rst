@@ -31,6 +31,24 @@ needs matplotlib, which is an optional extra:
 
     pip install "brainmaze-eeg[plot]"
 
+The trained models (seizure probability on iEEG, OpenSpindleNet sleep-spindle detection) are
+in a separate package, `brainmaze-eeg-models <https://github.com/bnelair/brainmaze-eeg-models>`_
+(`documentation <https://bnelair.github.io/brainmaze-eeg-models/>`_). They run on ONNX Runtime
+and do not need PyTorch. The ``models`` extra installs that package next to brainmaze-eeg:
+
+.. code-block:: bash
+
+    pip install "brainmaze-eeg[models]"          # same as: pip install brainmaze-eeg brainmaze-eeg-models
+    pip install "brainmaze-eeg[plot,models]"
+
+The models are imported from their own package (``import brainmaze_eeg_models``), not from
+``brainmaze_eeg``, which works the same with or without them. For an NVIDIA GPU, follow
+`NVIDIA GPU <https://bnelair.github.io/brainmaze-eeg-models/installation.html#nvidia-gpu>`_
+in the brainmaze-eeg-models documentation (there is deliberately no GPU extra). Note that
+after that swap, **any** later ``pip install "brainmaze-eeg[models]"`` (not only ``-U``)
+installs the CPU ``onnxruntime`` again, which then shadows the GPU build; repeat the swap
+afterwards.
+
 Unreleased
 """""""""""""""""""""""""""
 
@@ -38,6 +56,8 @@ Unreleased
   ``KDEBayesianModelNC``), ``features.utils.balance_classes`` and ``Mapper.fit_map`` accept
   plain lists/tuples for ``X``/``y`` (a list of labels raised ``AttributeError`` up to
   3.1.0). Results and return types for ndarray and pandas input are unchanged.
+- New ``models`` extra: ``pip install "brainmaze-eeg[models]"`` also installs
+  `brainmaze-eeg-models <https://github.com/bnelair/brainmaze-eeg-models>`_ (see Installation).
 
 What's new in 3.1.0
 """""""""""""""""""""""""""

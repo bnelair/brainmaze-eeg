@@ -1,4 +1,5 @@
-"""Gap helpers (brainmaze_eeg.spikes._gaps, a stand-in for brainmaze_utils.gaps)."""
+"""Gap helpers (brainmaze_eeg.spikes._gaps: its own fill_gaps, the rest re-exported from
+brainmaze_utils.gaps)."""
 
 import numpy as np
 import pytest
@@ -162,3 +163,99 @@ def test_fill_nd_axis_copy_and_dtype():
         fill_gaps(Z, fs, all_nan='raise')
     with pytest.raises(ValueError):
         fill_gaps(X, fs, axis=2)
+
+
+# ---------------------------------------------------------------- relation to brainmaze_utils.gaps
+def test_shared_helpers_are_brainmaze_utils_gaps():
+    """find_gaps, gap_intervals, pink_noise, mask_in_gaps and drop_in_gaps are re-exported from
+    brainmaze_utils.gaps (they were bit-identical copies before)."""
+    import brainmaze_utils.gaps as ug
+    import brainmaze_eeg.spikes._gaps as eg
+    for name in ('find_gaps', 'gap_intervals', 'pink_noise', 'mask_in_gaps', 'drop_in_gaps'):
+        assert getattr(eg, name) is getattr(ug, name), name
+
+
+def test_fill_gaps_is_this_packages_own_and_unchanged():
+    """fill_gaps must stay eeg's own: brainmaze_utils.gaps.fill_gaps' 'mirror'/'pink' give
+    different values, which would change GapAwareSpikeDetector's detections near gaps.
+    Golden values from brainmaze-eeg 3.1.0 (identical before and after the switch of the other
+    helpers to brainmaze_utils.gaps)."""
+    import brainmaze_utils.gaps as ug
+    import brainmaze_eeg.spikes._gaps as eg
+    assert eg.fill_gaps is not ug.fill_gaps
+    rng = np.random.default_rng(0)
+    fs = 100.0
+    # Exactly representable input (integers / 4): the same bytes on every platform. 'pink'
+    # seeds each gap from a hash of the neighbouring samples, so an input built with np.sin
+    # (last-bit differences between platform libms) gives another realisation on
+    # macOS/Windows.
+    x = (rng.integers(-40, 41, 400) + 30 * np.abs((np.arange(400) % 34) - 17) - 255) / 4.0
+    x[150:170] = np.nan
+    golden = {
+        'mirror': [-34.23695420546449, -34.52328431539626, -13.301108122270424,
+                   -18.961851456321675, -15.38106808197195, -7.523344591949827,
+                   9.193253347262237, 9.888497921711402, 16.57322214889947, 22.443613606149448,
+                   20.581140990771786, 23.035561074577096, 24.768436649559888,
+                   28.351676179211086, 48.707544419910946, 50.12355805327924, 48.94597829881288,
+                   56.22345351465909, 61.99926128059044, 59.61386085241393],
+        'pink': [-30.65144959465621, -30.788860762145948, -22.282884007592926, -50.74255988318222,
+                 32.50774830165446, 33.69132829671119, -39.35597423681201, -38.24564254870474,
+                 -1.6012025867468749, 7.1655135043617015, -2.559035802450504, 103.17730636184805,
+                 76.05131537563149, 50.957437617793396, 72.04601066729403, -1.4231920105472997,
+                 20.536234900114753, -4.442333621063749, 37.658160737011926, 55.383063842827745],
+    }
+    for method, want in golden.items():
+        y = eg.fill_gaps(x, fs, method=method, max_interp_s=0.02, context_s=1.0, taper_s=0.05,
+                         seed=0)
+        np.testing.assert_allclose(y[150:170], want, rtol=1e-9, atol=1e-9, err_msg=method)
+        np.testing.assert_array_equal(y[:150], x[:150])
+        np.testing.assert_array_equal(y[170:], x[170:])
+
+    # one-sided gaps at the record start and end (the min(taper, n) branch); golden values
+    # from brainmaze-eeg 3.1.0 (PyPI)
+    xe = np.random.default_rng(0).integers(-40, 41, 400)
+    xe = (xe + 30 * np.abs((np.arange(400) % 34) - 17) - 255) / 4.0
+    xe[:15] = np.nan
+    xe[385:] = np.nan
+    golden_edge = {
+        'mirror': ([31.0, 24.0, 1.75, 4.75, 3.5, -13.5, -28.75, -22.75, -27.25, -45.75, -40.0,
+                    -55.0, -62.75, -53.5, -44.0],
+                   [-6.25, -3.25, 9.5, 5.0, 23.75, 27.75, 38.0, 42.5, 50.25, 64.5, 71.75, 54.25,
+                    52.5, 34.5, 40.25]),
+        'pink': ([-18.14086584874253, 29.90145782159542, -4.005443863119641, 12.383299554666777,
+                  30.594195904807677, 20.782786327024237, -1.165430844861354, -13.0418063000804,
+                  -39.04634413323308, -28.855897042682486, -87.70150222323788, -70.5795903276702,
+                  -64.05728442996818, -18.298457530746745, -39.42466367509921],
+                 [-7.605277946389547, -1.4520637334016013, -21.817426557306685, 36.36907063705611,
+                  -31.514982024650738, -58.484979899774956, 21.878003376016053, 13.64974612526993,
+                  -44.91629470896975, -20.95299968025448, 29.789783175476778, 88.62449031440683,
+                  93.41548187766081, 61.340901151002676, 26.238242631427426]),
+    }
+    for method, (lead, trail) in golden_edge.items():
+        y = eg.fill_gaps(xe, fs, method=method, max_interp_s=0.02, context_s=1.0, taper_s=0.05,
+                         seed=0)
+        np.testing.assert_allclose(y[:15], lead, rtol=1e-9, atol=1e-9, err_msg=method)
+        np.testing.assert_allclose(y[385:], trail, rtol=1e-9, atol=1e-9, err_msg=method)
+        np.testing.assert_array_equal(y[15:385], xe[15:385])
+
+
+def test_mask_in_gaps_margin_boundary():
+    """Exact boundary of the widened gap [start - margin, stop + margin): closed on the left,
+    open on the right. Values as given by brainmaze-eeg 3.1.0's own implementation, so a
+    change of the re-exported brainmaze_utils.gaps.mask_in_gaps would be caught."""
+    from brainmaze_eeg.spikes._gaps import mask_in_gaps
+    fs = 100.0
+    gaps = np.array([[100, 120]])                    # 1.00-1.20 s; margin 0.1 s -> [0.9, 1.3)
+    want = [False, True, True, True, False, False]   # outside / at / inside ... at / outside
+    det_s = np.array([0.89, 0.9, 0.91, 1.29, 1.3, 1.31])
+    det_n = np.array([89, 90, 91, 129, 130, 131])
+    kw = dict(margin_s=0.1)
+    assert mask_in_gaps(det_s, gaps, fs, units='seconds', gap_units='samples', **kw).tolist() == want
+    assert mask_in_gaps(det_n, gaps, fs, units='samples', gap_units='samples', **kw).tolist() == want
+    assert mask_in_gaps(det_n, gaps / fs, fs, units='samples', gap_units='seconds', **kw).tolist() == want
+    # intervals: masked when [det, end] reaches start - margin
+    assert mask_in_gaps(np.array([80, 80, 131]), gaps, fs, units='samples', gap_units='samples',
+                        end=np.array([89, 90, 140]), **kw).tolist() == [False, True, False]
+    # no margin: the gap itself, stop exclusive
+    assert mask_in_gaps(np.array([99, 100, 119, 120]), gaps, fs, units='samples',
+                        gap_units='samples', margin_s=0.0).tolist() == [False, True, True, False]
