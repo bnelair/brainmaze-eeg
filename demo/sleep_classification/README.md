@@ -13,20 +13,19 @@ python train_predict_unknown.py            # ~1-2 min; figure in ./demo_output
 ## What it does
 
 ```python
-import numpy as np
 from brainmaze_eeg.classifiers import KDEBayesianModel, UNKNOWN_LABEL
 
 model = KDEBayesianModel(fs=200, segm_size=30, n_jobs=1)
 X = model.extract_features_bulk(list_of_30s_epochs, [fs] * n_epochs)[0]  # resampled to 200 Hz
-model.fit(X, np.asarray(labels))           # 'AWAKE', 'N2', 'N3', 'REM'; never 'UNKNOWN'
+model.fit(X, labels)                       # 'AWAKE', 'N2', 'N3', 'REM'; never 'UNKNOWN'
 table = model.predict_signal(signal, fs)   # annotation, start, end, duration (s)
 scores = model.predict_signal_scores(signal, fs)  # per-epoch probabilities
 model.max_log_lik_, model.log_lik_floor_   # per-epoch best-state log-likelihood, floor
 ```
 
-- **Labels.** `y` must be a NumPy array of strings (`fit` raises `AttributeError` for a
-  plain list in 3.1.0). N1 is not trained (the models know AWAKE/N2/N3/REM, as in
-  `SleepClassifierWrapper`). Training labels must not contain `'UNKNOWN'` (`fit` raises).
+- **Labels.** A list or a NumPy array of strings (a plain list raised `AttributeError`
+  in 3.1.0 and earlier; pass `np.asarray(labels)` there). N1 is not trained (the models
+  know AWAKE/N2/N3/REM, as in `SleepClassifierWrapper`). Training labels must not contain `'UNKNOWN'` (`fit` raises).
 - **Missing data.** The file stores dropouts as a constant; they are set to NaN from its
   `data_present` mask. `predict_signal` skips epochs with less than 85 % non-NaN samples
   (`datarate_threshold`); they leave a gap in the table, and the smoothing does not cross

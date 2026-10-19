@@ -307,10 +307,11 @@ def balance_classes(x, y, std_factor=0.0):
 
     Parameters
     ----------
-    x : numpy ndarray
-        shape[n_samples, n_features]
-    y : list or numpy array
-        string or int indexes for each category
+    x : array_like
+        shape[n_samples, n_features] (converted with ``np.asarray``)
+    y : array_like
+        string or int indexes for each category (list or numpy array; converted with
+        ``np.asarray``; up to 3.1.0 a list raised ``AttributeError``)
     std_factor : float
         Amount of noise introduced into duplicated features relatively to std of a given feature within a category.
 
@@ -322,6 +323,9 @@ def balance_classes(x, y, std_factor=0.0):
         y - categories
     """
 
+    # array-likes (e.g. lists) -> ndarray; an ndarray passes through unchanged (same object)
+    x = np.asarray(x)
+    y = np.asarray(y)
     # Data augmentation
     cat_members = np.array([(y == c).sum() for c in np.unique(y)])
     for idx, cat in enumerate(np.unique(y)):
