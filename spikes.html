@@ -495,13 +495,8 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#relation-to-brainmaze-utils-gaps">Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S"><code class="docutils literal notranslate"><span class="pre">FLAT_AS_GAP_S</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.fill_gaps"><code class="docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.find_gaps"><code class="docutils literal notranslate"><span class="pre">find_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.flat_runs"><code class="docutils literal notranslate"><span class="pre">flat_runs()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.gap_intervals"><code class="docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.pink_noise"><code class="docutils literal notranslate"><span class="pre">pink_noise()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-brainmaze_eeg.spikes._filters">Filter design</a><ul class="nav section-nav flex-column">
@@ -2109,7 +2104,7 @@ minus gaps widened by <code class="docutils literal notranslate"><span class="pr
 <p id="module-brainmaze_eeg.spikes._gaps">Gap (NaN/inf) helpers used by <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a>.</p>
 <p>Three steps around an unchanged detector:</p>
 <ol class="arabic">
-<li><p><a class="reference internal" href="#brainmaze_eeg.spikes._gaps.find_gaps" title="brainmaze_eeg.spikes._gaps.find_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code></a> – runs of non-finite samples (NaN or +/-inf) of the <strong>original</strong>
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code> – runs of non-finite samples (NaN or +/-inf) of the <strong>original</strong>
 signal, as <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> sample indices.</p></li>
 <li><p><a class="reference internal" href="#brainmaze_eeg.spikes._gaps.fill_gaps" title="brainmaze_eeg.spikes._gaps.fill_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a> – make the signal finite so filters/FFT/Hilbert can run:</p>
 <ul class="simple">
@@ -2133,37 +2128,52 @@ before a background-modelling detector such as Janca).</p></li>
 position and neighbouring data, so fills are reproducible, independent across channels
 and independent of the other gaps.</p>
 </li>
-<li><p><a class="reference internal" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps" title="brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a> / <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps" title="brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a> – remove detections inside a gap or within
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code> / <code class="xref py py-func docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code> – remove detections inside a gap or within
 <code class="docutils literal notranslate"><span class="pre">margin_s</span></code> of it. Detections on filled samples are never real, whatever the fill.</p></li>
 </ol>
 <section id="relation-to-brainmaze-utils-gaps">
 <h3>Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code><a class="headerlink" href="#relation-to-brainmaze-utils-gaps" title="Link to this heading">#</a></h3>
-<p>The canonical gap helpers of the BrainMaze family are being added to brainmaze-utils
-(<code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code>, PR bnelair/brainmaze-utils#26, to ship in brainmaze-utils 3.0.0).
-This module is a deliberately thin, self-contained stand-in with the same names, signatures
-and semantics as that module’s final API: <code class="docutils literal notranslate"><span class="pre">find_gaps</span></code>, <code class="docutils literal notranslate"><span class="pre">gap_intervals</span></code>,
-<code class="docutils literal notranslate"><span class="pre">fill_gaps(x,</span> <span class="pre">fs,</span> <span class="pre">*,</span> <span class="pre">max_interp_s,</span> <span class="pre">method,</span> <span class="pre">context_s,</span> <span class="pre">taper_s,</span> <span class="pre">beta,</span> <span class="pre">seed,</span> <span class="pre">axis,</span> <span class="pre">all_nan,</span>
-<span class="pre">copy)</span></code>, <code class="docutils literal notranslate"><span class="pre">pink_noise</span></code>, and <code class="docutils literal notranslate"><span class="pre">mask_in_gaps</span></code>/<code class="docutils literal notranslate"><span class="pre">drop_in_gaps(det,</span> <span class="pre">gaps,</span> <span class="pre">fs,</span> <span class="pre">*,</span> <span class="pre">units,</span>
-<span class="pre">gap_units,</span> <span class="pre">margin_s=0.1,</span> <span class="pre">end=None)</span></code> with explicit, separate units for the detections and the
-gaps (both required). The one difference: there is <strong>no</strong>
-<code class="docutils literal notranslate"><span class="pre">'spectral'</span></code> fill here (the default there), so this module’s default <code class="docutils literal notranslate"><span class="pre">method</span></code> is
-<code class="docutils literal notranslate"><span class="pre">'mirror'</span></code>. <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a> always passes
-<code class="docutils literal notranslate"><span class="pre">method</span></code> explicitly, so switching to <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">brainmaze_utils.gaps</span> <span class="pre">import</span> <span class="pre">...</span></code> is a one-line
-change (follow-up, once brainmaze-utils 3.0.0 is released; then benchmark <code class="docutils literal notranslate"><span class="pre">'spectral'</span></code> as the wrapper
-default).</p>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code>, <code class="xref py py-func docutils literal notranslate"><span class="pre">gap_intervals()</span></code>, <code class="xref py py-func docutils literal notranslate"><span class="pre">pink_noise()</span></code>, <code class="xref py py-func docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code> and
+<code class="xref py py-func docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code> <strong>are</strong> <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code>’ functions (imported from
+brainmaze-utils &gt;= 3.0.0 and re-exported here; this module used to carry copies of them, and
+they gave bit-identical results). Their <strong>input validation</strong> is now utils’, which differs
+from 3.1.0’s copies in edge cases of direct calls (unreachable through
+<a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a>, which validates <code class="docutils literal notranslate"><span class="pre">fs</span></code> and
+<code class="docutils literal notranslate"><span class="pre">edge_margin_s</span></code> itself first; no numerical result changes):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fs</span></code> given as a numeric <code class="docutils literal notranslate"><span class="pre">str</span></code> or <code class="docutils literal notranslate"><span class="pre">bytes</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">'256'</span></code>, <code class="docutils literal notranslate"><span class="pre">b'256'</span></code>) is accepted
+(3.1.0: <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">margin_s</span></code> given as a numeric string (<code class="docutils literal notranslate"><span class="pre">'0.1'</span></code>) is accepted (3.1.0: <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">margin_s</span></code> given as a 1-element array (<code class="docutils literal notranslate"><span class="pre">np.array([0.1])</span></code>) raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+(3.1.0: accepted) – pass a scalar;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">margin_s=None</span></code> and an array <code class="docutils literal notranslate"><span class="pre">fs</span></code> (<code class="docutils literal notranslate"><span class="pre">np.array([256.])</span></code>) raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+instead of <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>;</p></li>
+<li><p>the checks run in a different order (<code class="docutils literal notranslate"><span class="pre">fs</span></code> before <code class="docutils literal notranslate"><span class="pre">units</span></code>), so with several bad
+arguments another error can come first (e.g. a <code class="docutils literal notranslate"><span class="pre">str</span></code> <code class="docutils literal notranslate"><span class="pre">det</span></code> with <code class="docutils literal notranslate"><span class="pre">fs='256'</span></code>:
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code> instead of <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>).</p></li>
+</ul>
+<p>This module’s own <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.fill_gaps" title="brainmaze_eeg.spikes._gaps.fill_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a> keeps 3.1.0’s validation and still requires a numeric
+<code class="docutils literal notranslate"><span class="pre">fs</span></code> (<code class="docutils literal notranslate"><span class="pre">fill_gaps(x,</span> <span class="pre">'256')</span></code> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> while <code class="docutils literal notranslate"><span class="pre">gap_intervals(x,</span> <span class="pre">'256')</span></code>
+works).</p>
+<p><a class="reference internal" href="#brainmaze_eeg.spikes._gaps.fill_gaps" title="brainmaze_eeg.spikes._gaps.fill_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a> stays here on purpose. <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps.fill_gaps</span></code> has the same
+signature, but its <code class="docutils literal notranslate"><span class="pre">'mirror'</span></code> and <code class="docutils literal notranslate"><span class="pre">'pink'</span></code> fills are a later, different design (odd
+reflection at the edges and a correlation-aware cross-fade normalisation for <code class="docutils literal notranslate"><span class="pre">'mirror'</span></code>;
+kriging-conditioned edges, a different per-gap seeding and a <code class="docutils literal notranslate"><span class="pre">'spectral'</span></code> default for the
+noise fills). Switching would change the fill values, and with them the detections of
+<a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a> next to gaps (on synthetic and
+real data, 66 of 68 tested <code class="docutils literal notranslate"><span class="pre">'mirror'</span></code>/<code class="docutils literal notranslate"><span class="pre">'pink'</span></code> configurations differ in the kept
+detections, the Barkmeier records or <code class="docutils literal notranslate"><span class="pre">info['n_removed']</span></code>; all <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> ones are
+identical). The detections of this package must not change in a minor release, so the
+wrapper keeps the fill it was validated with. Only <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> and short-gap interpolation are identical in both.
+Differences from <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps.fill_gaps</span></code>: no <code class="docutils literal notranslate"><span class="pre">'spectral'</span></code> method, default
+<code class="docutils literal notranslate"><span class="pre">method='mirror'</span></code> (there <code class="docutils literal notranslate"><span class="pre">'spectral'</span></code>), and different fill values for <code class="docutils literal notranslate"><span class="pre">'mirror'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'pink'</span></code>. <code class="xref py py-func docutils literal notranslate"><span class="pre">gap_mask()</span></code> and <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.flat_runs" title="brainmaze_eeg.spikes._gaps.flat_runs"><code class="xref py py-func docutils literal notranslate"><span class="pre">flat_runs()</span></code></a> are specific to this package.</p>
 </section>
 <dl class="py data">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">FLAT_AS_GAP_S</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S" title="Link to this definition">#</a></dt>
 <dd><p>Default minimum length (s) of a run of exactly equal samples that counts as missing data
 (<code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector(flat_as_gap_s=...)</span></code>; see its module docstring for the evidence).</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.drop_in_gaps">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">drop_in_gaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">det</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gaps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps" title="Link to this definition">#</a></dt>
-<dd><p><code class="docutils literal notranslate"><span class="pre">det</span></code> without the detections flagged by <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps" title="brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a> (original dtype), or
-<code class="docutils literal notranslate"><span class="pre">(det,</span> <span class="pre">end)</span></code> when <code class="docutils literal notranslate"><span class="pre">end</span></code> is given.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -2207,27 +2217,13 @@ ndarray is filled in place and returned.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.find_gaps">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">find_gaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.find_gaps" title="Link to this definition">#</a></dt>
-<dd><p>Runs of non-finite samples (NaN, +inf, -inf) in a 1-D signal.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> sample indices of each run (<code class="docutils literal notranslate"><span class="pre">stop</span></code> exclusive), in order.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>np.ndarray, shape (n_gaps, 2), int64</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.flat_runs">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">flat_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flat_as_gap_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.flat_runs" title="Link to this definition">#</a></dt>
 <dd><p>Runs of exactly equal consecutive samples lasting at least <code class="docutils literal notranslate"><span class="pre">flat_as_gap_s</span></code> seconds
 (at least 2 samples) in a 1-D signal: the rule by which
 <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a> treats constant stretches
 (dropouts stored as a constant, clipping) as missing data. NaN never equals anything, so
-NaN runs are not reported here (use <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.find_gaps" title="brainmaze_eeg.spikes._gaps.find_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code></a>). <code class="docutils literal notranslate"><span class="pre">flat_as_gap_s=None</span></code> disables
+NaN runs are not reported here (use <code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code>). <code class="docutils literal notranslate"><span class="pre">flat_as_gap_s=None</span></code> disables
 the rule (no runs). Not part of <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -2239,48 +2235,15 @@ the rule (no runs). Not part of <code class="docutils literal notranslate"><span
 </dl>
 </dd></dl>
 
-<dl class="py function">
-<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.gap_intervals">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">gap_intervals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.gap_intervals" title="Link to this definition">#</a></dt>
-<dd><p>Gaps of a 1-D signal as <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> times in <strong>seconds</strong>, shape (n_gaps, 2).</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.mask_in_gaps">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">mask_in_gaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">det</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gaps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps" title="Link to this definition">#</a></dt>
-<dd><p>Boolean mask of detections overlapping a gap widened by <code class="docutils literal notranslate"><span class="pre">margin_s</span></code> on each side.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>det</strong> (<em>array_like</em>) – Detection positions, or interval starts, in <code class="docutils literal notranslate"><span class="pre">units</span></code>.</p></li>
-<li><p><strong>gaps</strong> (<em>array_like</em><em>, </em><em>shape</em><em> (</em><em>n_gaps</em><em>, </em><em>2</em><em>)</em>) – <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> of each gap in <code class="docutils literal notranslate"><span class="pre">gap_units</span></code>: <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.find_gaps" title="brainmaze_eeg.spikes._gaps.find_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code></a> gives samples,
-<a class="reference internal" href="#brainmaze_eeg.spikes._gaps.gap_intervals" title="brainmaze_eeg.spikes._gaps.gap_intervals"><code class="xref py py-func docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a> gives seconds.</p></li>
-<li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency (Hz), required.</p></li>
-<li><p><strong>units</strong> (<em>{'seconds'</em><em>, </em><em>'samples'}</em>) – Units of <code class="docutils literal notranslate"><span class="pre">det</span></code> (and <code class="docutils literal notranslate"><span class="pre">end</span></code>); required, never inferred.</p></li>
-<li><p><strong>gap_units</strong> (<em>{'seconds'</em><em>, </em><em>'samples'}</em>) – Units of <code class="docutils literal notranslate"><span class="pre">gaps</span></code>; required, never inferred. Integer-typed values with
-<code class="docutils literal notranslate"><span class="pre">'seconds'</span></code> raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> (pass whole seconds as floats); with
-<code class="docutils literal notranslate"><span class="pre">'samples'</span></code>, float values must be integral within 1e-6 (<code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">*</span> <span class="pre">fs</span></code> is fine) or
-<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> is raised (a units mix-up must not silently mask nothing).</p></li>
-<li><p><strong>margin_s</strong> (<em>float</em>) – Exclusion margin in <strong>seconds</strong> (default 0.1).</p></li>
-<li><p><strong>end</strong> (<em>array_like</em><em>, </em><em>optional</em>) – Interval ends (same shape as <code class="docutils literal notranslate"><span class="pre">det</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span> <span class="pre">&gt;=</span> <span class="pre">det</span></code>).</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>True where <code class="docutils literal notranslate"><span class="pre">[det,</span> <span class="pre">end]</span></code> overlaps <code class="docutils literal notranslate"><span class="pre">[gap_start</span> <span class="pre">-</span> <span class="pre">margin,</span> <span class="pre">gap_stop</span> <span class="pre">+</span> <span class="pre">margin)</span></code>.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>np.ndarray of bool</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.pink_noise">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">pink_noise</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmin_bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.pink_noise" title="Link to this definition">#</a></dt>
-<dd><p>Zero-mean, unit-variance <code class="docutils literal notranslate"><span class="pre">1/f**beta</span></code> noise of length <code class="docutils literal notranslate"><span class="pre">n</span></code> (spectral synthesis).
-Frequency bins below <code class="docutils literal notranslate"><span class="pre">fmin_bins</span></code> are zeroed.</p>
-</dd></dl>
-
+<p><code class="docutils literal notranslate"><span class="pre">brainmaze_eeg.spikes._gaps</span></code> also re-exports these functions of <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code>
+(brainmaze-utils &gt;= 3.0.0), documented there:
+<a class="reference external" href="https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.find_gaps">find_gaps</a>,
+<a class="reference external" href="https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.gap_intervals">gap_intervals</a>,
+<a class="reference external" href="https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.mask_in_gaps">mask_in_gaps</a>,
+<a class="reference external" href="https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.drop_in_gaps">drop_in_gaps</a> and
+<a class="reference external" href="https://bnelair.github.io/brainmaze-utils/gaps.html#brainmaze_utils.gaps.pink_noise">pink_noise</a>.
+Its <code class="docutils literal notranslate"><span class="pre">fill_gaps</span></code> (above) is this package’s own and differs from
+<code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps.fill_gaps</span></code> (see the module description).</p>
 </section>
 <section id="module-brainmaze_eeg.spikes._filters">
 <span id="filter-design"></span><h2>Filter design<a class="headerlink" href="#module-brainmaze_eeg.spikes._filters" title="Link to this heading">#</a></h2>
@@ -2511,13 +2474,8 @@ multiply.</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#relation-to-brainmaze-utils-gaps">Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S"><code class="docutils literal notranslate"><span class="pre">FLAT_AS_GAP_S</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.fill_gaps"><code class="docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.find_gaps"><code class="docutils literal notranslate"><span class="pre">find_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.flat_runs"><code class="docutils literal notranslate"><span class="pre">flat_runs()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.gap_intervals"><code class="docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.pink_noise"><code class="docutils literal notranslate"><span class="pre">pink_noise()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-brainmaze_eeg.spikes._filters">Filter design</a><ul class="nav section-nav flex-column">
