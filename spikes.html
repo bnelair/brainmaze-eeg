@@ -396,15 +396,26 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#janca-hilbert-envelope-interictal-spike-detectors">Janca (Hilbert-envelope) interictal spike detectors</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#presets-of-detect-spikes-janca-jancadetector">Presets of <code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code> / <code class="xref py py-class docutils literal notranslate"><span class="pre">JancaDetector</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm-of-detect-spikes-janca">Algorithm of <code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-extensions-3-1-0-off-by-default-the-steps-above-are-then-unchanged">Optional extensions (3.1.0; off by default, the steps above are then unchanged)</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#known-differences-from-the-eeg-forge-reference-all-deliberate-fixes">Known differences from the eeg_forge reference (all deliberate fixes)</a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO"><code class="docutils literal notranslate"><span class="pre">BASELINE_LEVEL_WARN_RATIO</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.COMBINE_MODES"><code class="docutils literal notranslate"><span class="pre">COMBINE_MODES</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.DECISION_PARAMS"><code class="docutils literal notranslate"><span class="pre">DECISION_PARAMS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MIN_VALID_FRACTION</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S"><code class="docutils literal notranslate"><span class="pre">DEFAULT_STATS_MARGIN_S</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JANCA_PRESETS"><code class="docutils literal notranslate"><span class="pre">JANCA_PRESETS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector"><code class="docutils literal notranslate"><span class="pre">JancaDetector</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector.accepts_channels"><code class="docutils literal notranslate"><span class="pre">JancaDetector.accepts_channels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector.accepts_valid"><code class="docutils literal notranslate"><span class="pre">JancaDetector.accepts_valid</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect"><code class="docutils literal notranslate"><span class="pre">JancaDetector.detect()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB"><code class="docutils literal notranslate"><span class="pre">MAX_RESAMPLER_LOSS_DB</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE"><code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_QUANTILE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO"><code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_WARN_RATIO</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS"><code class="docutils literal notranslate"><span class="pre">SIGNAL_PATH_PARAMS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.channel_independent"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert.channel_independent</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.design_filters"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert.design_filters()</span></code></a></li>
@@ -417,7 +428,42 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_decimation_factor"><code class="docutils literal notranslate"><span class="pre">janca_decimation_factor()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_params"><code class="docutils literal notranslate"><span class="pre">janca_params()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_resampling"><code class="docutils literal notranslate"><span class="pre">janca_resampling()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_threshold"><code class="docutils literal notranslate"><span class="pre">janca_threshold()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.resampler_gain_db"><code class="docutils literal notranslate"><span class="pre">resampler_gain_db()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-brainmaze_eeg.spikes.janca_baseline">Janca reference baseline (3.1.0)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reference-baseline-for-the-janca-detector">Reference baseline for the Janca detector</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-statistics-are-made-jancabaseline-from-signal">How the statistics are made (<code class="xref py py-meth docutils literal notranslate"><span class="pre">JancaBaseline.from_signal()</span></code>)</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#what-must-match-what-is-free">What must match, what is free</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA"><code class="docutils literal notranslate"><span class="pre">BASELINE_SCHEMA</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION"><code class="docutils literal notranslate"><span class="pre">BASELINE_SCHEMA_VERSION</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.channel_names"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.channel_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.check_compatible"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.check_compatible()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.envelope_levels"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.envelope_levels()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_dict"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.from_dict()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.from_signal()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.fs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs_analysis"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.fs_analysis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.info"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.info</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.load"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.load()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.mu"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.mu</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.n_channels"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.n_channels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.params"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.params</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.preset"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.preset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.save()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.sd"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.sd</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.select"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.select()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.threshold"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.threshold()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.to_dict"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.to_dict()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.units"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.valid_s"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.valid_s</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-brainmaze_eeg.spikes.barkmeier">Barkmeier</a><ul class="nav section-nav flex-column">
@@ -448,9 +494,11 @@
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#relation-to-brainmaze-utils-gaps">Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S"><code class="docutils literal notranslate"><span class="pre">FLAT_AS_GAP_S</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.fill_gaps"><code class="docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.find_gaps"><code class="docutils literal notranslate"><span class="pre">find_gaps()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.flat_runs"><code class="docutils literal notranslate"><span class="pre">flat_runs()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.gap_intervals"><code class="docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.pink_noise"><code class="docutils literal notranslate"><span class="pre">pink_noise()</span></code></a></li>
@@ -499,7 +547,9 @@ the <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg
 <li><p><a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a> – Hilbert-envelope
 distribution-modelling detector (Janca et al. 2015), eeg_forge formulation with verified
 filters; presets <code class="docutils literal notranslate"><span class="pre">'spike'</span></code> (default) and <code class="docutils literal notranslate"><span class="pre">'ripple'</span></code> (80-250 Hz, not validated on real
-ripples) of one implementation. Layout <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code> or <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code>.</p></li>
+ripples) of one implementation. Layout <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code> or <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code>.
+Optional (3.1.0): a reference baseline (<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a>)
+for permanently spiking channels, and gap-aware local statistics for long windows.</p></li>
 <li><p><a class="reference internal" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert" title="brainmaze_eeg.spikes.janca.SpikeDetectorHilbert"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></a> (alias
 <code class="docutils literal notranslate"><span class="pre">spike_detector_hilbert_v24</span></code>) – port of the MATLAB <code class="docutils literal notranslate"><span class="pre">spike_detector_hilbert_v24</span></code> with
 its full output. Layout <code class="docutils literal notranslate"><span class="pre">(n_samples,</span> <span class="pre">n_channels)</span></code> (MATLAB convention).</p></li>
@@ -637,6 +687,20 @@ realised ratio, so the rational approximation causes no timing drift).</p></li>
 <p>Channels are processed one at a time, so the working memory is a few times one channel,
 not a few times the whole montage.</p>
 </section>
+<section id="optional-extensions-3-1-0-off-by-default-the-steps-above-are-then-unchanged">
+<h4>Optional extensions (3.1.0; off by default, the steps above are then unchanged)<a class="headerlink" href="#optional-extensions-3-1-0-off-by-default-the-steps-above-are-then-unchanged" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><strong>Reference baseline</strong> (<code class="docutils literal notranslate"><span class="pre">baseline=</span></code>, <code class="docutils literal notranslate"><span class="pre">combine=</span></code>): step 6 with <code class="docutils literal notranslate"><span class="pre">mu</span></code>, <code class="docutils literal notranslate"><span class="pre">sd</span></code> measured on
+a reference recording (<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a>)
+instead of the sliding window, or the lower / higher of the two thresholds. For channels
+that spike so often that the local window learns the spikes as background. The
+signal-path parameters (<a class="reference internal" href="#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS" title="brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS"><code class="xref py py-data docutils literal notranslate"><span class="pre">SIGNAL_PATH_PARAMS</span></code></a>) and the analysis rate must match the
+baseline’s.</p></li>
+<li><p><strong>Gap-aware statistics</strong> (<code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code>): step 5 over valid samples only, with a
+minimum valid fraction per window, in O(n) for any window length (long windows on long
+records with dropouts); samples left out of the statistics are not detected either.</p></li>
+</ul>
+</section>
 <section id="known-differences-from-the-eeg-forge-reference-all-deliberate-fixes">
 <h4>Known differences from the eeg_forge reference (all deliberate fixes)<a class="headerlink" href="#known-differences-from-the-eeg-forge-reference-all-deliberate-fixes" title="Link to this heading">#</a></h4>
 <ul class="simple">
@@ -672,6 +736,57 @@ reference’s integer decimation so that results are identical to it.</p></li>
 </section>
 </section>
 <dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">BASELINE_LEVEL_WARN_RATIO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10.0</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO" title="Link to this definition">#</a></dt>
+<dd><p>A reference baseline whose envelope level (<code class="docutils literal notranslate"><span class="pre">exp(mu)</span></code>) differs from the record’s by more
+than this factor (either way) triggers a <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code>: units/gain/montage mismatch?</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.COMBINE_MODES">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">COMBINE_MODES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('reference',</span> <span class="pre">'min',</span> <span class="pre">'max')</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.COMBINE_MODES" title="Link to this definition">#</a></dt>
+<dd><p>How a reference baseline’s threshold is combined with the local one (<code class="docutils literal notranslate"><span class="pre">combine</span></code>).</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.DECISION_PARAMS">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">DECISION_PARAMS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('threshold',</span> <span class="pre">'min_distance_s',</span> <span class="pre">'window_s')</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.DECISION_PARAMS" title="Link to this definition">#</a></dt>
+<dd><p>free to differ from a baseline’s.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Decision parameters of <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_MIN_VALID_FRACTION</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.5</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION" title="Link to this definition">#</a></dt>
+<dd><p>a sliding window needs at
+least this fraction of its samples valid, otherwise the local threshold is undefined
+(NaN: no detections there).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Default <code class="docutils literal notranslate"><span class="pre">min_valid_fraction</span></code> of <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_STATS_MARGIN_S</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.5</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S" title="Link to this definition">#</a></dt>
+<dd><p>analysis samples this close to an invalid sample (gap,
+dropout, filled sample) are excluded from the background statistics, because filter and
+Hilbert transients and the gap fill reach into the neighbouring signal (measured; see the
+README, “Reference baseline”).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Default <code class="docutils literal notranslate"><span class="pre">stats_margin_s</span></code> (s)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.JANCA_PRESETS">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">JANCA_PRESETS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">mappingproxy({'spike':</span> <span class="pre">mappingproxy({'band':</span> <span class="pre">(10.0,</span> <span class="pre">60.0),</span> <span class="pre">'filter_order':</span> <span class="pre">3,</span> <span class="pre">'powerline':</span> <span class="pre">50.0,</span> <span class="pre">'notch_width':</span> <span class="pre">5.0,</span> <span class="pre">'notch_order':</span> <span class="pre">3,</span> <span class="pre">'notch_harmonics':</span> <span class="pre">1,</span> <span class="pre">'target_fs':</span> <span class="pre">200.0,</span> <span class="pre">'decimation':</span> <span class="pre">'integer',</span> <span class="pre">'window_s':</span> <span class="pre">5.0,</span> <span class="pre">'threshold':</span> <span class="pre">3.65,</span> <span class="pre">'min_distance_s':</span> <span class="pre">0.1,</span> <span class="pre">'eps_rel':</span> <span class="pre">1e-06}),</span> <span class="pre">'ripple':</span> <span class="pre">mappingproxy({'band':</span> <span class="pre">(80.0,</span> <span class="pre">250.0),</span> <span class="pre">'filter_order':</span> <span class="pre">3,</span> <span class="pre">'powerline':</span> <span class="pre">50.0,</span> <span class="pre">'notch_width':</span> <span class="pre">5.0,</span> <span class="pre">'notch_order':</span> <span class="pre">3,</span> <span class="pre">'notch_harmonics':</span> <span class="pre">1,</span> <span class="pre">'target_fs':</span> <span class="pre">1000.0,</span> <span class="pre">'decimation':</span> <span class="pre">'integer',</span> <span class="pre">'window_s':</span> <span class="pre">5.0,</span> <span class="pre">'threshold':</span> <span class="pre">3.65,</span> <span class="pre">'min_distance_s':</span> <span class="pre">0.1,</span> <span class="pre">'eps_rel':</span> <span class="pre">1e-06})})</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JANCA_PRESETS" title="Link to this definition">#</a></dt>
 <dd><p>Named parameter sets of <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a> (read-only; see the module docstring
@@ -681,27 +796,75 @@ for their sources). <code class="docutils literal notranslate"><span class="pre"
 
 <dl class="py class">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.JancaDetector">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">JancaDetector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">preset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'spike'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">overrides</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JancaDetector" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">JancaDetector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">preset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'spike'</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">baseline</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'reference'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broadcast_baseline</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_aware_stats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_valid_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">overrides</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JancaDetector" title="Link to this definition">#</a></dt>
 <dd><p><a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a> as a detector object (the protocol of
 <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a>).</p>
 <p><code class="docutils literal notranslate"><span class="pre">JancaDetector(preset,</span> <span class="pre">**overrides).detect(x,</span> <span class="pre">fs)</span></code> equals
 <code class="docutils literal notranslate"><span class="pre">detect_spikes_janca(x,</span> <span class="pre">fs,</span> <span class="pre">preset=preset,</span> <span class="pre">**overrides)</span></code> for 2-D <code class="docutils literal notranslate"><span class="pre">x</span></code>
 <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code>: a list with one <code class="docutils literal notranslate"><span class="pre">int64</span></code> array of sample indices per
 channel. All parameters are resolved and validated at construction
-(<a class="reference internal" href="#brainmaze_eeg.spikes.janca.janca_params" title="brainmaze_eeg.spikes.janca.janca_params"><code class="xref py py-func docutils literal notranslate"><span class="pre">janca_params()</span></code></a>: names, types, finiteness, ranges); the checks that need the
-sampling rate (Nyquist, resampler loss, window and record length) run in
-<a class="reference internal" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect" title="brainmaze_eeg.spikes.janca.JancaDetector.detect"><code class="xref py py-meth docutils literal notranslate"><span class="pre">detect()</span></code></a>.</p>
+(<a class="reference internal" href="#brainmaze_eeg.spikes.janca.janca_params" title="brainmaze_eeg.spikes.janca.janca_params"><code class="xref py py-func docutils literal notranslate"><span class="pre">janca_params()</span></code></a>: names, types, finiteness, ranges; a baseline’s signal path is
+checked against them); the checks that need the sampling rate (Nyquist, resampler loss,
+window and record length, the baseline’s <code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code>) run in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect" title="brainmaze_eeg.spikes.janca.JancaDetector.detect"><code class="xref py py-meth docutils literal notranslate"><span class="pre">detect()</span></code></a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">baseline</span></code>, <code class="docutils literal notranslate"><span class="pre">combine</span></code>, <code class="docutils literal notranslate"><span class="pre">broadcast_baseline</span></code>, <code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code>,
+<code class="docutils literal notranslate"><span class="pre">min_valid_fraction</span></code> and <code class="docutils literal notranslate"><span class="pre">stats_margin_s</span></code> are the options of
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a> (defaults: the original algorithm). Inside
+<a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a>:</p>
+<ul class="simple">
+<li><p>with <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code> the detector receives the wrapper’s gap mask
+(<code class="docutils literal notranslate"><span class="pre">accepts_valid</span></code>), so filled samples never enter the local statistics;</p></li>
+<li><p>with a baseline it receives the caller’s channel indices (<code class="docutils literal notranslate"><span class="pre">accepts_channels</span></code>), so each
+channel is compared with its own baseline row even when the wrapper feeds channels one
+at a time or leaves all-missing channels out.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">channel_names</span></code> (only with a baseline): names of the <strong>full montage</strong> given to
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect" title="brainmaze_eeg.spikes.janca.JancaDetector.detect"><code class="xref py py-meth docutils literal notranslate"><span class="pre">detect()</span></code></a> (or to the wrapper). If the baseline has names too they must be equal, in
+order (checked here, <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>); <a class="reference internal" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect" title="brainmaze_eeg.spikes.janca.JancaDetector.detect"><code class="xref py py-meth docutils literal notranslate"><span class="pre">detect()</span></code></a> passes the names of the rows it
+receives to <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>.</p>
 <p>Examples:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">JancaDetector</span><span class="p">()</span>                                  <span class="c1"># spikes, eeg_forge values</span>
 <span class="n">JancaDetector</span><span class="p">(</span><span class="n">powerline</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>                      <span class="c1"># spikes, North-American mains</span>
 <span class="n">JancaDetector</span><span class="p">(</span><span class="s1">'ripple'</span><span class="p">)</span>                          <span class="c1"># 80-250 Hz at ~1 kHz (unvalidated)</span>
 <span class="n">JancaDetector</span><span class="p">(</span><span class="s1">'ripple'</span><span class="p">,</span> <span class="n">notch_harmonics</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
+<span class="n">JancaDetector</span><span class="p">(</span><span class="n">powerline</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">baseline</span><span class="o">=</span><span class="n">JancaBaseline</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'pre_injury.json'</span><span class="p">))</span>
+<span class="n">JancaDetector</span><span class="p">(</span><span class="n">window_s</span><span class="o">=</span><span class="mi">1800</span><span class="p">,</span> <span class="n">gap_aware_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.JancaDetector.accepts_channels">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">accepts_channels</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JancaDetector.accepts_channels" title="Link to this definition">#</a></dt>
+<dd><p>the wrapper then passes the caller’s channel indices.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True with a baseline</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.JancaDetector.accepts_valid">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">accepts_valid</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JancaDetector.accepts_valid" title="Link to this definition">#</a></dt>
+<dd><p>the wrapper then passes its gap mask as <code class="docutils literal notranslate"><span class="pre">valid</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True with <code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.JancaDetector.detect">
-<span class="sig-name descname"><span class="pre">detect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">detect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect" title="Link to this definition">#</a></dt>
 <dd><p>Detection sample indices per channel of <code class="docutils literal notranslate"><span class="pre">x</span></code> <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">valid</span></code> (with <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code> only): boolean mask of <code class="docutils literal notranslate"><span class="pre">x</span></code>’s shape, True on
+samples that may enter the local statistics. <code class="docutils literal notranslate"><span class="pre">channels</span></code> / <code class="docutils literal notranslate"><span class="pre">n_channels</span></code> (used by
+<a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a> when there is a
+baseline): the rows of <code class="docutils literal notranslate"><span class="pre">x</span></code> are channels <code class="docutils literal notranslate"><span class="pre">channels</span></code> (integer indices) of a montage
+of <code class="docutils literal notranslate"><span class="pre">n_channels</span></code>; the baseline must have <code class="docutils literal notranslate"><span class="pre">n_channels</span></code> rows (or 1 with
+<code class="docutils literal notranslate"><span class="pre">broadcast_baseline=True</span></code>) and row <code class="docutils literal notranslate"><span class="pre">channels[i]</span></code> is used for <code class="docutils literal notranslate"><span class="pre">x[i]</span></code>.
+<code class="docutils literal notranslate"><span class="pre">channels</span></code> may instead be channel <strong>names</strong> (str) of a baseline with
+<code class="docutils literal notranslate"><span class="pre">channel_names</span></code> (<code class="docutils literal notranslate"><span class="pre">n_channels</span></code> is then not needed). Anything else (floats, bools)
+raises <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>.</p>
 </dd></dl>
 
 </dd></dl>
@@ -710,6 +873,39 @@ sampling rate (Nyquist, resampler loss, window and record length) run in
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">MAX_RESAMPLER_LOSS_DB</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB" title="Link to this definition">#</a></dt>
 <dd><p>Maximum loss (dB) of the resampler’s anti-alias filter allowed at <code class="docutils literal notranslate"><span class="pre">band[1]</span></code>.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">MONTAGE_LEVEL_QUANTILE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE" title="Link to this definition">#</a></dt>
+<dd><p>Quantile of the log-envelope used by the montage-wide level check.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">MONTAGE_LEVEL_WARN_RATIO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3.0</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO" title="Link to this definition">#</a></dt>
+<dd><p>the <strong>median across channels</strong> of the background level
+ratio at the <a class="reference internal" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE" title="brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE"><code class="xref py py-data docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_QUANTILE</span></code></a> quantile of the log-envelope (record vs the
+baseline model <code class="docutils literal notranslate"><span class="pre">mu</span> <span class="pre">+</span> <span class="pre">ndtri(q)</span> <span class="pre">*</span> <span class="pre">sd</span></code>) beyond this factor (either way) triggers a
+<code class="docutils literal notranslate"><span class="pre">UserWarning</span></code>: gain or montage mismatch of about x3. A low quantile measures the
+background between spikes, so dense spiking moves it much less than the mean-log
+<code class="docutils literal notranslate"><span class="pre">level_ratio</span></code> (5 spikes/s of 600 uV in 30 uV background: x1.9 vs x4.4); the median
+across channels ignores a minority of channels that spike or are off. Tuning and
+evidence: README, “Reference baseline”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Second, montage-wide level check</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">SIGNAL_PATH_PARAMS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('band',</span> <span class="pre">'filter_order',</span> <span class="pre">'powerline',</span> <span class="pre">'notch_width',</span> <span class="pre">'notch_order',</span> <span class="pre">'notch_harmonics',</span> <span class="pre">'target_fs',</span> <span class="pre">'decimation',</span> <span class="pre">'eps_rel')</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS" title="Link to this definition">#</a></dt>
+<dd><p>Parameters of <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a> that define the <strong>signal path</strong> (filters,
+resampling, envelope offset). A <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a>
+may only be used for detection with the same values (and the same analysis rate
+<code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code>); <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a> raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming every mismatch.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -926,17 +1122,29 @@ so the realised response is -6.02 dB there.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.detect_spikes_janca">
-<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">detect_spikes_janca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preset='spike'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">band=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">powerline=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_width=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_harmonics=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_fs=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimation=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_s=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_distance_s=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_rel=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_details=False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">detect_spikes_janca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preset='spike'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">band=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">powerline=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_width=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_harmonics=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_fs=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimation=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_s=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_distance_s=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_rel=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_details=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">baseline=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine='reference'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">broadcast_baseline=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_aware_stats=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valid=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_valid_fraction=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_margin_s=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_names=None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="Link to this definition">#</a></dt>
 <dd><p>Janca envelope-distribution detector (eeg_forge formulation, fixed), for spikes or, with
 <code class="docutils literal notranslate"><span class="pre">preset='ripple'</span></code>, the ripple band.</p>
 <p>See the module docstring for the algorithm, the presets and the differences from the
 reference. Every parameter left at <code class="docutils literal notranslate"><span class="pre">&lt;preset&gt;</span></code> takes the value of <code class="docutils literal notranslate"><span class="pre">preset</span></code>; any value
 given explicitly overrides it. The defaults below are those of <code class="docutils literal notranslate"><span class="pre">preset='spike'</span></code>.</p>
+<p>With the defaults of the options after <code class="docutils literal notranslate"><span class="pre">return_details</span></code> (<code class="docutils literal notranslate"><span class="pre">baseline=None</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gap_aware_stats=False</span></code>) the detector is the original algorithm, unchanged (identical
+to eeg_forge on the parity data). The options are opt-in extensions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">baseline</span></code>: a <strong>reference baseline</strong> (<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a>,
+e.g. from a quiet or pre-injury recording) instead of / combined with the local
+background model; for channels that spike so often that the local model learns the
+spikes as background. See the README, “Reference baseline”.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code>: local statistics that skip gaps, for long windows on data with
+dropouts.</p></li>
+</ul>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>x</strong> (<em>np.ndarray</em>) – Signal, <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code> or <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code>. Any amplitude unit
-(the detector is scale-invariant). Must be finite: NaN/inf raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+(the detector is scale-invariant; <strong>with a baseline the unit must be the
+baseline’s</strong>). Must be finite: NaN/inf raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
 (wrap the detector in <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a>
 for data with gaps).</p></li>
 <li><p><strong>fs</strong> (<em>float</em>) – Sampling frequency of <code class="docutils literal notranslate"><span class="pre">x</span></code> (Hz).</p></li>
@@ -968,15 +1176,64 @@ the realised ratio.</p></li>
 <li><p><strong>window_s</strong> (<em>float</em>) – Length (s) of the sliding window of the log-envelope statistics (reference <code class="docutils literal notranslate"><span class="pre">w</span></code>: 5).
 Must span at least 3 analysis samples. A window longer than the analysis record issues a
 <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code>: the statistics then cover the whole (reflected) record, not a
-local window.</p></li>
+local window. Not used with <code class="docutils literal notranslate"><span class="pre">combine='reference'</span></code>.</p></li>
 <li><p><strong>threshold</strong> (<em>float</em>) – Threshold multiplier on <code class="docutils literal notranslate"><span class="pre">mode</span> <span class="pre">+</span> <span class="pre">median</span></code> of the local log-normal model
-(reference <code class="docutils literal notranslate"><span class="pre">thr</span></code>: 3.65, the paper’s <code class="docutils literal notranslate"><span class="pre">k1</span></code>). Finite, &gt; 0.</p></li>
+(reference <code class="docutils literal notranslate"><span class="pre">thr</span></code>: 3.65, the paper’s <code class="docutils literal notranslate"><span class="pre">k1</span></code>). Finite, &gt; 0. With a baseline the same
+multiplier applies to the baseline’s model.</p></li>
 <li><p><strong>min_distance_s</strong> (<em>float</em>) – Minimum distance between detections in seconds (reference: 0.1). Of two close
 maxima the larger is kept. Finite, &gt;= 0.</p></li>
 <li><p><strong>eps_rel</strong> (<em>float</em>) – Envelope offset before the log, relative to the channel’s median envelope
 (our choice, replaces the reference’s absolute 1e-6; see module docstring).
 Finite, &gt;= 0.</p></li>
 <li><p><strong>return_details</strong> (<em>bool</em>) – Also return per-channel diagnostics (see Returns).</p></li>
+<li><p><strong>baseline</strong> (<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><em>JancaBaseline</em></a><em> or </em><em>None</em>) – <code class="docutils literal notranslate"><span class="pre">None</span></code> (default): the original algorithm (local background model only). A
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a>: per-channel log-envelope
+statistics <code class="docutils literal notranslate"><span class="pre">mu</span></code>, <code class="docutils literal notranslate"><span class="pre">sd</span></code> of a reference recording, giving the fixed threshold
+<code class="docutils literal notranslate"><span class="pre">threshold</span> <span class="pre">*</span> <span class="pre">(exp(mu</span> <span class="pre">-</span> <span class="pre">sd**2)</span> <span class="pre">+</span> <span class="pre">exp(mu))</span></code>. Its <strong>signal-path parameters</strong>
+(<a class="reference internal" href="#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS" title="brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS"><code class="xref py py-data docutils literal notranslate"><span class="pre">SIGNAL_PATH_PARAMS</span></code></a>: band, filter orders, notch settings, target_fs,
+decimation, eps_rel) and its analysis rate <code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code> must equal this call’s
+(<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming every mismatch); the decision parameters (<code class="docutils literal notranslate"><span class="pre">threshold</span></code>,
+<code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>, <code class="docutils literal notranslate"><span class="pre">combine</span></code>) are free. The amplitude unit, gain and
+montage of <code class="docutils literal notranslate"><span class="pre">x</span></code> must be the baseline’s (not checkable; a <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code> is issued
+when a channel’s envelope level differs from the baseline’s by more than
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO" title="brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO"><code class="xref py py-data docutils literal notranslate"><span class="pre">BASELINE_LEVEL_WARN_RATIO</span></code></a> (x10), and when the median over channels of the
+background level (low quantile of the log-envelope, robust to dense spiking)
+differs by more than <a class="reference internal" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO" title="brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO"><code class="xref py py-data docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_WARN_RATIO</span></code></a> (x3)). The channel order is
+checked when <code class="docutils literal notranslate"><span class="pre">channel_names</span></code> is given and the baseline has names.</p></li>
+<li><p><strong>combine</strong> (<em>{'reference'</em><em>, </em><em>'min'</em><em>, </em><em>'max'}</em>) – With a baseline: <code class="docutils literal notranslate"><span class="pre">'reference'</span></code> (default) uses the baseline’s fixed threshold only;
+<code class="docutils literal notranslate"><span class="pre">'min'</span></code> the lower of the local and the baseline threshold at each sample (more
+sensitive: a detection above either threshold); <code class="docutils literal notranslate"><span class="pre">'max'</span></code> the higher (stricter:
+above both). A value other than <code class="docutils literal notranslate"><span class="pre">'reference'</span></code> without a baseline raises. Where the
+local threshold is undefined (<code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code> window coverage too low),
+<code class="docutils literal notranslate"><span class="pre">'min'</span></code> uses the baseline threshold (<code class="docutils literal notranslate"><span class="pre">np.fmin</span></code>: never less sensitive than
+<code class="docutils literal notranslate"><span class="pre">'reference'</span></code>) and <code class="docutils literal notranslate"><span class="pre">'max'</span></code> is undefined (no detections: never more sensitive
+than the local model). With <code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code>, samples excluded from the
+statistics (invalid or within <code class="docutils literal notranslate"><span class="pre">stats_margin_s</span></code> of an invalid sample) are undefined
+in every mode.</p></li>
+<li><p><strong>broadcast_baseline</strong> (<em>bool</em>) – Allow a <strong>1-channel</strong> baseline to be applied to every channel of <code class="docutils literal notranslate"><span class="pre">x</span></code> (default
+False: the baseline’s channel count must equal <code class="docutils literal notranslate"><span class="pre">x</span></code>’s, else <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>). A
+multichannel baseline is never broadcast.</p></li>
+<li><p><strong>gap_aware_stats</strong> (<em>bool</em>) – <code class="docutils literal notranslate"><span class="pre">False</span></code> (default): the original local statistics over every sample. <code class="docutils literal notranslate"><span class="pre">True</span></code>: the
+sliding <code class="docutils literal notranslate"><span class="pre">mu</span></code>/<code class="docutils literal notranslate"><span class="pre">sd</span></code> skip invalid samples (<code class="docutils literal notranslate"><span class="pre">valid</span></code>; analysis samples within
+<code class="docutils literal notranslate"><span class="pre">stats_margin_s</span></code> of an invalid one are skipped too) and need at least
+<code class="docutils literal notranslate"><span class="pre">min_valid_fraction</span></code> of each window valid; elsewhere the local threshold is NaN
+and nothing is detected. Samples excluded from the statistics are never detected
+either (threshold NaN there, whatever <code class="docutils literal notranslate"><span class="pre">combine</span></code>): no detections on a dropout or
+on the filter transient at its edges. Computed with cumulative sums, O(n) for any
+<code class="docutils literal notranslate"><span class="pre">window_s</span></code> (e.g. 600-3600 s on 24 h records). Without invalid samples the result
+equals the original to rounding.</p></li>
+<li><p><strong>valid</strong> (<em>np.ndarray</em><em> of </em><em>bool</em><em> or </em><em>None</em>) – Only with <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code>: True on samples that may enter the statistics,
+shape of <code class="docutils literal notranslate"><span class="pre">x</span></code>. <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a> passes
+its gap mask here (filled samples are False). <code class="docutils literal notranslate"><span class="pre">None</span></code>: every sample is valid except
+runs of exactly constant value lasting at least 0.1 s (the wrapper’s
+<code class="docutils literal notranslate"><span class="pre">flat_as_gap_s</span></code> rule). <code class="docutils literal notranslate"><span class="pre">x</span></code> must still be finite.</p></li>
+<li><p><strong>min_valid_fraction</strong> (<em>float</em><em> or </em><em>None</em>) – Only with <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code>: minimum fraction (0, 1] of valid samples in a
+window (default <a class="reference internal" href="#brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION" title="brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_MIN_VALID_FRACTION</span></code></a> = 0.5).</p></li>
+<li><p><strong>stats_margin_s</strong> (<em>float</em><em> or </em><em>None</em>) – Only with <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code>: margin (s) around invalid samples excluded from
+the statistics, and from detection (default <a class="reference internal" href="#brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S" title="brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_STATS_MARGIN_S</span></code></a> = 0.5).</p></li>
+<li><p><strong>channel_names</strong> (<em>sequence</em><em> of </em><em>str</em><em> or </em><em>None</em>) – Only with a baseline: the names of the rows of <code class="docutils literal notranslate"><span class="pre">x</span></code>. If the baseline has
+<code class="docutils literal notranslate"><span class="pre">channel_names</span></code> too, they must be equal, in order (<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> otherwise, with
+a <code class="docutils literal notranslate"><span class="pre">baseline.select(...)</span></code> hint), except for a broadcast 1-channel baseline.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -986,10 +1243,18 @@ sorted. For 2-D input: a list with one such array per channel (row of <code clas
 Convert to seconds with <code class="docutils literal notranslate"><span class="pre">detections</span> <span class="pre">/</span> <span class="pre">fs</span></code>.</p></li>
 <li><p><strong>details</strong> (<em>dict or list of dict</em>) – Only with <code class="docutils literal notranslate"><span class="pre">return_details=True</span></code> (one dict per channel for 2-D input):
 <code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code> (Hz), <code class="docutils literal notranslate"><span class="pre">up</span></code>/<code class="docutils literal notranslate"><span class="pre">down</span></code> resampling factors (<code class="docutils literal notranslate"><span class="pre">fs_analysis</span> <span class="pre">=</span> <span class="pre">fs</span> <span class="pre">*</span> <span class="pre">up</span> <span class="pre">/</span>
-<span class="pre">down</span></code>), <code class="docutils literal notranslate"><span class="pre">envelope</span></code> and <code class="docutils literal notranslate"><span class="pre">threshold</span></code> (at the analysis rate; sample <code class="docutils literal notranslate"><span class="pre">i</span></code>
-corresponds to input sample <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">*</span> <span class="pre">down</span> <span class="pre">/</span> <span class="pre">up</span></code>), <code class="docutils literal notranslate"><span class="pre">filters</span></code>
+<span class="pre">down</span></code>), <code class="docutils literal notranslate"><span class="pre">envelope</span></code> and <code class="docutils literal notranslate"><span class="pre">threshold</span></code> (the threshold curve actually used, at the
+analysis rate; sample <code class="docutils literal notranslate"><span class="pre">i</span></code> corresponds to input sample <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">*</span> <span class="pre">down</span> <span class="pre">/</span> <span class="pre">up</span></code>), <code class="docutils literal notranslate"><span class="pre">filters</span></code>
 (output of <a class="reference internal" href="#brainmaze_eeg.spikes.janca.design_janca_filters" title="brainmaze_eeg.spikes.janca.design_janca_filters"><code class="xref py py-func docutils literal notranslate"><span class="pre">design_janca_filters()</span></code></a>), <code class="docutils literal notranslate"><span class="pre">preset</span></code> and <code class="docutils literal notranslate"><span class="pre">params</span></code> (the resolved
-parameter values).</p></li>
+parameter values). With a baseline or <code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code> also: <code class="docutils literal notranslate"><span class="pre">threshold_local</span></code>
+(local curve, <code class="docutils literal notranslate"><span class="pre">None</span></code> with <code class="docutils literal notranslate"><span class="pre">combine='reference'</span></code>), <code class="docutils literal notranslate"><span class="pre">threshold_reference</span></code> (the
+baseline’s fixed threshold, float, or <code class="docutils literal notranslate"><span class="pre">None</span></code>), <code class="docutils literal notranslate"><span class="pre">combine</span></code>, <code class="docutils literal notranslate"><span class="pre">stats_valid</span></code> (bool
+analysis-rate mask of the samples in the statistics, or <code class="docutils literal notranslate"><span class="pre">None</span></code>) and, with a
+baseline, <code class="docutils literal notranslate"><span class="pre">level_ratio</span></code> (<code class="docutils literal notranslate"><span class="pre">exp(mean</span> <span class="pre">log-envelope</span> <span class="pre">of</span> <span class="pre">the</span> <span class="pre">record</span> <span class="pre">-</span> <span class="pre">baseline</span> <span class="pre">mu)</span></code>;
+about 1 when the units match; dense spiking raises it) and <code class="docutils literal notranslate"><span class="pre">background_ratio</span></code>
+(the same at the <a class="reference internal" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE" title="brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE"><code class="xref py py-data docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_QUANTILE</span></code></a> quantile: record vs the baseline
+model <code class="docutils literal notranslate"><span class="pre">mu</span> <span class="pre">+</span> <span class="pre">ndtri(q)</span> <span class="pre">*</span> <span class="pre">sd</span></code>; about 1 when gain and montage match, little moved by
+spikes). Both are <code class="docutils literal notranslate"><span class="pre">None</span></code> for an all-zero envelope.</p></li>
 </ul>
 </p>
 </dd>
@@ -997,7 +1262,10 @@ parameter values).</p></li>
 <dd class="field-odd"><p><strong>ValueError</strong><strong>, </strong><strong>TypeError</strong> – Invalid parameters (see <a class="reference internal" href="#brainmaze_eeg.spikes.janca.janca_params" title="brainmaze_eeg.spikes.janca.janca_params"><code class="xref py py-func docutils literal notranslate"><span class="pre">janca_params()</span></code></a>), a band edge at/above the Nyquist
     frequency or too close to it after resampling, a window shorter than 3 analysis
     samples, a record too short for the zero-phase filters, a 2-D array with more rows
-    than columns (probably transposed), or a non-finite value (NaN/inf) in <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p>
+    than columns (probably transposed), a non-finite value (NaN/inf) in <code class="docutils literal notranslate"><span class="pre">x</span></code>, a
+    baseline whose signal path or channel count does not match, or an option that would
+    be ignored (<code class="docutils literal notranslate"><span class="pre">combine</span></code>/<code class="docutils literal notranslate"><span class="pre">broadcast_baseline</span></code> without a baseline, <code class="docutils literal notranslate"><span class="pre">valid</span></code>,
+    <code class="docutils literal notranslate"><span class="pre">min_valid_fraction</span></code>, <code class="docutils literal notranslate"><span class="pre">stats_margin_s</span></code> without <code class="docutils literal notranslate"><span class="pre">gap_aware_stats</span></code>).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1068,12 +1336,356 @@ convergent of <code class="docutils literal notranslate"><span class="pre">targe
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.janca_threshold">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">janca_threshold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.janca_threshold" title="Link to this definition">#</a></dt>
+<dd><p>Janca threshold <code class="docutils literal notranslate"><span class="pre">threshold</span> <span class="pre">*</span> <span class="pre">(exp(mu</span> <span class="pre">-</span> <span class="pre">sd**2)</span> <span class="pre">+</span> <span class="pre">exp(mu))</span></code> from the log-envelope mean
+<code class="docutils literal notranslate"><span class="pre">mu</span></code> and standard deviation <code class="docutils literal notranslate"><span class="pre">sd</span></code>: <code class="docutils literal notranslate"><span class="pre">threshold</span></code> times the sum of the mode and the
+median of the log-normal envelope model, in the units of the input signal.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca.resampler_gain_db">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca.</span></span><span class="sig-name descname"><span class="pre">resampler_gain_db</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freq</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">up</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">down</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca.resampler_gain_db" title="Link to this definition">#</a></dt>
 <dd><p>Gain (dB) at <code class="docutils literal notranslate"><span class="pre">freq</span></code> Hz of the anti-alias FIR that <code class="xref py py-func docutils literal notranslate"><span class="pre">scipy.signal.resample_poly()</span></code>
 designs by default for <code class="docutils literal notranslate"><span class="pre">up</span> <span class="pre">/</span> <span class="pre">down</span></code> at input rate <code class="docutils literal notranslate"><span class="pre">fs</span></code> (Kaiser window, beta 5, cutoff
 at the lower of the two Nyquist frequencies, <code class="docutils literal notranslate"><span class="pre">20</span> <span class="pre">*</span> <span class="pre">max(up,</span> <span class="pre">down)</span> <span class="pre">+</span> <span class="pre">1</span></code> taps; scipy’s
 own design rule). 0 when no resampling happens.</p>
+</dd></dl>
+
+</section>
+<section id="module-brainmaze_eeg.spikes.janca_baseline">
+<span id="janca-reference-baseline-3-1-0"></span><h2>Janca reference baseline (3.1.0)<a class="headerlink" href="#module-brainmaze_eeg.spikes.janca_baseline" title="Link to this heading">#</a></h2>
+<section id="reference-baseline-for-the-janca-detector">
+<h3>Reference baseline for the Janca detector<a class="headerlink" href="#reference-baseline-for-the-janca-detector" title="Link to this heading">#</a></h3>
+<p>The Janca detector (<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>) models the
+background as the log-normal distribution of the band-passed Hilbert envelope <code class="docutils literal notranslate"><span class="pre">e</span></code> in a
+sliding window (5 s by default) and detects envelope maxima above
+<code class="docutils literal notranslate"><span class="pre">threshold</span> <span class="pre">*</span> <span class="pre">(exp(mu</span> <span class="pre">-</span> <span class="pre">sd**2)</span> <span class="pre">+</span> <span class="pre">exp(mu))</span></code> (mode + median of the model), where <code class="docutils literal notranslate"><span class="pre">mu</span></code> and
+<code class="docutils literal notranslate"><span class="pre">sd</span></code> are the mean and standard deviation of <code class="docutils literal notranslate"><span class="pre">log(e</span> <span class="pre">+</span> <span class="pre">eps)</span></code>. On a channel that spikes
+<strong>permanently</strong> (several spikes per second, e.g. after an injury) the local window learns
+the spikes as background and the threshold rises with the spike rate: on synthetic iEEG with
+150 uV spikes in 30 uV pink background, the local model finds 93 / 42 / 0.5 % of the spikes
+at 1 / 3 / 5 spikes/s, and a longer window does not help.</p>
+<p>A <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a> holds <code class="docutils literal notranslate"><span class="pre">mu</span></code> and <code class="docutils literal notranslate"><span class="pre">sd</span></code> per channel measured on a <strong>reference</strong>
+recording instead: a quiet or pre-injury recording of the same channels, with the same
+amplitude unit, gain and montage. With it the detector uses a fixed threshold per channel
+(<code class="docutils literal notranslate"><span class="pre">combine='reference'</span></code>), or the lower (<code class="docutils literal notranslate"><span class="pre">'min'</span></code>, more sensitive) or higher (<code class="docutils literal notranslate"><span class="pre">'max'</span></code>,
+stricter) of the fixed and the local threshold. Same data: 97 / 97 / 96 % at 1 / 3 / 5
+spikes/s, no false detections.</p>
+<section id="how-the-statistics-are-made-jancabaseline-from-signal">
+<h4>How the statistics are made (<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal"><code class="xref py py-meth docutils literal notranslate"><span class="pre">JancaBaseline.from_signal()</span></code></a>)<a class="headerlink" href="#how-the-statistics-are-made-jancabaseline-from-signal" title="Link to this heading">#</a></h4>
+<ol class="arabic simple">
+<li><p>Missing data is <strong>excluded</strong>, not filled: NaN/inf samples and runs of an exactly constant
+value lasting at least <code class="docutils literal notranslate"><span class="pre">flat_as_gap_s</span></code> (0.1 s; dropouts stored as a constant, clipping;
+the rule of <a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a>).</p></li>
+<li><p>Each remaining contiguous run is filtered, resampled and enveloped <strong>on its own</strong>, exactly
+as the detector does (same filters, same resampling, same Hilbert envelope).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">stats_margin_s</span></code> (0.5 s) of analysis samples are dropped at both ends of every run (also
+at the ends of the record), so filter and Hilbert transients at gaps and edges do not
+enter the statistics. Runs too short for the zero-phase filters or for the two margins
+are skipped. Measured on pink noise (5-20 s runs, 200-1000 Hz analysis rates): beyond
+0.1 s from a run edge the pooled statistics equal those of the uninterrupted signal
+(threshold ratio 1.0000-1.0001); 0.5 s is a safety factor against DC steps and amplifier
+recovery after a dropout, at little cost of valid time.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">eps</span> <span class="pre">=</span> <span class="pre">eps_rel</span> <span class="pre">*</span> <span class="pre">median(e)</span></code> over the pooled valid envelope samples of the channel, then
+<code class="docutils literal notranslate"><span class="pre">mu</span> <span class="pre">=</span> <span class="pre">mean(log(e</span> <span class="pre">+</span> <span class="pre">eps))</span></code>, <code class="docutils literal notranslate"><span class="pre">sd</span> <span class="pre">=</span> <span class="pre">std(log(e</span> <span class="pre">+</span> <span class="pre">eps))</span></code> (population SD) over the pooled
+samples: the definition of the local model with the window being the whole valid
+reference. <code class="docutils literal notranslate"><span class="pre">robust=True</span></code> uses <code class="docutils literal notranslate"><span class="pre">median</span></code> and <code class="docutils literal notranslate"><span class="pre">1.4826</span> <span class="pre">*</span> <span class="pre">MAD</span></code> instead. This is a
+<strong>different statistic</strong>, not a drop-in: the log of a real (band-passed noise) envelope is
+skewed, so on clean background the robust threshold is about 14 % higher than the
+mean/SD one (synthetic background, 500 Hz). It is pulled up somewhat less by spikes in
+the reference (3 spikes/s in the reference: threshold x1.31 vs x1.44). Prefer a clean
+reference over relying on it.</p></li>
+</ol>
+<p>The valid reference time per channel is stored (<code class="docutils literal notranslate"><span class="pre">valid_s</span></code>); less than <code class="docutils literal notranslate"><span class="pre">min_valid_s</span></code>
+(60 s) warns, none raises.</p>
+</section>
+<section id="what-must-match-what-is-free">
+<h4>What must match, what is free<a class="headerlink" href="#what-must-match-what-is-free" title="Link to this heading">#</a></h4>
+<p>The <strong>signal path</strong> must be identical between the baseline and the detection, because the
+envelope level depends on it: <code class="docutils literal notranslate"><span class="pre">band</span></code>, <code class="docutils literal notranslate"><span class="pre">filter_order</span></code>, <code class="docutils literal notranslate"><span class="pre">powerline</span></code>, <code class="docutils literal notranslate"><span class="pre">notch_width</span></code>,
+<code class="docutils literal notranslate"><span class="pre">notch_order</span></code>, <code class="docutils literal notranslate"><span class="pre">notch_harmonics</span></code>, <code class="docutils literal notranslate"><span class="pre">target_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">decimation</span></code>, <code class="docutils literal notranslate"><span class="pre">eps_rel</span></code>
+(<a class="reference internal" href="#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS" title="brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS"><code class="xref py py-data docutils literal notranslate"><span class="pre">SIGNAL_PATH_PARAMS</span></code></a>) and the analysis rate
+<code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code> (which follows from the input rate, <code class="docutils literal notranslate"><span class="pre">target_fs</span></code> and <code class="docutils literal notranslate"><span class="pre">decimation</span></code>; with
+<code class="docutils literal notranslate"><span class="pre">decimation='exact'</span></code> recordings at different input rates share one analysis rate). The
+detector raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming every mismatch. The <strong>decision</strong> parameters are free:
+<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code> (local model), <code class="docutils literal notranslate"><span class="pre">combine</span></code>.</p>
+<p>Not checkable, and the user’s responsibility: the amplitude <strong>unit</strong> and gain (uV vs V), the
+<strong>montage</strong>/reference and the <strong>channel order</strong>. Safety nets: the detector warns when a
+channel’s envelope level differs from the baseline’s by more than 10x
+(<code class="docutils literal notranslate"><span class="pre">BASELINE_LEVEL_WARN_RATIO</span></code>), and when the median over channels of the background level
+(a low quantile of the log-envelope, little moved by dense spiking) differs by more than 3x
+(<code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_WARN_RATIO</span></code>). The channel order is checked (<code class="docutils literal notranslate"><span class="pre">ValueError</span></code>) when the
+detector is given <code class="docutils literal notranslate"><span class="pre">channel_names</span></code> and the baseline has them.</p>
+</section>
+<section id="limitations">
+<h4>Limitations<a class="headerlink" href="#limitations" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p>A fixed baseline does not follow slow changes of the background amplitude (electrode
+impedance, drift over days, sleep/wake, medication). Refresh the baseline from a recent
+quiet stretch, or combine it with the local model: <code class="docutils literal notranslate"><span class="pre">'max'</span></code> (never more sensitive than
+either model) or <code class="docutils literal notranslate"><span class="pre">'min'</span></code> (never less sensitive).</p></li>
+<li><p>A reference that itself contains spikes or artifacts inflates <code class="docutils literal notranslate"><span class="pre">mu</span></code>/<code class="docutils literal notranslate"><span class="pre">sd</span></code> and raises the
+threshold; use quiet data, <code class="docutils literal notranslate"><span class="pre">segments=</span></code> to pick spike-free stretches, or <code class="docutils literal notranslate"><span class="pre">robust=True</span></code>.</p></li>
+</ul>
+</section>
+</section>
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca_baseline.</span></span><span class="sig-name descname"><span class="pre">BASELINE_SCHEMA</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'brainmaze_eeg.spikes.JancaBaseline'</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">format</span></code> field of the JSON file written by <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">JancaBaseline.save()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca_baseline.</span></span><span class="sig-name descname"><span class="pre">BASELINE_SCHEMA_VERSION</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION" title="Link to this definition">#</a></dt>
+<dd><p>Version of that JSON schema (files with a newer version are refused).</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes.janca_baseline.</span></span><span class="sig-name descname"><span class="pre">JancaBaseline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs_analysis=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preset='spike'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">band=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">powerline=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_width=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_harmonics=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_fs=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimation=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_rel=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valid_s=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_names=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info=None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="Link to this definition">#</a></dt>
+<dd><p>Per-channel reference statistics of the Janca log-envelope model, with the signal-path
+parameters they were made with. See the module docstring.</p>
+<p>Make one from a reference recording with <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_signal()</span></code></a>, load one with
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.load" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.load"><code class="xref py py-meth docutils literal notranslate"><span class="pre">load()</span></code></a>, or give the values directly:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">JancaBaseline</span><span class="p">(</span><span class="n">mu</span><span class="o">=</span><span class="p">[</span><span class="mf">3.4</span><span class="p">,</span> <span class="mf">3.1</span><span class="p">],</span> <span class="n">sd</span><span class="o">=</span><span class="p">[</span><span class="mf">0.55</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">],</span> <span class="n">fs</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>           <span class="c1"># 'spike' path at 500 Hz</span>
+<span class="n">JancaBaseline</span><span class="p">(</span><span class="n">mu</span><span class="o">=</span><span class="mf">3.4</span><span class="p">,</span> <span class="n">sd</span><span class="o">=</span><span class="mf">0.55</span><span class="p">,</span> <span class="n">fs_analysis</span><span class="o">=</span><span class="mi">250</span><span class="p">,</span> <span class="n">powerline</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The values are exposed as read-only properties (<code class="docutils literal notranslate"><span class="pre">mu</span></code>, <code class="docutils literal notranslate"><span class="pre">sd</span></code>, <code class="docutils literal notranslate"><span class="pre">n_channels</span></code>,
+<code class="docutils literal notranslate"><span class="pre">params</span></code>, <code class="docutils literal notranslate"><span class="pre">preset</span></code>, <code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">fs</span></code>, <code class="docutils literal notranslate"><span class="pre">valid_s</span></code>, <code class="docutils literal notranslate"><span class="pre">channel_names</span></code>, <code class="docutils literal notranslate"><span class="pre">units</span></code>,
+<code class="docutils literal notranslate"><span class="pre">info</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mu</strong> (<em>float</em><em> or </em><em>array_like</em>) – Mean and standard deviation of <code class="docutils literal notranslate"><span class="pre">log(e</span> <span class="pre">+</span> <span class="pre">eps)</span></code> per channel (<code class="docutils literal notranslate"><span class="pre">e</span></code>: Hilbert envelope
+of the band-passed signal, in the input unit). One value each per channel; finite,
+<code class="docutils literal notranslate"><span class="pre">sd</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code>. The fixed threshold is <code class="docutils literal notranslate"><span class="pre">threshold</span> <span class="pre">*</span> <span class="pre">(exp(mu</span> <span class="pre">-</span> <span class="pre">sd**2)</span> <span class="pre">+</span> <span class="pre">exp(mu))</span></code>.</p></li>
+<li><p><strong>sd</strong> (<em>float</em><em> or </em><em>array_like</em>) – Mean and standard deviation of <code class="docutils literal notranslate"><span class="pre">log(e</span> <span class="pre">+</span> <span class="pre">eps)</span></code> per channel (<code class="docutils literal notranslate"><span class="pre">e</span></code>: Hilbert envelope
+of the band-passed signal, in the input unit). One value each per channel; finite,
+<code class="docutils literal notranslate"><span class="pre">sd</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code>. The fixed threshold is <code class="docutils literal notranslate"><span class="pre">threshold</span> <span class="pre">*</span> <span class="pre">(exp(mu</span> <span class="pre">-</span> <span class="pre">sd**2)</span> <span class="pre">+</span> <span class="pre">exp(mu))</span></code>.</p></li>
+<li><p><strong>fs_analysis</strong> (<em>float</em><em>, </em><em>optional</em>) – Analysis rate (Hz) of the envelope the statistics describe.</p></li>
+<li><p><strong>fs</strong> (<em>float</em><em>, </em><em>optional</em>) – Input sampling rate (Hz) of the reference; <code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code> is then derived from it
+(<a class="reference internal" href="#brainmaze_eeg.spikes.janca.janca_resampling" title="brainmaze_eeg.spikes.janca.janca_resampling"><code class="xref py py-func docutils literal notranslate"><span class="pre">janca_resampling()</span></code></a>) and the signal path is
+validated at it. At least one of <code class="docutils literal notranslate"><span class="pre">fs</span></code> / <code class="docutils literal notranslate"><span class="pre">fs_analysis</span></code> is required; if both are
+given they must agree.</p></li>
+<li><p><strong>preset</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>band</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>filter_order</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>powerline</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>notch_width</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>notch_order</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>notch_harmonics</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>target_fs</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>decimation</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>eps_rel</strong> – The signal path, as in <a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>
+(defaults: the preset’s values).</p></li>
+<li><p><strong>valid_s</strong> (<em>float</em><em> or </em><em>array_like</em><em>, </em><em>optional</em>) – Seconds of valid reference data per channel (metadata).</p></li>
+<li><p><strong>channel_names</strong> (<em>sequence</em><em> of </em><em>str</em><em>, </em><em>optional</em>) – One name per channel (metadata; also usable in <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.select" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.select"><code class="xref py py-meth docutils literal notranslate"><span class="pre">select()</span></code></a>).</p></li>
+<li><p><strong>units</strong> (<em>str</em><em>, </em><em>optional</em>) – Amplitude unit of the reference signal, e.g. <code class="docutils literal notranslate"><span class="pre">'uV'</span></code> (metadata; not checked against
+the detection input, which carries no unit).</p></li>
+<li><p><strong>info</strong> (<em>dict</em><em>, </em><em>optional</em>) – Further JSON-serialisable provenance (<code class="docutils literal notranslate"><span class="pre">from_signal</span></code> fills it).</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.channel_names">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">channel_names</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.channel_names" title="Link to this definition">#</a></dt>
+<dd><p>Channel names or None.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.check_compatible">
+<span class="sig-name descname"><span class="pre">check_compatible</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs_analysis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.check_compatible" title="Link to this definition">#</a></dt>
+<dd><p>Raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming every signal-path parameter (and the analysis rate, if
+given) in which the resolved detector parameters <code class="docutils literal notranslate"><span class="pre">params</span></code> differ from the
+baseline’s. The notch settings are not compared when both have <code class="docutils literal notranslate"><span class="pre">powerline=None</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.envelope_levels">
+<span class="sig-name descname"><span class="pre">envelope_levels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.envelope_levels" title="Link to this definition">#</a></dt>
+<dd><p>The baseline as envelope levels in the <strong>input unit</strong> (for intuition and plots).</p>
+<p>Returns a dict of per-channel arrays: <code class="docutils literal notranslate"><span class="pre">'median'</span></code> = <code class="docutils literal notranslate"><span class="pre">exp(mu)</span></code> (median of the
+log-normal model; for a Gaussian background whose band-passed SD is <code class="docutils literal notranslate"><span class="pre">s</span></code> this is
+about <code class="docutils literal notranslate"><span class="pre">1.06</span> <span class="pre">*</span> <span class="pre">s</span></code>), <code class="docutils literal notranslate"><span class="pre">'mode'</span></code> = <code class="docutils literal notranslate"><span class="pre">exp(mu</span> <span class="pre">-</span> <span class="pre">sd**2)</span></code>, and with <code class="docutils literal notranslate"><span class="pre">threshold</span></code> given
+<code class="docutils literal notranslate"><span class="pre">'threshold'</span></code> = <code class="docutils literal notranslate"><span class="pre">threshold</span> <span class="pre">*</span> <span class="pre">(mode</span> <span class="pre">+</span> <span class="pre">median)</span></code>, the detection level. These are
+levels of the Hilbert envelope of the band-passed signal, not of the raw signal.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_dict">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_dict" title="Link to this definition">#</a></dt>
+<dd><p>Inverse of <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.to_dict" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.to_dict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">to_dict()</span></code></a> (schema checked; <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming a missing or
+invalid key).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_signal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_ref</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preset='spike'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">band=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">powerline=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_width=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_order=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">notch_harmonics=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_fs=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimation=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_rel=&lt;preset&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segments=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_valid_s=60.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flat_as_gap_s=0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats_margin_s=0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">robust=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_names=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units=None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal" title="Link to this definition">#</a></dt>
+<dd><p>Measure the baseline on a reference recording (see the module docstring).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_ref</strong> (<em>array_like</em><em> or </em><em>list</em><em> of </em><em>array_like</em>) – The reference: <code class="docutils literal notranslate"><span class="pre">(n_samples,)</span></code> or <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code>, or a <strong>list of
+segments</strong>, each <code class="docutils literal notranslate"><span class="pre">(n_samples_i,)</span></code> or <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples_i)</span></code> with the same
+channels and any lengths (e.g. quiet stretches cut from several days); the
+statistics are pooled over all segments. NaN/inf and constant runs (see
+<code class="docutils literal notranslate"><span class="pre">flat_as_gap_s</span></code>) are excluded. Note that a list is always a list of
+<em>segments</em>, never of channels: stack channels into a 2-D array.</p></li>
+<li><p><strong>fs</strong> (<em>float</em>) – Sampling rate (Hz) of the reference.</p></li>
+<li><p><strong>preset</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>band</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>filter_order</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>powerline</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>notch_width</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>notch_order</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>notch_harmonics</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>target_fs</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>decimation</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>eps_rel</strong> – The signal path, exactly as it will be given to the detector (see
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca.detect_spikes_janca" title="brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a>). Decision parameters
+(<code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">min_distance_s</span></code>, <code class="docutils literal notranslate"><span class="pre">window_s</span></code>) are not part of a baseline.</p></li>
+<li><p><strong>segments</strong> (<em>sequence</em><em> of </em><em>(</em><em>start_s</em><em>, </em><em>stop_s</em><em>)</em><em>, </em><em>optional</em>) – Use only these time intervals (seconds from the start of <code class="docutils literal notranslate"><span class="pre">x_ref</span></code>), e.g.
+annotated spike-free background. Only with an array <code class="docutils literal notranslate"><span class="pre">x_ref</span></code>.</p></li>
+<li><p><strong>min_valid_s</strong> (<em>float</em>) – Warn (<code class="docutils literal notranslate"><span class="pre">UserWarning</span></code>) for channels with less valid reference time than this
+(default 60 s). A channel without any valid time raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p></li>
+<li><p><strong>flat_as_gap_s</strong> (<em>float</em><em> or </em><em>None</em>) – Runs of exactly equal consecutive samples at least this long (s) are missing
+data (default 0.1, as in <code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code>; <code class="docutils literal notranslate"><span class="pre">None</span></code> disables).</p></li>
+<li><p><strong>stats_margin_s</strong> (<em>float</em>) – Seconds dropped at both ends of every valid run (default 0.5).</p></li>
+<li><p><strong>robust</strong> (<em>bool</em>) – <code class="docutils literal notranslate"><span class="pre">False</span></code> (default): mean and SD of the log-envelope (the definition of the
+local model). <code class="docutils literal notranslate"><span class="pre">True</span></code>: median and <code class="docutils literal notranslate"><span class="pre">1.4826</span> <span class="pre">*</span> <span class="pre">MAD</span></code> (a different statistic: about
+14 % higher threshold on clean background; see the module docstring).</p></li>
+<li><p><strong>channel_names</strong> (<em>sequence</em><em> of </em><em>str</em><em>, </em><em>optional</em>)</p></li>
+<li><p><strong>units</strong> (<em>str</em><em>, </em><em>optional</em>) – Metadata stored with the baseline.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline">JancaBaseline</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fs</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs" title="Link to this definition">#</a></dt>
+<dd><p>Input rate of the reference (Hz) or None.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs_analysis">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fs_analysis</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs_analysis" title="Link to this definition">#</a></dt>
+<dd><p>Analysis rate (Hz).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.info">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">info</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.info" title="Link to this definition">#</a></dt>
+<dd><p>Provenance (a copy).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.load">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.load" title="Link to this definition">#</a></dt>
+<dd><p>Read a baseline written by <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">save()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.mu">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mu</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.mu" title="Link to this definition">#</a></dt>
+<dd><p>Mean of log(e + eps) per channel (read-only).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.n_channels">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">n_channels</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.n_channels" title="Link to this definition">#</a></dt>
+<dd><p>Number of channels.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.params">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">params</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.params" title="Link to this definition">#</a></dt>
+<dd><p>Resolved signal-path parameters (a copy).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.preset">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">preset</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.preset" title="Link to this definition">#</a></dt>
+<dd><p>Preset the parameters were resolved from.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save" title="Link to this definition">#</a></dt>
+<dd><p>Write the baseline to <code class="docutils literal notranslate"><span class="pre">path</span></code> as JSON (schema <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA" title="brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA"><code class="xref py py-data docutils literal notranslate"><span class="pre">BASELINE_SCHEMA</span></code></a>, version
+<a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION" title="brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION"><code class="xref py py-data docutils literal notranslate"><span class="pre">BASELINE_SCHEMA_VERSION</span></code></a>). Floats are written exactly (round trip is lossless).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.sd">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">sd</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.sd" title="Link to this definition">#</a></dt>
+<dd><p>SD of log(e + eps) per channel (read-only).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.select">
+<span class="sig-name descname"><span class="pre">select</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.select" title="Link to this definition">#</a></dt>
+<dd><p>A baseline with only <code class="docutils literal notranslate"><span class="pre">channels</span></code> (indices, or names if <code class="docutils literal notranslate"><span class="pre">channel_names</span></code> is set), in
+that order, e.g. to match the channel order of a detection montage.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.threshold">
+<span class="sig-name descname"><span class="pre">threshold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.65</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.threshold" title="Link to this definition">#</a></dt>
+<dd><p>The fixed Janca threshold per channel (input unit) for multiplier <code class="docutils literal notranslate"><span class="pre">threshold</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.to_dict" title="Link to this definition">#</a></dt>
+<dd><p>JSON-serialisable representation (the content of <a class="reference internal" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save" title="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">save()</span></code></a>).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.units">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">units</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.units" title="Link to this definition">#</a></dt>
+<dd><p>Amplitude unit (metadata) or None.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes.janca_baseline.JancaBaseline.valid_s">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">valid_s</span></span><a class="headerlink" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.valid_s" title="Link to this definition">#</a></dt>
+<dd><p>Valid reference seconds per channel (read-only) or None.</p>
+</dd></dl>
+
 </dd></dl>
 
 </section>
@@ -1412,7 +2024,11 @@ the class attribute <code class="docutils literal notranslate"><span class="pre"
 <code class="docutils literal notranslate"><span class="pre">detect(x,</span> <span class="pre">fs,</span> <span class="pre">valid=mask)</span></code> with a boolean <code class="docutils literal notranslate"><span class="pre">(n_channels,</span> <span class="pre">n_samples)</span></code> mask that is False
 on filled samples, so the detector can exclude them from its statistics. If it has
 <code class="docutils literal notranslate"><span class="pre">channel_independent</span> <span class="pre">=</span> <span class="pre">True</span></code> (its result for one channel never depends on the others),
-the wrapper calls it once per channel with a <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">n_samples)</span></code> array.</p>
+the wrapper calls it once per channel with a <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">n_samples)</span></code> array. If it has
+<code class="docutils literal notranslate"><span class="pre">accepts_channels</span> <span class="pre">=</span> <span class="pre">True</span></code> (e.g. a detector with a per-channel reference baseline),
+<code class="docutils literal notranslate"><span class="pre">detect</span></code> is also given <code class="docutils literal notranslate"><span class="pre">channels=</span></code> (the indices, in the caller’s array, of the rows
+passed) and <code class="docutils literal notranslate"><span class="pre">n_channels=</span></code> (the caller’s channel count), so per-channel state stays aligned
+when channels are fed singly or all-missing channels are left out.</p>
 <p>Implementations: <a class="reference internal" href="#brainmaze_eeg.spikes.janca.JancaDetector" title="brainmaze_eeg.spikes.janca.JancaDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">JancaDetector</span></code></a> (also with
 <code class="docutils literal notranslate"><span class="pre">preset='ripple'</span></code>), <a class="reference internal" href="#brainmaze_eeg.spikes.barkmeier.BarkmeierDetector" title="brainmaze_eeg.spikes.barkmeier.BarkmeierDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">BarkmeierDetector</span></code></a> and
 <a class="reference internal" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert" title="brainmaze_eeg.spikes.janca.SpikeDetectorHilbert"><code class="xref py py-class docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></a> (its <code class="docutils literal notranslate"><span class="pre">detect</span></code> method).</p>
@@ -1536,6 +2152,13 @@ gaps (both required). The one difference: there is <strong>no</strong>
 change (follow-up, once brainmaze-utils 3.0.0 is released; then benchmark <code class="docutils literal notranslate"><span class="pre">'spectral'</span></code> as the wrapper
 default).</p>
 </section>
+<dl class="py data">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">FLAT_AS_GAP_S</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S" title="Link to this definition">#</a></dt>
+<dd><p>Default minimum length (s) of a run of exactly equal samples that counts as missing data
+(<code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector(flat_as_gap_s=...)</span></code>; see its module docstring for the evidence).</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.drop_in_gaps">
 <span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">drop_in_gaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">det</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gaps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gap_units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">margin_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps" title="Link to this definition">#</a></dt>
@@ -1593,6 +2216,25 @@ ndarray is filled in place and returned.</p></li>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>np.ndarray, shape (n_gaps, 2), int64</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spikes._gaps.flat_runs">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spikes._gaps.</span></span><span class="sig-name descname"><span class="pre">flat_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flat_as_gap_s</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spikes._gaps.flat_runs" title="Link to this definition">#</a></dt>
+<dd><p>Runs of exactly equal consecutive samples lasting at least <code class="docutils literal notranslate"><span class="pre">flat_as_gap_s</span></code> seconds
+(at least 2 samples) in a 1-D signal: the rule by which
+<a class="reference internal" href="#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector" title="brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="xref py py-class docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a> treats constant stretches
+(dropouts stored as a constant, clipping) as missing data. NaN never equals anything, so
+NaN runs are not reported here (use <a class="reference internal" href="#brainmaze_eeg.spikes._gaps.find_gaps" title="brainmaze_eeg.spikes._gaps.find_gaps"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_gaps()</span></code></a>). <code class="docutils literal notranslate"><span class="pre">flat_as_gap_s=None</span></code> disables
+the rule (no runs). Not part of <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop)</span></code> sample indices.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>np.ndarray, shape (n_runs, 2), int64</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1770,15 +2412,26 @@ multiply.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#janca-hilbert-envelope-interictal-spike-detectors">Janca (Hilbert-envelope) interictal spike detectors</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#presets-of-detect-spikes-janca-jancadetector">Presets of <code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code> / <code class="xref py py-class docutils literal notranslate"><span class="pre">JancaDetector</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm-of-detect-spikes-janca">Algorithm of <code class="xref py py-func docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-extensions-3-1-0-off-by-default-the-steps-above-are-then-unchanged">Optional extensions (3.1.0; off by default, the steps above are then unchanged)</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#known-differences-from-the-eeg-forge-reference-all-deliberate-fixes">Known differences from the eeg_forge reference (all deliberate fixes)</a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO"><code class="docutils literal notranslate"><span class="pre">BASELINE_LEVEL_WARN_RATIO</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.COMBINE_MODES"><code class="docutils literal notranslate"><span class="pre">COMBINE_MODES</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.DECISION_PARAMS"><code class="docutils literal notranslate"><span class="pre">DECISION_PARAMS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MIN_VALID_FRACTION</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S"><code class="docutils literal notranslate"><span class="pre">DEFAULT_STATS_MARGIN_S</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JANCA_PRESETS"><code class="docutils literal notranslate"><span class="pre">JANCA_PRESETS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector"><code class="docutils literal notranslate"><span class="pre">JancaDetector</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector.accepts_channels"><code class="docutils literal notranslate"><span class="pre">JancaDetector.accepts_channels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector.accepts_valid"><code class="docutils literal notranslate"><span class="pre">JancaDetector.accepts_valid</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.JancaDetector.detect"><code class="docutils literal notranslate"><span class="pre">JancaDetector.detect()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB"><code class="docutils literal notranslate"><span class="pre">MAX_RESAMPLER_LOSS_DB</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE"><code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_QUANTILE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO"><code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_WARN_RATIO</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS"><code class="docutils literal notranslate"><span class="pre">SIGNAL_PATH_PARAMS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.channel_independent"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert.channel_independent</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert.design_filters"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert.design_filters()</span></code></a></li>
@@ -1791,7 +2444,42 @@ multiply.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_decimation_factor"><code class="docutils literal notranslate"><span class="pre">janca_decimation_factor()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_params"><code class="docutils literal notranslate"><span class="pre">janca_params()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_resampling"><code class="docutils literal notranslate"><span class="pre">janca_resampling()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.janca_threshold"><code class="docutils literal notranslate"><span class="pre">janca_threshold()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca.resampler_gain_db"><code class="docutils literal notranslate"><span class="pre">resampler_gain_db()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-brainmaze_eeg.spikes.janca_baseline">Janca reference baseline (3.1.0)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reference-baseline-for-the-janca-detector">Reference baseline for the Janca detector</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-statistics-are-made-jancabaseline-from-signal">How the statistics are made (<code class="xref py py-meth docutils literal notranslate"><span class="pre">JancaBaseline.from_signal()</span></code>)</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#what-must-match-what-is-free">What must match, what is free</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations">Limitations</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA"><code class="docutils literal notranslate"><span class="pre">BASELINE_SCHEMA</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION"><code class="docutils literal notranslate"><span class="pre">BASELINE_SCHEMA_VERSION</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.channel_names"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.channel_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.check_compatible"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.check_compatible()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.envelope_levels"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.envelope_levels()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_dict"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.from_dict()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.from_signal"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.from_signal()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.fs</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.fs_analysis"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.fs_analysis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.info"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.info</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.load"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.load()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.mu"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.mu</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.n_channels"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.n_channels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.params"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.params</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.preset"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.preset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.save"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.save()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.sd"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.sd</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.select"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.select()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.threshold"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.threshold()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.to_dict"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.to_dict()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.units"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.units</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes.janca_baseline.JancaBaseline.valid_s"><code class="docutils literal notranslate"><span class="pre">JancaBaseline.valid_s</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-brainmaze_eeg.spikes.barkmeier">Barkmeier</a><ul class="nav section-nav flex-column">
@@ -1822,9 +2510,11 @@ multiply.</p>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#relation-to-brainmaze-utils-gaps">Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S"><code class="docutils literal notranslate"><span class="pre">FLAT_AS_GAP_S</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.fill_gaps"><code class="docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.find_gaps"><code class="docutils literal notranslate"><span class="pre">find_gaps()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.flat_runs"><code class="docutils literal notranslate"><span class="pre">flat_runs()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.gap_intervals"><code class="docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spikes._gaps.pink_noise"><code class="docutils literal notranslate"><span class="pre">pink_noise()</span></code></a></li>

@@ -396,6 +396,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze-brain-electrophysiology-behavior-and-dynamics-analysis-toolbox-eeg">BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox - EEG</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-1-0">What’s new in 3.1.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-0-0">What’s new in 3.0.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#releasing">Releasing</a></li>
@@ -446,6 +447,30 @@ needs matplotlib, which is an optional extra:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"brainmaze-eeg[plot]"</span>
 </pre></div>
 </div>
+</section>
+<section id="what-s-new-in-3-1-0">
+<h2>What’s new in 3.1.0<a class="headerlink" href="#what-s-new-in-3-1-0" title="Link to this heading">#</a></h2>
+<p>A minor release: <strong>no default output changes</strong> (the Janca detector with default arguments is
+bit-identical to 3.0.0 and to the eeg_forge reference).</p>
+<ul class="simple">
+<li><p><strong>Reference baseline for the Janca detector</strong>: <code class="docutils literal notranslate"><span class="pre">JancaBaseline</span></code> measures the background
+(log-envelope <code class="docutils literal notranslate"><span class="pre">mu</span></code>/<code class="docutils literal notranslate"><span class="pre">sd</span></code> per channel) on a quiet or pre-injury recording, with gaps and
+constant dropouts excluded, and saves it as JSON. <code class="docutils literal notranslate"><span class="pre">detect_spikes_janca(...,</span>
+<span class="pre">baseline=...,</span> <span class="pre">combine='reference'|'min'|'max')</span></code> and <code class="docutils literal notranslate"><span class="pre">JancaDetector(baseline=...)</span></code> then
+use that fixed threshold instead of, or combined with, the local one. For channels that
+spike permanently: on synthetic iEEG with 1 / 3 / 5 spikes/s the local model finds
+93 / 42 / 0.5 % of the spikes, the reference baseline 97 / 97 / 96 %, with no false
+detections. The signal-path parameters must match the baseline’s (checked), and so must
+the channel order when both sides have channel names (checked); the amplitude unit, gain
+and montage must too (not checkable; warnings flag a ×10 level mismatch on a channel and
+a ×3 mismatch of the montage’s background level).</p></li>
+<li><p><strong>Long Janca windows on data with drops</strong>: <code class="docutils literal notranslate"><span class="pre">gap_aware_stats=True</span></code> computes the local
+statistics over valid samples only (O(n) for any window, e.g. <code class="docutils literal notranslate"><span class="pre">window_s=3600</span></code> on 24 h)
+and never detects on samples left out of them (dropouts and their edges);
+<code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code> passes its gap mask so filled samples never enter them.</p></li>
+</ul>
+<p>See <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/blob/main/brainmaze_eeg/spikes/README.md#reference-baseline-jancabaseline-310">Reference baseline</a>
+in the spike detectors README for when to use it, what must match, and the limitations.</p>
 </section>
 <section id="what-s-new-in-3-0-0">
 <h2>What’s new in 3.0.0<a class="headerlink" href="#what-s-new-in-3-0-0" title="Link to this heading">#</a></h2>
@@ -868,16 +893,32 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <li class="toctree-l2"><a class="reference internal" href="spikes.html#detectors">Detectors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes.janca">Janca</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#janca-hilbert-envelope-interictal-spike-detectors">Janca (Hilbert-envelope) interictal spike detectors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.BASELINE_LEVEL_WARN_RATIO"><code class="docutils literal notranslate"><span class="pre">BASELINE_LEVEL_WARN_RATIO</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.COMBINE_MODES"><code class="docutils literal notranslate"><span class="pre">COMBINE_MODES</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.DECISION_PARAMS"><code class="docutils literal notranslate"><span class="pre">DECISION_PARAMS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.DEFAULT_MIN_VALID_FRACTION"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MIN_VALID_FRACTION</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.DEFAULT_STATS_MARGIN_S"><code class="docutils literal notranslate"><span class="pre">DEFAULT_STATS_MARGIN_S</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.JANCA_PRESETS"><code class="docutils literal notranslate"><span class="pre">JANCA_PRESETS</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.JancaDetector"><code class="docutils literal notranslate"><span class="pre">JancaDetector</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.MAX_RESAMPLER_LOSS_DB"><code class="docutils literal notranslate"><span class="pre">MAX_RESAMPLER_LOSS_DB</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_QUANTILE"><code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_QUANTILE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.MONTAGE_LEVEL_WARN_RATIO"><code class="docutils literal notranslate"><span class="pre">MONTAGE_LEVEL_WARN_RATIO</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.SIGNAL_PATH_PARAMS"><code class="docutils literal notranslate"><span class="pre">SIGNAL_PATH_PARAMS</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.SpikeDetectorHilbert"><code class="docutils literal notranslate"><span class="pre">SpikeDetectorHilbert</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.design_janca_filters"><code class="docutils literal notranslate"><span class="pre">design_janca_filters()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.detect_spikes_janca"><code class="docutils literal notranslate"><span class="pre">detect_spikes_janca()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_decimation_factor"><code class="docutils literal notranslate"><span class="pre">janca_decimation_factor()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_params"><code class="docutils literal notranslate"><span class="pre">janca_params()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_resampling"><code class="docutils literal notranslate"><span class="pre">janca_resampling()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.janca_threshold"><code class="docutils literal notranslate"><span class="pre">janca_threshold()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca.resampler_gain_db"><code class="docutils literal notranslate"><span class="pre">resampler_gain_db()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes.janca_baseline">Janca reference baseline (3.1.0)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#reference-baseline-for-the-janca-detector">Reference baseline for the Janca detector</a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA"><code class="docutils literal notranslate"><span class="pre">BASELINE_SCHEMA</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca_baseline.BASELINE_SCHEMA_VERSION"><code class="docutils literal notranslate"><span class="pre">BASELINE_SCHEMA_VERSION</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.janca_baseline.JancaBaseline"><code class="docutils literal notranslate"><span class="pre">JancaBaseline</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="spikes.html#module-brainmaze_eeg.spikes.barkmeier">Barkmeier</a><ul>
@@ -891,9 +932,11 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#gap-aware-wrapper-for-the-spike-detectors">Gap-aware wrapper for the spike detectors</a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes.gap_aware.GapAwareSpikeDetector"><code class="docutils literal notranslate"><span class="pre">GapAwareSpikeDetector</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#relation-to-brainmaze-utils-gaps">Relation to <code class="docutils literal notranslate"><span class="pre">brainmaze_utils.gaps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.FLAT_AS_GAP_S"><code class="docutils literal notranslate"><span class="pre">FLAT_AS_GAP_S</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.drop_in_gaps"><code class="docutils literal notranslate"><span class="pre">drop_in_gaps()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.fill_gaps"><code class="docutils literal notranslate"><span class="pre">fill_gaps()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.find_gaps"><code class="docutils literal notranslate"><span class="pre">find_gaps()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.flat_runs"><code class="docutils literal notranslate"><span class="pre">flat_runs()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.gap_intervals"><code class="docutils literal notranslate"><span class="pre">gap_intervals()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.mask_in_gaps"><code class="docutils literal notranslate"><span class="pre">mask_in_gaps()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="spikes.html#brainmaze_eeg.spikes._gaps.pink_noise"><code class="docutils literal notranslate"><span class="pre">pink_noise()</span></code></a></li>
@@ -959,6 +1002,7 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze-brain-electrophysiology-behavior-and-dynamics-analysis-toolbox-eeg">BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox - EEG</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-1-0">What’s new in 3.1.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-0-0">What’s new in 3.0.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#releasing">Releasing</a></li>
