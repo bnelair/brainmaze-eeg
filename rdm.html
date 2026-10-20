@@ -395,6 +395,7 @@
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox - EEG</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#unreleased">Unreleased</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-1-0">What’s new in 3.1.0</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-0-0">What’s new in 3.0.0</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="pst-show_toc_level nav section-nav flex-column">
@@ -458,6 +459,17 @@ in the brainmaze-eeg-models documentation (there is deliberately no GPU extra). 
 after that swap, <strong>any</strong> later <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;brainmaze-eeg[models]&quot;</span></code> (not only <code class="docutils literal notranslate"><span class="pre">-U</span></code>)
 installs the CPU <code class="docutils literal notranslate"><span class="pre">onnxruntime</span></code> again, which then shadows the GPU build; repeat the swap
 afterwards.</p>
+</section>
+<section id="unreleased">
+<h1>Unreleased<a class="headerlink" href="#unreleased" title="Link to this heading">#</a></h1>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fit</span></code> of the KDE classifiers (<code class="docutils literal notranslate"><span class="pre">KDEBayesianModel</span></code> and its subclasses,
+<code class="docutils literal notranslate"><span class="pre">KDEBayesianModelNC</span></code>), <code class="docutils literal notranslate"><span class="pre">features.utils.balance_classes</span></code> and <code class="docutils literal notranslate"><span class="pre">Mapper.fit_map</span></code> accept
+plain lists/tuples for <code class="docutils literal notranslate"><span class="pre">X</span></code>/<code class="docutils literal notranslate"><span class="pre">y</span></code> (a list of labels raised <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code> up to
+3.1.0). Results and return types for ndarray and pandas input are unchanged.</p></li>
+<li><p>New <code class="docutils literal notranslate"><span class="pre">models</span></code> extra: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;brainmaze-eeg[models]&quot;</span></code> also installs
+<a class="reference external" href="https://github.com/bnelair/brainmaze-eeg-models">brainmaze-eeg-models</a> (see Installation).</p></li>
+</ul>
 </section>
 <section id="what-s-new-in-3-1-0">
 <h1>What’s new in 3.1.0<a class="headerlink" href="#what-s-new-in-3-1-0" title="Link to this heading">#</a></h1>
@@ -610,7 +622,7 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 </section>
 <section id="license">
 <h1>License<a class="headerlink" href="#license" title="Link to this heading">#</a></h1>
-<p>This software is licensed under BSD-3Clause license. For details see the <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE">LICENSE</a> file in the root directory of this project.</p>
+<p>This software is licensed under the BSD 3-Clause license. For details see the <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE">LICENSE</a> file in the root directory of this project.</p>
 </section>
 <section id="acknowledgment">
 <h1>Acknowledgment<a class="headerlink" href="#acknowledgment" title="Link to this heading">#</a></h1>
@@ -703,6 +715,7 @@ To implement a new feature a new branch should be created from the <em>dev</em> 
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">BrainMaze: Brain Electrophysiology, Behavior and Dynamics Analysis Toolbox - EEG</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#unreleased">Unreleased</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-1-0">What’s new in 3.1.0</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-new-in-3-0-0">What’s new in 3.0.0</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-contribute">How to contribute</a><ul class="pst-show_toc_level nav section-nav flex-column">

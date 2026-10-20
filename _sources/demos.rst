@@ -4,7 +4,7 @@ Demos
 Runnable examples are in the
 `demo/ <https://github.com/bnelair/brainmaze-eeg/tree/main/demo>`_ folder of the repository
 (setup and data description: `demo/README.md <https://github.com/bnelair/brainmaze-eeg/blob/main/demo/README.md>`_).
-Each one runs against brainmaze-eeg 2.0.0 and brainmaze-utils 3.0.0 from PyPI; matplotlib
+Each one runs against brainmaze-eeg 3.1.0 and brainmaze-utils 3.0.0 from PyPI; matplotlib
 is only needed for the figures.
 
 `eeg_wave_detection <https://github.com/bnelair/brainmaze-eeg/tree/main/demo/eeg_wave_detection>`_

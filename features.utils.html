@@ -447,17 +447,19 @@ the std of a given dimension for a given category.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>x</strong> (<em>numpy ndarray</em>) – shape[n_samples, n_features]</p></li>
-<li><p><strong>y</strong> (<em>list</em><em> or </em><em>numpy array</em>) – string or int indexes for each category</p></li>
+<li><p><strong>x</strong> (<em>array_like</em>) – shape[n_samples, n_features]</p></li>
+<li><p><strong>y</strong> (<em>array_like</em>) – string or int indexes for each category (list, tuple, numpy array or pandas Series;
+up to 3.1.0 a list or tuple raised <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code>)</p></li>
 <li><p><strong>std_factor</strong> (<em>float</em>) – Amount of noise introduced into duplicated features relatively to std of a given feature within a category.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><ul class="simple">
-<li><p><em>numpy ndarray</em> – x - samples</p></li>
-<li><p><em>list</em> – y - categories</p></li>
-</ul>
-</p>
+<dd class="field-even"><p>If no class needed duplicates (already balanced), <code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code> exactly as given
+(the same objects, e.g. a pandas Series stays a Series, as in 3.1.0). Otherwise
+numpy ndarrays: <code class="docutils literal notranslate"><span class="pre">x</span></code> (n_balanced, n_features) and <code class="docutils literal notranslate"><span class="pre">y</span></code> (n_balanced,).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>x, y</p>
 </dd>
 </dl>
 </dd></dl>
