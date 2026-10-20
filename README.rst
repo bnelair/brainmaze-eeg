@@ -49,6 +49,16 @@ after that swap, **any** later ``pip install "brainmaze-eeg[models]"`` (not only
 installs the CPU ``onnxruntime`` again, which then shadows the GPU build; repeat the swap
 afterwards.
 
+Unreleased
+"""""""""""""""""""""""""""
+
+- ``fit`` of the KDE classifiers (``KDEBayesianModel`` and its subclasses,
+  ``KDEBayesianModelNC``), ``features.utils.balance_classes`` and ``Mapper.fit_map`` accept
+  plain lists/tuples for ``X``/``y`` (a list of labels raised ``AttributeError`` up to
+  3.1.0). Results and return types for ndarray and pandas input are unchanged.
+- New ``models`` extra: ``pip install "brainmaze-eeg[models]"`` also installs
+  `brainmaze-eeg-models <https://github.com/bnelair/brainmaze-eeg-models>`_ (see Installation).
+
 What's new in 3.1.0
 """""""""""""""""""""""""""
 
@@ -200,7 +210,7 @@ The generated HTML documentation will be in the ``docs/`` directory. Note that t
 License
 """"""""""""""""""
 
-This software is licensed under BSD-3Clause license. For details see the `LICENSE <https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE>`_ file in the root directory of this project.
+This software is licensed under the BSD 3-Clause license. For details see the `LICENSE <https://github.com/bnelair/brainmaze-eeg/blob/main/LICENSE>`_ file in the root directory of this project.
 
 
 Acknowledgment

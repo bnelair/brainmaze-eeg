@@ -845,3 +845,65 @@ def test_markov_filter_rejects_unknown_label():
     sc = pd.DataFrame(np.full((4, 2), 0.5), columns=['AWAKE', 'N2'])
     with pytest.raises(ValueError, match='UNKNOWN'):
         C.SleepStageProbabilityMarkovChainFilter().fit(sc, ['AWAKE', 'N2', 'UNKNOWN', 'N2'])
+
+
+# --------------------------------------------------------------------------- array-like inputs
+@pytest.mark.parametrize('cls', ALL_MODELS, ids=lambda c: c.__name__)
+def test_fit_accepts_lists_identically(cls, feature_data):
+    # up to 3.1.0 the KDE family raised AttributeError ('bool' object has no attribute 'sum')
+    # in balance_classes for a list of labels; lists are now converted with np.asarray at
+    # fit, and give exactly the ndarray result
+    Xtr, ytr, Xte, _ = feature_data
+    a, b = make(cls), make(cls)
+    a.fit(Xtr, ytr)
+    b.fit(Xtr.tolist(), list(ytr))
+    np.testing.assert_array_equal(a.predict(Xte), b.predict(Xte))
+    np.testing.assert_array_equal(a.scores(Xte).to_numpy(), b.scores(Xte).to_numpy())
+    np.testing.assert_array_equal(b.predict(Xte.tolist()), b.predict(Xte))
+
+
+@pytest.mark.parametrize('cls', [C.KDEBayesianCausalModel, C.MVGaussBayesianCausalModel],
+                         ids=lambda c: c.__name__)
+def test_causal_fit_with_lists_gives_the_same_markov_filter(cls, feature_data):
+    # the causal models reuse X and y after super().fit (training scores + Markov filter);
+    # with list input the fitted filter must equal the ndarray one
+    Xtr, ytr, Xte, _ = feature_data
+    a, b = make(cls), make(cls)
+    a.fit(Xtr, ytr)
+    b.fit(Xtr.tolist(), tuple(ytr))
+    np.testing.assert_array_equal(a.MarkovFilter.tmat, b.MarkovFilter.tmat)
+    np.testing.assert_array_equal(a.MarkovFilter.stability, b.MarkovFilter.stability)
+    np.testing.assert_array_equal(a.MarkovFilter.STATES, b.MarkovFilter.STATES)
+    np.testing.assert_array_equal(a.predict(Xte), b.predict(Xte))
+
+
+def test_balance_classes_accepts_lists(feature_data):
+    Xtr, ytr, _, _ = feature_data
+    xa, ya = balance_classes(Xtr, ytr)
+    xl, yl = balance_classes(Xtr.tolist(), list(ytr))
+    np.testing.assert_array_equal(xa, xl)
+    np.testing.assert_array_equal(ya, yl)
+    _, counts = np.unique(yl, return_counts=True)
+    assert np.all(counts == counts.max())
+
+
+def test_balance_classes_return_types_as_in_310():
+    """Already-balanced input is returned as given (same objects; a pandas Series or DataFrame
+    stays one), unbalanced input gives ndarrays -- exactly the types brainmaze-eeg 3.1.0
+    returns (measured on PyPI 3.1.0)."""
+    xb = np.arange(8.0).reshape(4, 2)
+    yb = pd.Series(['a', 'a', 'b', 'b'], index=[5, 6, 7, 8])
+    xr, yr = balance_classes(xb, yb)
+    assert xr is xb and yr is yb
+    xdf = pd.DataFrame(xb)
+    xr, yr = balance_classes(xdf, yb)
+    assert xr is xdf and yr is yb
+    xl = [[1.0, 2.0], [3.0, 4.0]]
+    xr, yr = balance_classes(xl, np.array(['a', 'b']))
+    assert xr is xl and isinstance(yr, np.ndarray)
+    xu = np.arange(10.0).reshape(5, 2)
+    yu = pd.Series(['a', 'a', 'a', 'b', 'b'])
+    xr, yr = balance_classes(xu, yu)
+    assert type(xr) is np.ndarray and type(yr) is np.ndarray
+    assert yr.tolist() == ['a', 'a', 'a', 'b', 'b', 'b']
+    np.testing.assert_array_equal(xr, np.vstack([xu, xu[3:4]]))

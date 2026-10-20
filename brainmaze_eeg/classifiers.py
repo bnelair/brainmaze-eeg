@@ -209,6 +209,16 @@ def _labels_from_scores(scores):
     return out
 
 
+def _as_training_arrays(X, y):
+    """
+    ``(np.asarray(X), np.asarray(y))`` for the public ``fit`` methods, so that array-likes
+    such as plain lists are accepted (up to 3.1.0 a list of labels raised
+    ``AttributeError`` in ``balance_classes``). An ndarray passes through unchanged (same
+    object), so results for ndarray input are identical.
+    """
+    return np.asarray(X), np.asarray(y)
+
+
 def _check_training_labels(y, owner):
     """
     Raise ``ValueError`` if the training labels contain ``UNKNOWN_LABEL``: the models
@@ -1030,12 +1040,13 @@ class KDEBayesianModel(_KDEFamilyMixin):
 
         Parameters
         ----------
-        X : np.ndarray, shape (n_epochs, n_features)
-            Feature matrix (one row per epoch).
-        y : np.ndarray of str, shape (n_epochs,)
-            Labels; every state needs enough rows for a non-singular density
-            (more rows than retained dimensions).
+        X : array_like, shape (n_epochs, n_features)
+            Feature matrix (one row per epoch); an ndarray or e.g. a list of rows.
+        y : array_like of str, shape (n_epochs,)
+            Labels (an ndarray or a list); every state needs enough rows for a
+            non-singular density (more rows than retained dimensions).
         """
+        X, y = _as_training_arrays(X, y)
         _check_training_labels(y, type(self).__name__)
         X, y = self._fit(X, y)
         self._fit_kde(X, y)
@@ -1115,6 +1126,7 @@ class KDEBayesianCausalModel(KDEBayesianModel):
         self.MarkovFilter = None
 
     def fit(self, X, y):
+        X, y = _as_training_arrays(X, y)       # X, y are reused below (scores, Markov filter)
         super().fit(X, y)
         # training scores for the filter: no OOD flagging, no filter, rows consecutive
         scores = self._scores_impl(X, apply_floor=False, apply_filter=False)
@@ -1588,12 +1600,13 @@ class KDEBayesianModelNC(_KDEFamilyMixin):
 
         Parameters
         ----------
-        X : np.ndarray, shape (n_epochs, n_features)
-            Feature matrix (one row per epoch).
-        y : np.ndarray of str, shape (n_epochs,)
-            Labels; every state needs enough rows for a non-singular density
-            (more rows than retained dimensions).
+        X : array_like, shape (n_epochs, n_features)
+            Feature matrix (one row per epoch); an ndarray or e.g. a list of rows.
+        y : array_like of str, shape (n_epochs,)
+            Labels (an ndarray or a list); every state needs enough rows for a
+            non-singular density (more rows than retained dimensions).
         """
+        X, y = _as_training_arrays(X, y)
         _check_training_labels(y, type(self).__name__)
         X, y = self._fit(X, y)
         self._fit_kde(X, y)
@@ -1767,6 +1780,8 @@ class Mapper:
         feature matrix and the semi-supervised cost was computed on nonsense "labels"
         without any error (issue #57).
         """
+        if isinstance(x, (list, tuple)):
+            x = np.asarray(x)                  # up to 3.1.0 a list x raised here or below
         if not isinstance(y, type(None)):
             x = deepcopy(x)
             y = deepcopy(np.asarray(y))

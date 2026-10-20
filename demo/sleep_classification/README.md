@@ -23,8 +23,10 @@ scores = model.predict_signal_scores(signal, fs)  # per-epoch probabilities
 model.max_log_lik_, model.log_lik_floor_   # per-epoch best-state log-likelihood, floor
 ```
 
-- **Labels.** N1 is not trained (the models know AWAKE/N2/N3/REM, as in
-  `SleepClassifierWrapper`). Training labels must not contain `'UNKNOWN'` (`fit` raises).
+- **Labels.** A list or a NumPy array of strings (a plain list raised `AttributeError`
+  in 3.1.0 and earlier; pass `np.asarray(labels)` there). N1 is not trained (the models
+  know AWAKE/N2/N3/REM, as in `SleepClassifierWrapper`). Training labels must not contain
+  `'UNKNOWN'` (`fit` raises).
 - **Missing data.** The file stores dropouts as a constant; they are set to NaN from its
   `data_present` mask. `predict_signal` skips epochs with less than 85 % non-NaN samples
   (`datarate_threshold`); they leave a gap in the table, and the smoothing does not cross
@@ -56,7 +58,7 @@ floor raises no false alarm here.
 The training and prediction calls show tqdm progress bars on stderr; the script hides them
 (the classes have no switch for them). They appear when you call the methods yourself.
 
-## Output (brainmaze-eeg 2.0.0, brainmaze-utils 3.0.0, numpy 2.5)
+## Output (brainmaze-eeg 3.1.0, brainmaze-utils 3.0.0, numpy 2.5; identical with 2.0.0)
 
 ```
 6.8 h at 500 Hz, 811 epochs of 30 s; train: epochs 0-404, test: epochs 405-810

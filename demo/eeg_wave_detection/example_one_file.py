@@ -46,7 +46,8 @@ Run
     python example_one_file.py
 
 Requires ``patient_one_data.mat`` (an ~6.8 h Fz recording at 500 Hz with a hypnogram)
-in this directory. Output with brainmaze-eeg 2.0.0 (WaveDetector class version 2.1.0)::
+in this directory. Output with brainmaze-eeg 3.1.0 (WaveDetector class version 2.1.0;
+identical with 2.0.0)::
 
     811 epochs, 325 NREM
 
