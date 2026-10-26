@@ -23,7 +23,13 @@ dependencies = [
     "numpy>=1.24",
     "pandas>=2.2.0",
     "pytz",
-    "python-dateutil",
+    # <3: python-dateutil 3.0.0 (2026-10-21) rewrote tz.tzfile. pandas (<= 3.1, GH#71459)
+    # detects dateutil zones through private attributes that 3.0 removed, so any
+    # dateutil.tz.gettz() zone inside a DataFrame/Timestamp raises AttributeError
+    # ('NoneType' object has no attribute 'total_seconds'). dateutil 3 also changes the
+    # UTC offset of nonexistent (DST-gap) local times. Lift only after pandas supports
+    # dateutil 3 and the suite passes with it.
+    "python-dateutil<3",
     "scikit-learn>=1.6.1",
     "scipy>=1.10",
     "tqdm",
