@@ -23,13 +23,21 @@ dependencies = [
     "numpy>=1.24",
     "pandas>=2.2.0",
     "pytz",
-    # <3: python-dateutil 3.0.0 (2026-10-21) rewrote tz.tzfile. pandas (<= 3.1, GH#71459)
-    # detects dateutil zones through private attributes that 3.0 removed, so any
-    # dateutil.tz.gettz() zone inside a DataFrame/Timestamp raises AttributeError
-    # ('NoneType' object has no attribute 'total_seconds'). dateutil 3 also changes the
-    # UTC offset of nonexistent (DST-gap) local times. Lift only after pandas supports
-    # dateutil 3 and the suite passes with it.
-    "python-dateutil<3",
+    # python-dateutil <3: dateutil 3.0.0 (2026-10-21) rewrote tz.tzfile, and pandas (<= 3.1.0)
+    # detects dateutil zones through private attributes that 3.0 removed (pandas GH#71459).
+    # dateutil.tz.gettz() zones WITH DST/transitions (e.g. 'America/Chicago') then break inside
+    # pandas: on pandas 3.x they raise AttributeError ('NoneType' object has no attribute
+    # 'total_seconds'); on pandas 2.x a scalar Timestamp.tz_convert silently returns a
+    # tz-naive UTC wall time (Series/DataFrame paths raise). Fixed-offset gettz zones,
+    # tzutc() and tzlocal() are unaffected. dateutil 3 also changes the UTC offset of
+    # nonexistent (DST-gap) local times. The pandas fix (pandas#71495) is expected in
+    # pandas 3.1.1, with no 2.x/3.0.x backport, and pip cannot express "dateutil 3 only with
+    # a fixed pandas". So lift `<3` only TOGETHER WITH raising the floor pandas>=2.2.0 to the
+    # first fixed pandas release (a support-range change, not a patch release), and only
+    # once the suite passes on dateutil 3.
+    # >=2.8.2: the floor of every supported pandas (pandas 2.0-2.2 require >=2.8.2) and the
+    # version the family Compatibility "lowest" job resolves and tests.
+    "python-dateutil>=2.8.2,<3",
     "scikit-learn>=1.6.1",
     "scipy>=1.10",
     "tqdm",
