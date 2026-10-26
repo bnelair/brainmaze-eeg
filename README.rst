@@ -58,6 +58,18 @@ Unreleased
   3.1.0). Results and return types for ndarray and pandas input are unchanged.
 - New ``models`` extra: ``pip install "brainmaze-eeg[models]"`` also installs
   `brainmaze-eeg-models <https://github.com/bnelair/brainmaze-eeg-models>`_ (see Installation).
+- Packaging: ``python-dateutil>=2.8.2,<3``. python-dateutil 3.0.0 (2026-10-21) is not compatible
+  with pandas <= 3.1.0 (pandas GH#71459). With it, annotation times that carry a
+  ``dateutil.tz.gettz()`` zone with DST transitions (e.g. ``gettz('America/Chicago')``) break
+  every hypnogram scoring call: pandas 3.x raises ``AttributeError: 'NoneType' object has no
+  attribute 'total_seconds'``, and on pandas 2.x scalar timezone conversions can silently return
+  tz-naive UTC times. Fixed-offset zones and ``zoneinfo`` zones are not affected. No code or
+  result changes with dateutil 2.x. If you need dateutil 3, use
+  ``zoneinfo.ZoneInfo('America/Chicago')`` instead of ``gettz(...)``: scores are identical
+  (the hypnogram test suite passes unchanged with it), but the column dtype shows
+  ``America/Chicago`` instead of ``tzfile(...)``, and a wall-clock time inside a DST gap
+  (nonexistent local time) maps to a different UTC instant. The bound will be lifted only
+  together with a pandas floor that contains the fix (expected pandas 3.1.1).
 
 What's new in 3.1.0
 """""""""""""""""""""""""""
