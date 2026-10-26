@@ -469,6 +469,18 @@ plain lists/tuples for <code class="docutils literal notranslate"><span class="p
 3.1.0). Results and return types for ndarray and pandas input are unchanged.</p></li>
 <li><p>New <code class="docutils literal notranslate"><span class="pre">models</span></code> extra: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;brainmaze-eeg[models]&quot;</span></code> also installs
 <a class="reference external" href="https://github.com/bnelair/brainmaze-eeg-models">brainmaze-eeg-models</a> (see Installation).</p></li>
+<li><p>Packaging: <code class="docutils literal notranslate"><span class="pre">python-dateutil&gt;=2.8.2,&lt;3</span></code>. python-dateutil 3.0.0 (2026-10-21) is not compatible
+with pandas &lt;= 3.1.0 (pandas GH#71459). With it, annotation times that carry a
+<code class="docutils literal notranslate"><span class="pre">dateutil.tz.gettz()</span></code> zone with DST transitions (e.g. <code class="docutils literal notranslate"><span class="pre">gettz('America/Chicago')</span></code>) break
+every hypnogram scoring call: pandas 3.x raises <code class="docutils literal notranslate"><span class="pre">AttributeError:</span> <span class="pre">'NoneType'</span> <span class="pre">object</span> <span class="pre">has</span> <span class="pre">no</span>
+<span class="pre">attribute</span> <span class="pre">'total_seconds'</span></code>, and on pandas 2.x scalar timezone conversions can silently return
+tz-naive UTC times. Fixed-offset zones and <code class="docutils literal notranslate"><span class="pre">zoneinfo</span></code> zones are not affected. No code or
+result changes with dateutil 2.x. If you need dateutil 3, use
+<code class="docutils literal notranslate"><span class="pre">zoneinfo.ZoneInfo('America/Chicago')</span></code> instead of <code class="docutils literal notranslate"><span class="pre">gettz(...)</span></code>: scores are identical
+(the hypnogram test suite passes unchanged with it), but the column dtype shows
+<code class="docutils literal notranslate"><span class="pre">America/Chicago</span></code> instead of <code class="docutils literal notranslate"><span class="pre">tzfile(...)</span></code>, and a wall-clock time inside a DST gap
+(nonexistent local time) maps to a different UTC instant. The bound will be lifted only
+together with a pandas floor that contains the fix (expected pandas 3.1.1).</p></li>
 </ul>
 </section>
 <section id="what-s-new-in-3-1-0">
