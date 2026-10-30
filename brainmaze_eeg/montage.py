@@ -69,11 +69,13 @@ def bipolar(channels: Sequence[str]) -> List[Derivation]:
 
 
 def common_average(channels: Sequence[str], exclude: Sequence[str] = ()) -> List[Derivation]:
-    """Each channel minus the mean of all channels not in ``exclude``."""
+    """Each channel minus the mean of all channels, itself included (the standard common
+    average reference). Channels in ``exclude`` (an ECG, a bad contact) are neither in
+    the average nor re-referenced."""
     ref = tuple(c for c in channels if c not in set(exclude))
     if not ref:
         raise ValueError("no channel left for the average")
-    return [Derivation(f"{c}-avg", (c,), ref) for c in channels]
+    return [Derivation(f"{c}-avg", (c,), ref) for c in ref]
 
 
 # The longitudinal bipolar ("double banana") chains; T7/T8/P7/P8 are the new names of
@@ -103,13 +105,15 @@ def double_banana(channels: Sequence[str]) -> List[Derivation]:
 
 
 def region_average(channels: Sequence[str], region_of: Mapping[str, str]) -> List[Derivation]:
-    """Each contact minus the mean of the contacts in its region (``region_of``: channel
-    -> region label, e.g. an atlas label). Contacts without a region are left out."""
+    """Each contact minus the mean of the OTHER contacts in its region (``region_of``:
+    channel -> region label, e.g. an atlas label), like :func:`nearest_neighbour` -- so a
+    two-contact region gives the plain difference, not half of it. Contacts without a
+    region, or alone in theirs, are left out."""
     regions: Dict[str, List[str]] = {}
     for c in channels:
         if region_of.get(c):
             regions.setdefault(region_of[c], []).append(c)
-    return [Derivation(f"{c}-{region_of[c]}", (c,), tuple(regions[region_of[c]]))
+    return [Derivation(f"{c}-{region_of[c]}", (c,), tuple(o for o in regions[region_of[c]] if o != c))
             for c in channels if region_of.get(c) and len(regions[region_of[c]]) > 1]
 
 
@@ -137,8 +141,15 @@ def apply_montage(data, channels: Sequence[str], derivations: Sequence[Derivatio
     if missing:
         raise ValueError(f"channels not in the data: {sorted(missing)}")
     out = np.empty((len(derivations), data.shape[-1]))
+    means: Dict[Tuple[str, ...], np.ndarray] = {}            # a common reference is averaged once
+
+    def mean_of(group):
+        if group not in means:
+            means[group] = data[index[group[0]]] if len(group) == 1 else data[[index[c] for c in group]].mean(axis=0)
+        return means[group]
+
     for i, d in enumerate(derivations):
-        out[i] = data[[index[c] for c in d.plus]].mean(axis=0)
+        out[i] = mean_of(d.plus)
         if d.minus:
-            out[i] -= data[[index[c] for c in d.minus]].mean(axis=0)
+            out[i] -= mean_of(d.minus)
     return out

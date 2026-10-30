@@ -28,7 +28,7 @@ from typing import List, NamedTuple, Optional, Sequence, Tuple
 import numpy as np
 from scipy import stats
 
-__all__ = ["extract_epochs", "epoch_average", "Cluster", "cluster_permutation_test", "ersp_itc"]
+__all__ = ["extract_epochs", "epoch_average", "Cluster", "cluster_permutation_test", "ersp_itc", "itc_p_value"]
 
 
 def extract_epochs(x, fs: float, events_s: Sequence[float], pre_s: float, post_s: float):
@@ -42,8 +42,10 @@ def extract_epochs(x, fs: float, events_s: Sequence[float], pre_s: float, post_s
     n_pre, n_post = int(round(pre_s * fs)), int(round(post_s * fs))
     if n_pre < 0 or n_post <= 0:
         raise ValueError("pre_s must be >= 0 and post_s > 0")
-    centres = np.round(np.asarray(events_s, dtype=float) * fs).astype(int)
-    kept = (centres - n_pre >= 0) & (centres + n_post <= x.shape[-1])
+    events = np.asarray(events_s, dtype=float)
+    finite = np.isfinite(events)                               # a NaN event time is no event
+    centres = np.round(np.where(finite, events, 0.0) * fs).astype(int)
+    kept = finite & (centres - n_pre >= 0) & (centres + n_post <= x.shape[-1])
     epochs = [x[..., c - n_pre:c + n_post] for c in centres[kept]]
     finite = np.array([np.isfinite(e).all() for e in epochs], dtype=bool)
     kept[np.flatnonzero(kept)[~finite]] = False
@@ -96,6 +98,12 @@ def cluster_permutation_test(a, b=None, n_permutations: int = 1000, threshold: O
     conditions are compared (Welch t; epochs shuffled between conditions); without it,
     ``a`` is tested against zero (one-sample t; epochs sign-flipped).
 
+    Shuffling assumes the epochs are exchangeable under the null. Two conditions with
+    clearly different variances AND different numbers of epochs break that, and the
+    false-positive rate rises (about 10% at nominal 5% for SDs 3:1 and n 10:40) -- the
+    Welch t only shapes the clusters, it does not restore exchangeability. Inputs must be
+    finite: a NaN would silently split a cluster.
+
     ``threshold`` is the t value a bin must pass to join a cluster, default the two-sided
     ``alpha`` critical value. ``tail``: 0 both signs, 1 positive, -1 negative. A
     cluster's p is the share of permutations whose LARGEST cluster is at least as
@@ -111,6 +119,8 @@ def cluster_permutation_test(a, b=None, n_permutations: int = 1000, threshold: O
         raise ValueError("each condition needs at least two epochs")
     if tail not in (-1, 0, 1):
         raise ValueError("tail is -1, 0 or 1")
+    if not np.isfinite(a).all() or (b is not None and not np.isfinite(b).all()):
+        raise ValueError("a and b must be finite (drop or interpolate missing bins first)")
     dof = a.shape[0] - 1 if b is None else a.shape[0] + b.shape[0] - 2
     if threshold is None:
         threshold = stats.t.ppf(1 - (alpha / 2 if tail == 0 else alpha), dof)
@@ -137,8 +147,11 @@ def cluster_permutation_test(a, b=None, n_permutations: int = 1000, threshold: O
 
 
 def _morlet(fs: float, freq: float, n_cycles: float) -> np.ndarray:
+    """Unit-energy complex Morlet of ``n_cycles`` at ``freq``, odd length, centred on
+    t = 0 exactly (so ``np.convolve(..., mode='same')`` keeps time alignment)."""
     sigma_t = n_cycles / (2 * np.pi * freq)
-    t = np.arange(-4 * sigma_t, 4 * sigma_t + 1 / fs, 1 / fs)
+    half = int(np.ceil(4 * sigma_t * fs))
+    t = np.arange(-half, half + 1) / fs
     w = np.exp(2j * np.pi * freq * t) * np.exp(-t ** 2 / (2 * sigma_t ** 2))
     return w / np.sqrt(np.sum(np.abs(w) ** 2))
 
@@ -152,14 +165,17 @@ def ersp_itc(epochs, fs: float, freqs: Sequence[float], n_cycles=7.0, baseline=N
 
     * ``ersp`` -- mean power in dB relative to the mean over ``baseline`` (a boolean mask
       over time bins), or in dB of absolute power without one;
-    * ``itc`` -- ``|mean(exp(i * phase))|`` over epochs, 0 (random phase) to 1 (locked).
+    * ``itc`` -- ``|mean(exp(i * phase))|`` over epochs, near 0 (random phase) to 1
+      (locked). It is biased upward for few epochs: with random phase its expected value
+      is about ``0.89 / sqrt(n_epochs)`` (0.27 at 10 epochs) -- judge it with
+      :func:`itc_p_value`, not against 0.
 
     The wavelet is longer than the epoch at low frequencies; those edge bins are NaN
     rather than estimated from zero padding.
     """
     epochs = np.asarray(epochs, dtype=float)
-    if epochs.ndim != 2 or epochs.shape[0] < 1:
-        raise ValueError("epochs must be (n_epochs, n_times)")
+    if epochs.ndim != 2 or epochs.shape[0] < 2:
+        raise ValueError("epochs must be (n_epochs, n_times) with at least two epochs")
     freqs = np.asarray(freqs, dtype=float)
     cycles = np.broadcast_to(np.asarray(n_cycles, dtype=float), freqs.shape)
     n_times = epochs.shape[1]
@@ -178,3 +194,17 @@ def ersp_itc(epochs, fs: float, freqs: Sequence[float], n_cycles=7.0, baseline=N
             return 10 * np.log10(power), itc
         ref = np.nanmean(power[:, np.asarray(baseline, dtype=bool)], axis=1, keepdims=True)
         return 10 * np.log10(power / ref), itc
+
+
+def itc_p_value(itc, n_epochs: int) -> np.ndarray:
+    """Rayleigh test of inter-trial coherence: the probability of an ITC at least this
+    large from ``n_epochs`` epochs of random phase (Zar, *Biostatistical Analysis*, 1999,
+    eq. 27.4)."""
+    itc = np.asarray(itc, dtype=float)
+    n = float(n_epochs)
+    if n < 2:
+        raise ValueError("the Rayleigh test needs at least two epochs")
+    r = n * itc
+    with np.errstate(invalid="ignore"):
+        p = np.exp(np.sqrt(1 + 4 * n + 4 * (n ** 2 - r ** 2)) - (1 + 2 * n))
+    return np.clip(p, 0.0, 1.0)
