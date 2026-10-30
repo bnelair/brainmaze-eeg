@@ -12,10 +12,14 @@
 
    classifiers
    crp
+   epochs
    features
    hypnogram
+   montage
    preprocessing
    scikit_modules
+   selection_stats
+   spectral
    spikes
 
 
