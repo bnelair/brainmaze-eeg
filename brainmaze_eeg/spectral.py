@@ -37,6 +37,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy import stats
+from scipy.integrate import trapezoid
 from scipy.signal import windows
 
 __all__ = ["MultitaperSpectrum", "multitaper_psd", "two_spectrum_test", "multitaper_spectrogram",
@@ -255,6 +256,5 @@ def band_power(freqs, psd, bands: Dict[str, Sequence[float]]) -> Dict[str, np.nd
         sel = (freqs >= lo) & (freqs <= hi)
         if sel.sum() < 2:
             raise ValueError(f"band {name!r} ({lo}-{hi} Hz) holds fewer than two frequency bins")
-        out[name] = np.trapezoid(psd[..., sel], freqs[sel], axis=-1) if hasattr(np, "trapezoid") \
-            else np.trapz(psd[..., sel], freqs[sel], axis=-1)
+        out[name] = trapezoid(psd[..., sel], freqs[sel], axis=-1)
     return out
