@@ -1,0 +1,736 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Spectral (multitaper) &#8212; BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=4418a689" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="_static/documentation_options.js?v=969bf561"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'spectral';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="icon" href="_static/brainmaze_173x173.png"/>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Spike detectors" href="spikes.html" />
+    <link rel="prev" title="Selection statistics" href="selection_stats.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="3.1.0" />
+  
+    
+    <script src="_static/searchtools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script src="searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/brainmaze_1757x1762.PNG" class="logo__image only-light" alt="BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG - Home"/>
+    <img src="_static/brainmaze_1757x1762.PNG" class="logo__image only-dark pst-js-only" alt="BrainMaze: A Toolbox to Analyze Brain Electrophysiology, Behavior and Dynamics - EEG - Home"/>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    BrainMaze - EEG
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Projects and demos</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="project_wave_detector.html">EEG Wave Detection and Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="demos.html">Demos</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="classifiers.html">Classifiers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crp.html">CRP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="epochs.html">Epochs</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="features.html">Features</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.dataset.html">Dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.feature_extraction.html">Feature Extraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.spectral_features.html">Spectral Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.time_domain_features.html">Time Domain Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.utils.html">Utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.wave_detector.html">Wave Detector</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="hypnogram.html">Hypnogram</a></li>
+<li class="toctree-l1"><a class="reference internal" href="montage.html">Montages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="preprocessing.html">Preprocessing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scikit_modules.html">Scikit Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="selection_stats.html">Selection statistics</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Spectral (multitaper)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spikes.html">Spike detectors</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/bnelair/brainmaze-eeg" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/spectral.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Spectral (multitaper)</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multitaper-spectral-estimation">Multitaper spectral estimation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-behind-the-intervals-and-the-test">Assumptions behind the intervals and the test</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#missing-data">Missing data</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.bandwidth"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.bandwidth</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.ci_high"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.ci_high</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.ci_low"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.ci_low</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.confidence"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.confidence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.dof"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.dof</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.freqs"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.freqs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.log_var"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.log_var</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.n_segments"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.n_segments</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.n_tapers"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.n_tapers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.nw"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.nw</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.psd"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.psd</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.band_power"><code class="docutils literal notranslate"><span class="pre">band_power()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.multitaper_psd"><code class="docutils literal notranslate"><span class="pre">multitaper_psd()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.multitaper_spectrogram"><code class="docutils literal notranslate"><span class="pre">multitaper_spectrogram()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.normalize_spectrogram"><code class="docutils literal notranslate"><span class="pre">normalize_spectrogram()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.two_spectrum_test"><code class="docutils literal notranslate"><span class="pre">two_spectrum_test()</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-brainmaze_eeg.spectral">
+<span id="spectral-multitaper"></span><h1>Spectral (multitaper)<a class="headerlink" href="#module-brainmaze_eeg.spectral" title="Link to this heading">#</a></h1>
+<section id="multitaper-spectral-estimation">
+<h2>Multitaper spectral estimation<a class="headerlink" href="#multitaper-spectral-estimation" title="Link to this heading">#</a></h2>
+<p>Thomson’s multitaper method with Slepian (DPSS) tapers, for the quick analyses of a
+review viewer and for scripts alike:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#brainmaze_eeg.spectral.multitaper_psd" title="brainmaze_eeg.spectral.multitaper_psd"><code class="xref py py-func docutils literal notranslate"><span class="pre">multitaper_psd()</span></code></a> – a power spectral density with confidence intervals
+(jackknife over the tapers, or chi-square);</p></li>
+<li><p><a class="reference internal" href="#brainmaze_eeg.spectral.two_spectrum_test" title="brainmaze_eeg.spectral.two_spectrum_test"><code class="xref py py-func docutils literal notranslate"><span class="pre">two_spectrum_test()</span></code></a> – are two spectra the same, frequency by frequency?</p></li>
+<li><p><a class="reference internal" href="#brainmaze_eeg.spectral.multitaper_spectrogram" title="brainmaze_eeg.spectral.multitaper_spectrogram"><code class="xref py py-func docutils literal notranslate"><span class="pre">multitaper_spectrogram()</span></code></a> and <a class="reference internal" href="#brainmaze_eeg.spectral.normalize_spectrogram" title="brainmaze_eeg.spectral.normalize_spectrogram"><code class="xref py py-func docutils literal notranslate"><span class="pre">normalize_spectrogram()</span></code></a> – time-frequency
+power, in dB, as a z-score, or as change from a baseline;</p></li>
+<li><p><a class="reference internal" href="#brainmaze_eeg.spectral.band_power" title="brainmaze_eeg.spectral.band_power"><code class="xref py py-func docutils literal notranslate"><span class="pre">band_power()</span></code></a> – power integrated over named bands.</p></li>
+</ul>
+<p>Scaling: one-sided PSD in <code class="docutils literal notranslate"><span class="pre">units**2</span> <span class="pre">/</span> <span class="pre">Hz</span></code>. The tapers have unit energy, so white
+noise of variance <code class="docutils literal notranslate"><span class="pre">s2</span></code> has a PSD of <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">s2</span> <span class="pre">/</span> <span class="pre">fs</span></code> and integrating the PSD over
+<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">fs/2]</span></code> returns the signal’s variance. Each segment is demeaned first, which
+removes power within the half-bandwidth <code class="docutils literal notranslate"><span class="pre">W</span> <span class="pre">=</span> <span class="pre">NW</span> <span class="pre">/</span> <span class="pre">T</span></code> of 0 Hz as well (by about
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">/</span> <span class="pre">(2</span> <span class="pre">NW)</span></code> at the first bins).</p>
+<section id="assumptions-behind-the-intervals-and-the-test">
+<h3>Assumptions behind the intervals and the test<a class="headerlink" href="#assumptions-behind-the-intervals-and-the-test" title="Link to this heading">#</a></h3>
+<p>The chi-square interval and the F test treat the K eigenspectra as independent
+estimates. That holds for spectra that are locally flat; on steep spectra (a dynamic
+range of more than ~40 dB, e.g. raw 1/f^3 iEEG) taper leakage correlates them and both
+become too liberal – prefer the jackknife interval and test (the defaults), or
+prewhiten. Within <code class="docutils literal notranslate"><span class="pre">W</span></code> of 0 Hz and of Nyquist the eigenspectra are real-valued or
+folded, so their degrees of freedom are about K, not 2K; the chi-square interval and
+the F test use K there.</p>
+</section>
+<section id="missing-data">
+<h3>Missing data<a class="headerlink" href="#missing-data" title="Link to this heading">#</a></h3>
+<p>NaN/inf marks missing data. <code class="docutils literal notranslate"><span class="pre">nan_policy='raise'</span></code> (the default) refuses it.
+<code class="docutils literal notranslate"><span class="pre">nan_policy='omit'</span></code> cuts the finite runs into non-overlapping segments of ONE length
+(<code class="docutils literal notranslate"><span class="pre">segment_samples</span></code>, default the longest run) and averages the segments’ eigenspectra:
+every estimate then has the same resolution and the same weight, so the level is not
+biased by short runs and the degrees of freedom are honest. Finite data in runs
+shorter than a segment, and the remainder of each run, are not used; a
+<code class="docutils literal notranslate"><span class="pre">RuntimeWarning</span></code> says so when that is more than half of it.</p>
+</section>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spectral.</span></span><span class="sig-name descname"><span class="pre">MultitaperSpectrum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freqs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">psd</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci_low</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci_high</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_var</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dof</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_tapers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_segments</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bandwidth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">confidence</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum" title="Link to this definition">#</a></dt>
+<dd><p>A multitaper PSD estimate.</p>
+<p><code class="docutils literal notranslate"><span class="pre">psd</span></code>, <code class="docutils literal notranslate"><span class="pre">ci_low</span></code>, <code class="docutils literal notranslate"><span class="pre">ci_high</span></code>, <code class="docutils literal notranslate"><span class="pre">log_var</span></code> and <code class="docutils literal notranslate"><span class="pre">dof</span></code> have the input’s leading shape
+plus a last axis of frequencies. <code class="docutils literal notranslate"><span class="pre">n_tapers</span></code> is the number of eigenspectra averaged
+per series (<code class="docutils literal notranslate"><span class="pre">k</span></code> times <code class="docutils literal notranslate"><span class="pre">n_segments</span></code>); <code class="docutils literal notranslate"><span class="pre">dof</span></code> the chi-square degrees of freedom per
+frequency (<code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">n_tapers</span></code>, <code class="docutils literal notranslate"><span class="pre">n_tapers</span></code> within <code class="docutils literal notranslate"><span class="pre">bandwidth</span></code> of 0 Hz and Nyquist);
+<code class="docutils literal notranslate"><span class="pre">log_var</span></code> the jackknife variance of <code class="docutils literal notranslate"><span class="pre">ln(psd)</span></code>; <code class="docutils literal notranslate"><span class="pre">bandwidth</span></code> the half-bandwidth
+<code class="docutils literal notranslate"><span class="pre">W</span></code> in Hz.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.bandwidth">
+<span class="sig-name descname"><span class="pre">bandwidth</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.bandwidth" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.ci_high">
+<span class="sig-name descname"><span class="pre">ci_high</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.ci_high" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.ci_low">
+<span class="sig-name descname"><span class="pre">ci_low</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.ci_low" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.confidence">
+<span class="sig-name descname"><span class="pre">confidence</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.confidence" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.dof">
+<span class="sig-name descname"><span class="pre">dof</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.dof" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.freqs">
+<span class="sig-name descname"><span class="pre">freqs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.freqs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.log_var">
+<span class="sig-name descname"><span class="pre">log_var</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.log_var" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.n_segments">
+<span class="sig-name descname"><span class="pre">n_segments</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.n_segments" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.n_tapers">
+<span class="sig-name descname"><span class="pre">n_tapers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.n_tapers" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.nw">
+<span class="sig-name descname"><span class="pre">nw</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.nw" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.MultitaperSpectrum.psd">
+<span class="sig-name descname"><span class="pre">psd</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#brainmaze_eeg.spectral.MultitaperSpectrum.psd" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.band_power">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spectral.</span></span><span class="sig-name descname"><span class="pre">band_power</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freqs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">psd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bands</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#brainmaze_eeg.spectral.band_power" title="Link to this definition">#</a></dt>
+<dd><p>Power in each named band <code class="docutils literal notranslate"><span class="pre">[lo,</span> <span class="pre">hi]</span></code> Hz: the PSD integrated over exactly that
+interval (interpolated at the edges), along the last axis.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.multitaper_psd">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spectral.</span></span><span class="sig-name descname"><span class="pre">multitaper_psd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nfft</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">confidence</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ci_method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'jackknife'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nan_policy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'raise'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segment_samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#brainmaze_eeg.spectral.MultitaperSpectrum" title="brainmaze_eeg.spectral.MultitaperSpectrum"><span class="pre">MultitaperSpectrum</span></a></span></span><a class="headerlink" href="#brainmaze_eeg.spectral.multitaper_psd" title="Link to this definition">#</a></dt>
+<dd><p>Multitaper PSD of <code class="docutils literal notranslate"><span class="pre">x</span></code> along its last axis.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>array_like</em>) – Signal, <code class="docutils literal notranslate"><span class="pre">(...,</span> <span class="pre">n_samples)</span></code>.</p></li>
+<li><p><strong>fs</strong> (<em>float</em>) – Sampling rate, Hz.</p></li>
+<li><p><strong>nw</strong> (<em>float</em>) – Time-half-bandwidth product; the half-bandwidth is <code class="docutils literal notranslate"><span class="pre">W</span> <span class="pre">=</span> <span class="pre">nw</span> <span class="pre">/</span> <span class="pre">T</span></code> Hz.</p></li>
+<li><p><strong>k</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of tapers, default <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">nw</span> <span class="pre">-</span> <span class="pre">1</span></code>; at most <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">nw</span></code>.</p></li>
+<li><p><strong>nfft</strong> (<em>int</em><em>, </em><em>optional</em>) – FFT length, default the next power of two of the segment length.</p></li>
+<li><p><strong>confidence</strong> (<em>float</em>) – Confidence level of <code class="docutils literal notranslate"><span class="pre">ci_low</span></code> / <code class="docutils literal notranslate"><span class="pre">ci_high</span></code>.</p></li>
+<li><p><strong>ci_method</strong> (<em>{'jackknife'</em><em>, </em><em>'chi2'}</em>)</p></li>
+<li><p><strong>nan_policy</strong> (<em>{'raise'</em><em>, </em><em>'omit'}</em>) – See the module notes on missing data.</p></li>
+<li><p><strong>segment_samples</strong> (<em>int</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">'omit'</span></code> only: the length every segment is cut to, default the longest finite
+run (of any series).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.multitaper_spectrogram">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spectral.</span></span><span class="sig-name descname"><span class="pre">multitaper_spectrogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_s</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step_s</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nfft</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">64</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spectral.multitaper_spectrogram" title="Link to this definition">#</a></dt>
+<dd><p>Multitaper spectrogram of <code class="docutils literal notranslate"><span class="pre">x</span></code> along its last axis.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">(times,</span> <span class="pre">freqs,</span> <span class="pre">power)</span></code> – <code class="docutils literal notranslate"><span class="pre">times</span></code> the window centres in seconds from the
+first sample, <code class="docutils literal notranslate"><span class="pre">power</span></code> of shape <code class="docutils literal notranslate"><span class="pre">(...,</span> <span class="pre">n_freqs,</span> <span class="pre">n_times)</span></code>, each column exactly
+<a class="reference internal" href="#brainmaze_eeg.spectral.multitaper_psd" title="brainmaze_eeg.spectral.multitaper_psd"><code class="xref py py-func docutils literal notranslate"><span class="pre">multitaper_psd()</span></code></a> of that window. A window holding any NaN/inf is NaN (missing),
+never estimated across the gap. Windows are processed <code class="docutils literal notranslate"><span class="pre">chunk</span></code> at a time to bound
+memory.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.normalize_spectrogram">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spectral.</span></span><span class="sig-name descname"><span class="pre">normalize_spectrogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">power</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'db'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">baseline</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#brainmaze_eeg.spectral.normalize_spectrogram" title="Link to this definition">#</a></dt>
+<dd><p>Express a spectrogram <code class="docutils literal notranslate"><span class="pre">(...,</span> <span class="pre">n_freqs,</span> <span class="pre">n_times)</span></code> for display.</p>
+<p><code class="docutils literal notranslate"><span class="pre">mode</span></code>: <code class="docutils literal notranslate"><span class="pre">'db'</span></code> – <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">log10(power)</span></code>; <code class="docutils literal notranslate"><span class="pre">'zscore'</span></code> – per frequency, against the
+mean and SD over <code class="docutils literal notranslate"><span class="pre">baseline</span></code> time bins (default all); <code class="docutils literal notranslate"><span class="pre">'baseline'</span></code> – dB change from
+the mean over <code class="docutils literal notranslate"><span class="pre">baseline</span></code> time bins. <code class="docutils literal notranslate"><span class="pre">baseline</span></code> is a boolean mask over time bins.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="brainmaze_eeg.spectral.two_spectrum_test">
+<span class="sig-prename descclassname"><span class="pre">brainmaze_eeg.spectral.</span></span><span class="sig-name descname"><span class="pre">two_spectrum_test</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#brainmaze_eeg.spectral.MultitaperSpectrum" title="brainmaze_eeg.spectral.MultitaperSpectrum"><span class="pre">MultitaperSpectrum</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#brainmaze_eeg.spectral.MultitaperSpectrum" title="brainmaze_eeg.spectral.MultitaperSpectrum"><span class="pre">MultitaperSpectrum</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'jackknife'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#brainmaze_eeg.spectral.two_spectrum_test" title="Link to this definition">#</a></dt>
+<dd><p>Are <code class="docutils literal notranslate"><span class="pre">a</span></code> and <code class="docutils literal notranslate"><span class="pre">b</span></code> estimates of the same spectrum? Frequency by frequency.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">(ratio,</span> <span class="pre">p)</span></code>: <code class="docutils literal notranslate"><span class="pre">a.psd</span> <span class="pre">/</span> <span class="pre">b.psd</span></code> and a two-sided p-value per frequency.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">method='jackknife'</span></code> (default): <code class="docutils literal notranslate"><span class="pre">ln(a)</span> <span class="pre">-</span> <span class="pre">ln(b)</span></code> over the jackknife standard
+error of both, against a t distribution with <code class="docutils literal notranslate"><span class="pre">K_a</span> <span class="pre">+</span> <span class="pre">K_b</span> <span class="pre">-</span> <span class="pre">2</span></code> degrees of freedom
+(in the spirit of Bokil et al., 2007). Robust to correlated eigenspectra.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">method='f'</span></code>: the ratio against <code class="docutils literal notranslate"><span class="pre">F(dof_a,</span> <span class="pre">dof_b)</span></code> – exact for independent
+eigenspectra of a locally flat spectrum, too liberal on steep ones (see the module
+notes).</p></li>
+</ul>
+<p>The frequency grids must match (same <code class="docutils literal notranslate"><span class="pre">fs</span></code> and <code class="docutils literal notranslate"><span class="pre">nfft</span></code>) and the two estimates should
+share <code class="docutils literal notranslate"><span class="pre">nw</span></code> and segment length, or one compares different resolutions. Neighbouring
+frequencies within the bandwidth are not independent – correct for multiple
+comparisons accordingly.</p>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="selection_stats.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Selection statistics</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="spikes.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Spike detectors</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multitaper-spectral-estimation">Multitaper spectral estimation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#assumptions-behind-the-intervals-and-the-test">Assumptions behind the intervals and the test</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#missing-data">Missing data</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.bandwidth"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.bandwidth</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.ci_high"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.ci_high</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.ci_low"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.ci_low</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.confidence"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.confidence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.dof"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.dof</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.freqs"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.freqs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.log_var"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.log_var</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.n_segments"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.n_segments</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.n_tapers"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.n_tapers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.nw"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.nw</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.MultitaperSpectrum.psd"><code class="docutils literal notranslate"><span class="pre">MultitaperSpectrum.psd</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.band_power"><code class="docutils literal notranslate"><span class="pre">band_power()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.multitaper_psd"><code class="docutils literal notranslate"><span class="pre">multitaper_psd()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.multitaper_spectrogram"><code class="docutils literal notranslate"><span class="pre">multitaper_spectrogram()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.normalize_spectrogram"><code class="docutils literal notranslate"><span class="pre">normalize_spectrogram()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#brainmaze_eeg.spectral.two_spectrum_test"><code class="docutils literal notranslate"><span class="pre">two_spectrum_test()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Filip Mivalt M.Sc., Ph.D.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2020-present, Mayo Clinic Department of Neurology - Laboratory of Bioelectronics Neurophysiology and Engineering. All rights reserved.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
